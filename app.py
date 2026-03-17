@@ -8,10 +8,14 @@ from __future__ import annotations
 import json
 import os
 import time
+import warnings
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from typing import Optional
+
+# Suppress Streamlit deprecation noise in logs
+warnings.filterwarnings("ignore", message=".*use_container_width.*")
 
 import pandas as pd
 import streamlit as st
@@ -197,23 +201,114 @@ st.markdown(DARK_CSS, unsafe_allow_html=True)
 
 def _init_state():
     defaults = {
-        "investigation": None,       # current active investigation
-        "oathnet_result": None,      # OathnetResult
-        "sherlock_result": None,     # SherlockResult
-        "cases": _load_cases(),      # list of saved case dicts
-        "active_case_id": None,      # str
-        "running": False,
-        "target": "",
-        "target_type": "Email",
-        "prefer_cli": False,
-        "debug_log": [],             # list of debug event dicts
+        "investigation":    None,
+        "oathnet_result":   None,
+        "sherlock_result":  None,
+        "cases":            _load_cases(),
+        "active_case_id":   None,
+        "running":          False,
+        "target":           "",
+        "target_type":      "Email",
+        "prefer_cli":       False,
+        "debug_log":        [],
+        "breach_page":      0,        # ← paginação de breaches
+        "discord_lookups":  {},       # ← cache discord_id → dados do perfil
+        "authenticated":    False,    # ← controle de senha
     }
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
 
 
-# ── Cases persistence ─────────────────────────────────────────────────────────
+
+# ── Password gate ─────────────────────────────────────────────────────────────
+
+def _check_password() -> bool:
+    """
+    Returns True if the user is authenticated.
+    If APP_PASSWORD is not set in secrets/env, auth is disabled (open access).
+    """
+    app_password = ""
+    if hasattr(st, "secrets"):
+        app_password = st.secrets.get("APP_PASSWORD", "")
+    if not app_password:
+        app_password = os.getenv("APP_PASSWORD", "")
+
+    # No password configured → open access
+    if not app_password:
+        return True
+
+    if st.session_state.authenticated:
+        return True
+
+    # Show login screen
+    st.markdown(
+        """
+        <div style="max-width:400px;margin:80px auto;text-align:center">
+          <div style="font-size:3rem">⬡</div>
+          <h2 style="color:#00d4ff;letter-spacing:.1em">NEXUSOSINT</h2>
+          <p style="color:#8b949e">Acesso restrito. Digite a senha para continuar.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    col = st.columns([1, 2, 1])[1]
+    with col:
+        pwd = st.text_input("🔑 Senha", type="password", label_visibility="collapsed",
+                            placeholder="Digite a senha de acesso...")
+        if st.button("Entrar", use_container_width=True):
+            if pwd == app_password:
+                st.session_state.authenticated = True
+                st.rerun()
+            else:
+                st.error("❌ Senha incorreta.")
+    return False
+
+
+# ── Discord inline lookup ─────────────────────────────────────────────────────
+
+def _render_discord_card(discord_id: str):
+    """Fetch and display a Discord profile inline, with result caching."""
+    if not discord_id:
+        return
+
+    cache = st.session_state.discord_lookups
+
+    if discord_id not in cache:
+        client = OathnetClient(api_key=OATHNET_API_KEY)
+        ok, data = client.discord_userinfo(discord_id)
+        cache[discord_id] = data if ok else {"error": data.get("error", "Lookup failed")}
+
+    info = cache[discord_id]
+
+    if "error" in info:
+        st.caption(f"⚠️ Discord lookup falhou: {info['error']}")
+        return
+
+    avatar = info.get("avatar_url", "")
+    uname  = info.get("username", "—")
+    gname  = info.get("global_name", "")
+    created = info.get("creation_date", "")
+    badges  = info.get("badges", [])
+
+    cols = st.columns([1, 4])
+    with cols[0]:
+        if avatar:
+            st.image(avatar, width=56)
+        else:
+            st.markdown('<div style="width:56px;height:56px;background:#30363d;border-radius:50%"></div>',
+                        unsafe_allow_html=True)
+    with cols[1]:
+        st.markdown(
+            f'**{gname or uname}** `@{uname}`  \n'
+            f'<span style="color:#8b949e;font-size:12px">ID: {discord_id}'
+            f'{" · " + created[:10] if created else ""}'
+            f'{" · 🏅 " + ", ".join(badges) if badges else ""}</span>',
+            unsafe_allow_html=True,
+        )
+
+
+
 
 def _load_cases() -> list[dict]:
     if CASES_FILE.exists():
@@ -671,18 +766,28 @@ def _render_tab_oathnet(oath: Optional[OathnetResult]):
     if not oath.breaches:
         st.markdown('<div class="alert-success">✅ Nenhum vazamento encontrado para este alvo.</div>', unsafe_allow_html=True)
     else:
-        # Build rows dynamically — include discord_id/phone columns only if any record has them
-        has_discord = any(b.discord_id for b in oath.breaches)
-        has_phone   = any(b.phone      for b in oath.breaches)
-        has_pass    = any(b.password   for b in oath.breaches)
+        # ── Pagination ────────────────────────────────────────────────────
+        PAGE_SIZE = 10
+        total     = len(oath.breaches)
+        max_page  = max(0, (total - 1) // PAGE_SIZE)
+        if st.session_state.breach_page > max_page:
+            st.session_state.breach_page = 0
+
+        page_start = st.session_state.breach_page * PAGE_SIZE
+        page_end   = min(page_start + PAGE_SIZE, total)
+        page_slice = oath.breaches[page_start:page_end]
+
+        st.caption(f"Mostrando {page_start + 1}–{page_end} de {total} registros"
+                   + (f" (total encontrado na API: {oath.results_found})" if oath.results_found > total else ""))
+
+        # ── Build table rows ──────────────────────────────────────────────
+        has_discord = any(b.discord_id for b in page_slice)
+        has_phone   = any(b.phone      for b in page_slice)
+        has_pass    = any(b.password   for b in page_slice)
 
         rows = []
-        for b in oath.breaches:
-            row = {
-                "DB / Fonte": b.dbname,
-                "Email":      b.email,
-                "Username":   b.username,
-            }
+        for b in page_slice:
+            row = {"DB / Fonte": b.dbname, "Email": b.email, "Username": b.username}
             if has_discord:
                 row["Discord ID"] = b.discord_id
             if has_phone:
@@ -692,15 +797,41 @@ def _render_tab_oathnet(oath: Optional[OathnetResult]):
             row["IP"]   = b.ip
             row["País"] = b.country
             row["Data"] = b.date[:10] if b.date else ""
-            # Append any extra fields captured
             for k, v in b.extra_fields.items():
                 row[k] = str(v)[:40]
             rows.append(row)
 
-        df = pd.DataFrame(rows)
-        st.dataframe(df, use_container_width=True, hide_index=True)
-        if oath.next_cursor:
-            st.caption(f"📄 Cursor próxima página: `{oath.next_cursor[:40]}...`")
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+        # ── Page controls ─────────────────────────────────────────────────
+        if max_page > 0:
+            pcol1, pcol2, pcol3 = st.columns([1, 3, 1])
+            with pcol1:
+                if st.button("◀ Anterior", disabled=st.session_state.breach_page == 0,
+                             use_container_width=True):
+                    st.session_state.breach_page -= 1
+                    st.rerun()
+            with pcol2:
+                st.markdown(
+                    f'<p style="text-align:center;color:#8b949e;margin:6px 0">Página '
+                    f'<b>{st.session_state.breach_page + 1}</b> de <b>{max_page + 1}</b></p>',
+                    unsafe_allow_html=True,
+                )
+            with pcol3:
+                if st.button("Próxima ▶", disabled=st.session_state.breach_page >= max_page,
+                             use_container_width=True):
+                    st.session_state.breach_page += 1
+                    st.rerun()
+
+        # ── Discord auto-lookup ───────────────────────────────────────────
+        discord_ids = list({b.discord_id for b in oath.breaches if b.discord_id})
+        if discord_ids:
+            st.markdown("---")
+            st.subheader("🎮 Perfis Discord Detectados")
+            st.caption(f"{len(discord_ids)} Discord ID(s) encontrado(s) nos vazamentos. Clique para carregar os perfis.")
+            for did in discord_ids[:5]:  # max 5 para não esgotar cota
+                with st.expander(f"Discord ID: {did}"):
+                    _render_discord_card(did)
 
     # ── Stealer logs ──────────────────────────────────────────────────────
     st.markdown("---")
@@ -1115,9 +1246,14 @@ def _render_tab_debug(oath: Optional[OathnetResult], sherl: Optional[SherlockRes
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    import re  # ensure re imported here for _render_tab_export
+    import re
 
     _init_state()
+
+    # ── Password gate ─────────────────────────────────────────────────────
+    if not _check_password():
+        return
+
     _render_header()
     _render_sidebar()
 
