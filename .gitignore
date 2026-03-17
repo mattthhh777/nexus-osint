@@ -1,0 +1,30 @@
+# Secrets — NUNCA sobe isso pro GitHub
+.env
+*.env
+.streamlit/secrets.toml
+
+# Cases salvos localmente (dados de investigação)
+cases.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Docker
+*.tar
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,29 @@
+version: "3.9"
+
+services:
+  nexus-osint:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nexus-osint
+    image: nexus-osint:latest
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    environment:
+      - OATHNET_API_KEY=${OATHNET_API_KEY:-3c97dd514ff02fc5235e479ea0b98249e810a95a2ee75e96f763d351361de3cd}
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+    volumes:
+      # Persist investigation cases outside the container
+      - nexus_cases:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  nexus_cases:
+    driver: local
