@@ -2412,9 +2412,27 @@ def _render_results_page(oath, sherl):
             with c_tbl:
                 st.caption(f"Mostrando {pg*PAGE+1}–{min(pg*PAGE+PAGE, total)} de {total}")
             with c_copy:
-                if st.button("📋 Copiar JSON", key="copy_breaches"):
-                    import json as _j
-                    st.code(_j.dumps([{k:str(v) for k,v in r.items()} for r in rows], ensure_ascii=False, indent=2)[:3000])
+                if st.button("📋 Copiar", key="copy_breaches"):
+                    inv_ts = st.session_state.investigation.get("timestamp","") if st.session_state.investigation else ""
+                    lines = []
+                    for b in oath.breaches:
+                        lines.append(f"=== INTELLIGENCE ===")
+                        lines.append(f"Found via     NexusOSINT")
+                        lines.append(f"Date:         {inv_ts}")
+                        lines.append(f"Database:     {b.dbname}")
+                        lines.append(f"Source:       Security Breach")
+                        if b.email:      lines.append(f"Email:        {b.email}")
+                        if b.username:   lines.append(f"Username:     {b.username}")
+                        if b.password:   lines.append(f"Password:     {b.password}")
+                        if b.ip:         lines.append(f"IP:           {b.ip}")
+                        if b.country:    lines.append(f"Country:      {b.country}")
+                        if b.date:       lines.append(f"Date leaked:  {b.date}")
+                        if b.discord_id: lines.append(f"Discord ID:   {b.discord_id}")
+                        if b.phone:      lines.append(f"Phone:        {b.phone}")
+                        for k, v in b.extra_fields.items():
+                            if v: lines.append(f"{k:<13} {v}")
+                        lines.append(f"=== END ===\n")
+                    st.code("\n".join(lines))
 
             st.dataframe(df, use_container_width=True, hide_index=True)
 
@@ -2447,10 +2465,21 @@ def _render_results_page(oath, sherl):
             st.markdown('<div class="alert-danger" style="margin:0 0 10px">Um dispositivo associado pode estar comprometido.</div>', unsafe_allow_html=True)
             c_tbl2, c_copy2 = st.columns([5,1])
             with c_copy2:
-                if st.button("📋 Copiar JSON", key="copy_stealer"):
-                    import json as _j2
-                    data_s = [{"url": s.url, "username": s.username, "domain": s.domain} for s in oath.stealers[:50]]
-                    st.code(_j2.dumps(data_s, ensure_ascii=False, indent=2)[:3000])
+                if st.button("📋 Copiar", key="copy_stealer"):
+                    inv_ts = st.session_state.investigation.get("timestamp","") if st.session_state.investigation else ""
+                    lines = []
+                    for s in oath.stealers:
+                        lines.append("=== STEALER LOG ===")
+                        lines.append(f"Found via     NexusOSINT")
+                        lines.append(f"Date:         {inv_ts}")
+                        lines.append(f"Log ID:       {s.log_id}")
+                        lines.append(f"URL:          {s.url}")
+                        if s.username: lines.append(f"Username:     {s.username}")
+                        if s.password: lines.append(f"Password:     {s.password}")
+                        if s.domain:   lines.append(f"Domain:       {', '.join(s.domain[:3])}")
+                        if s.pwned_at: lines.append(f"Pwned at:     {s.pwned_at[:10]}")
+                        lines.append("=== END ===\n")
+                    st.code("\n".join(lines))
             df_st = pd.DataFrame([{
                 "URL":     (s.url or "")[:55],
                 "Username": s.username,
@@ -2465,9 +2494,16 @@ def _render_results_page(oath, sherl):
         with st.expander(f"🌐 Redes Sociais — {n_social} perfis encontrados", expanded=True):
             c_s1, c_s2 = st.columns([5,1])
             with c_s2:
-                if st.button("📋 Copiar URLs", key="copy_social"):
-                    urls = "\n".join(p.url for p in sherl.found)
-                    st.code(urls)
+                if st.button("📋 Copiar", key="copy_social"):
+                    inv_ts = st.session_state.investigation.get("timestamp","") if st.session_state.investigation else ""
+                    lines = ["=== SOCIAL PROFILES ===", f"Found via     NexusOSINT", f"Date:         {inv_ts}", f"Total:        {sherl.found_count}", ""]
+                    for p in sherl.found:
+                        lines.append(f"Platform:     {p.platform}")
+                        lines.append(f"URL:          {p.url}")
+                        lines.append(f"Category:     {p.category}")
+                        lines.append("")
+                    lines.append("=== END ===")
+                    st.code("\n".join(lines))
             badges = "".join(
                 f'<a href="{p.url}" target="_blank" style="text-decoration:none">'
                 f'<span class="platform-found">{p.icon} {p.platform}</span></a>'
@@ -2487,7 +2523,12 @@ def _render_results_page(oath, sherl):
             c_h1, c_h2 = st.columns([5,1])
             with c_h2:
                 if st.button("📋 Copiar", key="copy_holehe"):
-                    st.code("\n".join(oath.holehe_domains))
+                    inv_ts = st.session_state.investigation.get("timestamp","") if st.session_state.investigation else ""
+                    lines = ["=== EMAIL INTELLIGENCE ===", f"Found via     NexusOSINT", f"Date:         {inv_ts}", f"Total:        {len(oath.holehe_domains)}", ""]
+                    for d in oath.holehe_domains:
+                        lines.append(f"Service:      {d}")
+                    lines.append("\n=== END ===")
+                    st.code("\n".join(lines))
 
     # ── Extras (IP, Discord, Gaming, Subdomains) ───────────────────────────
     if extra.get("ip_info", {}).get("ok"):
