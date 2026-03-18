@@ -709,18 +709,22 @@ def _render_sidebar():
 
             for key, label, desc in TOOLS:
                 is_active = active == key
-                border    = "border:1px solid #00d4ff;" if is_active else "border:1px solid #30363d;"
-                bg        = "background:#00d4ff18;" if is_active else "background:#161b22;"
-                # Botão customizado com markdown + st.button invisível
+                # Usa um único st.button estilizado por CSS injetado
+                btn_style = (
+                    "background:#00d4ff18;border:1px solid #00d4ff;color:#00d4ff;font-weight:700;"
+                    if is_active else
+                    "background:#161b22;border:1px solid #30363d;color:#e6edf3;"
+                )
+                # Injeta CSS inline para o próximo botão via wrapper
                 st.markdown(
-                    f'<div style="{bg}{border}border-radius:8px;padding:8px 12px;margin:4px 0;cursor:pointer">'
-                    f'<span style="color:#{"00d4ff" if is_active else "e6edf3"};font-weight:{"700" if is_active else "400"}">{label}</span>'
-                    f'<br><span style="color:#8b949e;font-size:.72rem">{desc}</span>'
-                    f'</div>',
+                    f'<style>'
+                    f'div[data-testid="stButton"]:has(button[kind="secondary"][data-testid*="{key}"]) button'
+                    f'{{  {btn_style} border-radius:8px; padding:8px 12px; width:100%; text-align:left; }}'
+                    f'</style>',
                     unsafe_allow_html=True,
                 )
-                if st.button(label, key=f"tool_btn_{key}", use_container_width=True,
-                             label_visibility="collapsed"):
+                if st.button(f"{label}\n{desc}", key=f"tool_btn_{key}",
+                             use_container_width=True):
                     st.session_state.sidebar_active_tool = key
                     st.rerun()
 
