@@ -1442,12 +1442,13 @@ def _render_tool_fullsearch():
             progress.progress(min(pct, 100), text=f"🔄 {label}...")
 
         # ── Conta quantos módulos rodarão ──────────────────────────────────
+        is_username_q = not is_email_q and not is_ip_q and not is_discord_q and not is_domain_q
         module_list = ["Breach", "Stealer"]
-        if is_email_q:   module_list += ["Holehe", "GHunt"]
-        if is_ip_q:      module_list += ["IP Info"]
-        if is_discord_q: module_list += ["Discord User", "Discord History"]
-        if is_domain_q:  module_list += ["Subdomínios"]
-        if not is_ip_q and not is_discord_q: module_list += ["Steam", "Xbox", "Roblox"]
+        if is_email_q:    module_list += ["Holehe", "GHunt"]
+        if is_ip_q:       module_list += ["IP Info"]
+        if is_discord_q:  module_list += ["Discord User", "Discord History"]
+        if is_domain_q:   module_list += ["Subdomínios"]
+        if is_username_q: module_list += ["Steam", "Xbox", "Roblox"]
         modules_total = len(module_list)
 
         # ── Breach ─────────────────────────────────────────────────────────
@@ -1525,8 +1526,9 @@ def _render_tool_fullsearch():
             except Exception as e:
                 results["subdomains"] = {"success": False, "error": str(e)}
 
-        # ── Gaming (se não for IP nem Discord) ────────────────────────────
-        if not is_ip_q and not is_discord_q:
+        # ── Gaming — só roda para username (não email, IP, Discord, domínio) ──
+        is_username_q = not is_email_q and not is_ip_q and not is_discord_q and not is_domain_q
+        if is_username_q:
             for platform, method in [("steam", client.steam_lookup),
                                       ("xbox",  client.xbox_lookup),
                                       ("roblox", lambda u: client.roblox_lookup(username=u))]:
@@ -2008,12 +2010,144 @@ def _render_tool_filesearch():
         st.markdown('<div class="alert-success">✅ Nenhum match encontrado.</div>', unsafe_allow_html=True)
 
 
+# ── Owner debug panel ─────────────────────────────────────────────────────────
+
+def _render_owner_debug():
+    """
+    Painel de debug visível APENAS para o dono do app.
+    Acesse via: https://seuapp.streamlit.app/?debug=owner
+    """
+    import platform as _platform
+    import sys
+
+    st.markdown("## 🔧 Owner Debug Panel")
+    st.caption("Visível apenas via `?debug=owner` na URL — não aparece para outros usuários.")
+    st.markdown("---")
+
+    # ── Status da API ──────────────────────────────────────────────────────
+    st.markdown("### 🔑 API Status")
+    key_display = OATHNET_API_KEY[:8] + "..." + OATHNET_API_KEY[-4:] if OATHNET_API_KEY else "❌ NÃO DEFINIDA"
+    st.code(f"OATHNET_API_KEY = {key_display}\nBASE_URL        = {OATHNET_BASE_URL}", language="bash")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🔌 Testar Conexão OathNet", key="dbg_test_conn"):
+            with st.spinner("Testando..."):
+                try:
+                    client = OathnetClient(api_key=OATHNET_API_KEY)
+                    ok, msg = client.validate_key()
+                    st.success(f"✅ {msg}") if ok else st.error(f"❌ {msg}")
+                except Exception as exc:
+                    st.error(f"❌ Exceção: {exc}")
+    with col2:
+        if st.button("📡 Ping HTTP Raw", key="dbg_ping"):
+            import requests as _req
+            try:
+                r = _req.get(OATHNET_BASE_URL, headers={"x-api-key": OATHNET_API_KEY}, timeout=8)
+                st.info(f"HTTP {r.status_code} · {len(r.content)} bytes · {r.elapsed.total_seconds():.2f}s")
+                with st.expander("Response Body"):
+                    st.code(r.text[:2000])
+            except Exception as exc:
+                st.error(f"❌ {exc}")
+
+    st.markdown("---")
+
+    # ── Debug log ──────────────────────────────────────────────────────────
+    st.markdown("### 📋 Log da Última Investigação")
+    logs = st.session_state.get("debug_log", [])
+    level_colors = {"OK": "#39d353", "INFO": "#00d4ff", "WARN": "#f0883e", "ERROR": "#f85149"}
+
+    if not logs:
+        st.info("Nenhum log. Execute uma investigação primeiro.")
+    else:
+        col_f, col_c = st.columns([3, 1])
+        with col_f:
+            show = st.multiselect("Níveis", ["OK","INFO","WARN","ERROR"],
+                                  default=["OK","INFO","WARN","ERROR"], key="dbg_levels")
+        with col_c:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("🗑️ Limpar", key="dbg_clear"):
+                st.session_state.debug_log = []
+                st.rerun()
+
+        filtered = [e for e in logs if e["level"] in show]
+        lines = []
+        for e in filtered:
+            color  = level_colors.get(e["level"], "#e6edf3")
+            detail = (f"<br><span style='color:#8b949e;font-size:.75rem;white-space:pre-wrap'>"
+                      f"{e['detail'][:500]}</span>") if e.get("detail") else ""
+            lines.append(
+                f'<div style="border-bottom:1px solid #30363d;padding:5px 0">'
+                f'<span style="color:#8b949e">{e["ts"]}</span> '
+                f'<span style="color:{color};font-weight:700">[{e["level"]}]</span> '
+                f'<span style="color:#00d4ff">[{e["module"]}]</span> '
+                f'<span style="color:#e6edf3">{e["msg"]}</span>{detail}</div>'
+            )
+        st.markdown(
+            '<div style="background:#0d1117;border:1px solid #30363d;border-radius:6px;'
+            'padding:12px;font-family:monospace;font-size:.8rem;max-height:400px;overflow-y:auto">'
+            + "\n".join(lines) + "</div>", unsafe_allow_html=True,
+        )
+        log_txt = "\n".join(
+            f"[{e['ts']}][{e['level']}][{e['module']}] {e['msg']}" +
+            (f"\n  {e['detail']}" if e.get("detail") else "")
+            for e in logs
+        )
+        st.download_button("⬇️ Exportar log .txt", data=log_txt,
+                           file_name=f"nexus_debug_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                           key="dbg_download")
+
+    st.markdown("---")
+
+    # ── OathNet raw response ───────────────────────────────────────────────
+    oath = st.session_state.get("oathnet_result")
+    if oath:
+        st.markdown("### 💥 OathNet Raw Response")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("success",       str(oath.success))
+        c2.metric("breach_count",  oath.breach_count)
+        c3.metric("stealer_count", oath.stealer_count)
+        if oath.error:
+            st.error(f"Erro: {oath.error}")
+        with st.expander("raw_response JSON"):
+            st.json(oath.raw_response or {})
+        st.markdown("---")
+
+    # ── Session state ──────────────────────────────────────────────────────
+    st.markdown("### 🧠 Session State")
+    safe = {k: v for k, v in st.session_state.items()
+            if k not in ("oathnet_result","sherlock_result","tool_fullsearch_result")}
+    st.json(safe, expanded=False)
+    st.markdown("---")
+
+    # ── Ambiente ───────────────────────────────────────────────────────────
+    st.markdown("### ⚙️ Ambiente")
+    st.json({
+        "python":      sys.version,
+        "platform":    _platform.platform(),
+        "streamlit":   st.__version__,
+        "api_key_set": bool(OATHNET_API_KEY),
+        "debug_mode":  DEBUG_MODE,
+        "base_url":    OATHNET_BASE_URL,
+    })
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
     import re
 
     _init_state()
+
+    # ── Owner debug panel via URL param ?debug=owner ──────────────────────
+    try:
+        params = st.query_params
+        if params.get("debug") == "owner":
+            _render_header()
+            _render_owner_debug()
+            return
+    except Exception:
+        pass
 
     if not _check_password():
         return
