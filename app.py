@@ -50,13 +50,18 @@ st.set_page_config(
     page_title="NexusOSINT",
     page_icon="🔍",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 # ── Dark-mode theme injection ─────────────────────────────────────────────────
 
 DARK_CSS = """
 <style>
+    /* ── Esconde sidebar completamente ── */
+    [data-testid="stSidebar"] { display: none !important; }
+    [data-testid="collapsedControl"] { display: none !important; }
+    .stMainBlockContainer { max-width: 100% !important; padding: 0 2rem !important; }
+
     /* ── Global ── */
     :root {
         --bg-primary:    #0d1117;
@@ -2044,7 +2049,7 @@ def main():
         return
 
     _render_header()
-    _render_sidebar()
+    # Sidebar removida — layout full-page
 
     oath: Optional[OathnetResult]   = st.session_state.oathnet_result
     sherl: Optional[SherlockResult] = st.session_state.sherlock_result
@@ -2359,6 +2364,31 @@ def _render_welcome():
     # ── Executar busca ─────────────────────────────────────────────────────
     if search_clicked and query.strip():
         _run_hub_search(query.strip(), active_cat, active_mods, mode)
+
+    # ── Histórico de casos (abaixo do hub) ────────────────────────────────
+    if st.session_state.cases:
+        st.markdown("---")
+        col_h, col_c = st.columns([4, 1])
+        with col_h:
+            st.markdown("**📋 Histórico de Buscas Recentes**")
+        with col_c:
+            if st.button("🗑️ Limpar", key="clear_hist_hub"):
+                st.session_state.cases = []
+                CASES_FILE.unlink(missing_ok=True)
+                st.rerun()
+
+        cols = st.columns(4)
+        for i, case in enumerate(st.session_state.cases[:8]):
+            label_r, color = _risk_label(case["risk_score"])
+            badge = "🔴" if label_r == "CRÍTICO" else "🟠" if label_r == "ALTO" else "🟡" if label_r == "MÉDIO" else "🟢"
+            with cols[i % 4]:
+                st.markdown(
+                    f'<div class="case-card" style="margin:4px 0">'
+                    f'<div class="case-target">{badge} {case["target"]}</div>'
+                    f'<div class="case-meta">{case["target_type"]} · Risk {case["risk_score"]}<br>{case["timestamp"][:16]}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
 
     st.markdown('</div>', unsafe_allow_html=True)  # hub-wrap
 
