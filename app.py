@@ -613,15 +613,7 @@ def _build_export_excel() -> bytes:
 # ── UI Sections ───────────────────────────────────────────────────────────────
 
 def _render_header():
-    st.markdown(
-        """
-        <div class="nexus-header">
-            <div class="nexus-title">⬡ NEXUSOSINT</div>
-            <div class="nexus-sub">INTELLIGENCE GATHERING PLATFORM · v{v}</div>
-        </div>
-        """.format(v=APP_VERSION),
-        unsafe_allow_html=True,
-    )
+    pass  # Header integrado no hub - sem barra separada
 
 
 def _render_sidebar():
@@ -2145,8 +2137,6 @@ def _render_hub_extras():
 
 
 def _render_welcome():
-    """Hub de pesquisa central."""
-
     CATEGORIES = {
         "Data Leaks":         {"icon": "🛡️", "modules": {"breaches": ("🔓","Breaches"), "stealer": ("📋","Stealer Logs")}},
         "Social & Gaming":    {"icon": "🎮", "modules": {"sherlock": ("🌐","Sherlock"), "discord": ("💬","Discord"), "steam": ("🎮","Steam"), "xbox": ("🕹️","Xbox"), "roblox": ("🧱","Roblox")}},
@@ -2154,81 +2144,76 @@ def _render_welcome():
         "Network":            {"icon": "🌐", "modules": {"ip_info": ("📍","IP Info"), "subdomain": ("🔗","Subdomínios")}},
     }
 
-    # CSS: estiliza os botões de categoria/módulo como pills compactas
     st.markdown("""<style>
-    .hub-center { max-width:680px; margin:0 auto; padding:0 8px 24px; }
-    .hub-title  { text-align:center; padding:20px 0 24px; }
-    .hub-title h1 { font-size:1.9rem; font-weight:900; color:#e6edf3; margin:0 0 4px; letter-spacing:.04em; }
-    .hub-title p  { color:#8b949e; font-size:.85rem; margin:0; }
-    .hub-meta { display:flex; gap:16px; color:#8b949e; font-size:.74rem; margin-top:6px; }
-    /* Transforma os botões de categoria em pills arredondadas */
-    div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button {
+    /* ── Hub layout ── */
+    .hub { max-width:640px; margin:0 auto; padding:0 8px 32px; }
+    .hub h1 { text-align:center; font-size:1.8rem; font-weight:900;
+              color:#e6edf3; letter-spacing:.04em; margin:24px 0 4px; }
+    .hub-sub { text-align:center; color:#8b949e; font-size:.84rem; margin:0 0 22px; }
+    .hub-meta { display:flex; gap:16px; color:#8b949e; font-size:.74rem;
+                margin-top:4px; align-items:center; flex-wrap:wrap; }
+    /* Compact pill-style buttons for categories */
+    div.cat-row div[data-testid="stButton"] button {
         border-radius: 999px !important;
-        padding: 5px 14px !important;
+        padding: 4px 14px !important;
         font-size: .78rem !important;
         min-height: 0 !important;
-        height: auto !important;
-        line-height: 1.4 !important;
-        width: auto !important;
+        height: 32px !important;
+        line-height: 1 !important;
     }
+    /* Compact buttons for modules */
+    div.mod-row div[data-testid="stButton"] button {
+        border-radius: 8px !important;
+        padding: 4px 12px !important;
+        font-size: .76rem !important;
+        min-height: 0 !important;
+        height: 30px !important;
+    }
+    /* Fix radio horizontal gap */
+    div[data-testid="stRadio"] > div { flex-direction: row !important; gap: 16px !important; }
+    div[data-testid="stRadio"] label { margin:0 !important; }
     </style>""", unsafe_allow_html=True)
 
-    st.markdown(
-        '<div class="hub-center">'
-        '<div class="hub-title">'
-        '<h1>⬡ NexusOSINT</h1>'
-        '<p>Plataforma de investigação OSINT · OathNet + Sherlock</p>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown('<div class="hub">', unsafe_allow_html=True)
+    st.markdown('<h1>⬡ NexusOSINT</h1><p class="hub-sub">Plataforma de investigação OSINT · OathNet + Sherlock</p>', unsafe_allow_html=True)
 
-    # ── Barra de busca
-    c1, c2 = st.columns([6, 1])
+    # ── Input + botão Search
+    c1, c2 = st.columns([5, 1])
     with c1:
-        query = st.text_input(
-            "Buscar",
-            placeholder="username · email · IP · Discord ID · domínio…",
-            key="hub_query_input",
-            label_visibility="collapsed",
-        )
+        query = st.text_input("Buscar", placeholder="username · email · IP · Discord ID · domínio…",
+                              key="hub_query_input", label_visibility="collapsed")
     with c2:
-        search_clicked = st.button("Search →", key="hub_search_btn",
-                                   type="primary", use_container_width=True)
+        search_clicked = st.button("Search →", key="hub_search_btn", type="primary", use_container_width=True)
 
-    # ── Automated / Manual + info
+    # ── Modo + badge info
     cm, ci = st.columns([2, 5])
     with cm:
-        mode = st.radio("Modo", ["Automated", "Manual"],
-                        horizontal=True, key="hub_mode", label_visibility="collapsed")
+        mode = st.radio("Modo", ["Automated", "Manual"], horizontal=True,
+                        key="hub_mode", label_visibility="collapsed")
     with ci:
-        st.markdown(
-            '<div class="hub-meta"><span>📦 Bulk</span><span>🛡 Secure</span><span>📊 15+ Sources</span></div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown('<div class="hub-meta"><span>📦 Bulk</span><span>🛡 Secure</span><span>📊 15+ Sources</span></div>',
+                    unsafe_allow_html=True)
 
     active_cat  = st.session_state.get("hub_active_cat", "Data Leaks")
-    active_mods = st.session_state.get("hub_active_mods", {"breaches","stealer"})
+    active_mods = st.session_state.get("hub_active_mods", {"breaches", "stealer"})
 
-    # ── Categorias: botões nativos estilizados como pills
-    st.markdown("<div style='margin-top:6px'>", unsafe_allow_html=True)
+    # ── Categorias como pills compactas
+    st.markdown('<div class="cat-row" style="margin-top:8px">', unsafe_allow_html=True)
     cat_cols = st.columns(len(CATEGORIES))
     for i, (cat_name, cat_data) in enumerate(CATEGORIES.items()):
         with cat_cols[i]:
-            is_active = cat_name == active_cat
-            if st.button(
-                f"{cat_data['icon']} {cat_name}",
-                key=f"hub_cat_{cat_name}",
-                type="primary" if is_active else "secondary",
-            ):
+            if st.button(f"{cat_data['icon']} {cat_name}", key=f"hub_cat_{cat_name}",
+                         type="primary" if cat_name == active_cat else "secondary",
+                         use_container_width=True):
                 st.session_state.hub_active_cat  = cat_name
                 st.session_state.hub_active_mods = set(cat_data["modules"].keys())
                 st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Módulos da categoria
+    # ── Módulos
     cat_modules = CATEGORIES[active_cat]["modules"]
     if mode == "Manual":
-        st.markdown("<div style='margin-top:4px'>", unsafe_allow_html=True)
+        st.markdown('<div class="mod-row" style="margin-top:4px">', unsafe_allow_html=True)
         mod_cols = st.columns(min(len(cat_modules), 6))
         for i, (mk, (icon, lbl)) in enumerate(cat_modules.items()):
             with mod_cols[i]:
@@ -2239,19 +2224,16 @@ def _render_welcome():
                     mods.discard(mk) if mk in mods else mods.add(mk)
                     st.session_state.hub_active_mods = mods
                     st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
     else:
-        # Automated: só texto, sem botões clicáveis
-        mods_text = "  ·  ".join(f"{icon} {lbl}" for _, (icon, lbl) in cat_modules.items())
-        st.caption(f"Módulos: {mods_text}")
+        mods_str = "  ·  ".join(f"{icon} {lbl}" for _, (icon, lbl) in cat_modules.items())
+        st.caption(f"Módulos: {mods_str}")
 
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)  # hub
 
-    # ── Executar busca
     if search_clicked and query.strip():
         _run_hub_search(query.strip(), active_cat, active_mods, mode)
 
-    # ── Histórico
     if st.session_state.cases:
         st.markdown("---")
         ch, cc = st.columns([5, 1])
