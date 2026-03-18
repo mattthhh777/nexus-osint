@@ -2056,37 +2056,28 @@ def main():
 
     # ── Abas sempre visíveis ──────────────────────────────────────────────
     tab_labels = ["🔍 Buscar", "📊 Resultados", "💥 Vazamentos",
-                  "🌐 Redes Sociais", "🛠️ Ferramentas", "📤 Exportar"]
+                  "🌐 Redes Sociais", "📤 Exportar"]
     if DEBUG_MODE:
         tab_labels.append("🔧 Debug")
 
     tabs = st.tabs(tab_labels)
 
     with tabs[0]:
-        # Hub de busca sempre visível na primeira aba
         _render_welcome()
-
     with tabs[1]:
         if not st.session_state.investigation:
             st.markdown('<div class="alert-info">ℹ️ Faça uma busca na aba <b>🔍 Buscar</b> para ver os resultados aqui.</div>', unsafe_allow_html=True)
         else:
             _render_tab_summary(oath, sherl)
             _render_hub_extras()
-
     with tabs[2]:
         _render_tab_oathnet(oath)
-
     with tabs[3]:
         _render_tab_sherlock(sherl)
-
     with tabs[4]:
-        _render_tab_tools()
-
-    with tabs[5]:
         _render_tab_export(oath, sherl)
-
     if DEBUG_MODE:
-        with tabs[6]:
+        with tabs[5]:
             _render_tab_debug(oath, sherl)
 
 
@@ -2154,7 +2145,7 @@ def _render_hub_extras():
 
 
 def _render_welcome():
-    """Hub de pesquisa central — layout limpo sem sidebar."""
+    """Hub de pesquisa central."""
 
     CATEGORIES = {
         "Data Leaks":         {"icon": "🛡️", "modules": {"breaches": ("🔓","Breaches"), "stealer": ("📋","Stealer Logs")}},
@@ -2163,37 +2154,27 @@ def _render_welcome():
         "Network":            {"icon": "🌐", "modules": {"ip_info": ("📍","IP Info"), "subdomain": ("🔗","Subdomínios")}},
     }
 
-    # ── CSS hub ────────────────────────────────────────────────────────────
+    # CSS: estiliza os botões de categoria/módulo como pills compactas
     st.markdown("""<style>
-    .hub { max-width:760px; margin:20px auto; }
-    .hub-title { text-align:center; padding:12px 0 24px; }
-    .hub-title h1 { font-size:2rem; font-weight:900; color:#e6edf3; margin:0; letter-spacing:.04em; }
-    .hub-title p  { color:#8b949e; font-size:.88rem; margin:4px 0 0; }
-    .hub-card {
-        background:#161b22; border:1px solid #30363d; border-radius:14px;
-        padding:18px 20px 14px; margin-bottom:12px;
-        box-shadow:0 4px 20px rgba(0,0,0,.35);
+    .hub-center { max-width:680px; margin:0 auto; padding:0 8px 24px; }
+    .hub-title  { text-align:center; padding:20px 0 24px; }
+    .hub-title h1 { font-size:1.9rem; font-weight:900; color:#e6edf3; margin:0 0 4px; letter-spacing:.04em; }
+    .hub-title p  { color:#8b949e; font-size:.85rem; margin:0; }
+    .hub-meta { display:flex; gap:16px; color:#8b949e; font-size:.74rem; margin-top:6px; }
+    /* Transforma os botões de categoria em pills arredondadas */
+    div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button {
+        border-radius: 999px !important;
+        padding: 5px 14px !important;
+        font-size: .78rem !important;
+        min-height: 0 !important;
+        height: auto !important;
+        line-height: 1.4 !important;
+        width: auto !important;
     }
-    .hub-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
-    .hub-meta { display:flex; gap:20px; color:#8b949e; font-size:.76rem; padding-top:2px; }
-    .hub-meta span { display:flex; align-items:center; gap:5px; }
-    .chip {
-        display:inline-flex; align-items:center; gap:5px;
-        padding:5px 12px; border-radius:999px; font-size:.78rem;
-        border:1px solid #30363d; background:rgba(255,255,255,.03);
-        color:#8b949e; cursor:pointer; margin:3px 2px;
-        transition:all .15s; user-select:none;
-    }
-    .chip.cat-active { background:rgba(0,212,255,.1); border-color:#00d4ff; color:#00d4ff; font-weight:600; }
-    .chip.mod-active { background:rgba(139,92,246,.15); border-color:#7c3aed; color:#c4b5fd; }
-    .chip.mod-info   { background:rgba(0,212,255,.06); border-color:#30363d; color:#8b949e; cursor:default; }
-    /* Esconde label do text_input */
-    div[data-testid="stTextInput"] label { display:none !important; }
-    div[data-testid="stTextInput"] { margin:0; }
     </style>""", unsafe_allow_html=True)
 
     st.markdown(
-        '<div class="hub">'
+        '<div class="hub-center">'
         '<div class="hub-title">'
         '<h1>⬡ NexusOSINT</h1>'
         '<p>Plataforma de investigação OSINT · OathNet + Sherlock</p>'
@@ -2201,84 +2182,76 @@ def _render_welcome():
         unsafe_allow_html=True,
     )
 
-    st.markdown('<div class="hub-card">', unsafe_allow_html=True)
-
-    # ── Barra de busca (1 coluna larga + botão) ────────────────────────────
+    # ── Barra de busca
     c1, c2 = st.columns([6, 1])
     with c1:
         query = st.text_input(
-            "q",
-            placeholder="username · email · IP · Discord ID · domínio · telefone…",
+            "Buscar",
+            placeholder="username · email · IP · Discord ID · domínio…",
             key="hub_query_input",
+            label_visibility="collapsed",
         )
     with c2:
-        st.markdown("<div style='padding-top:2px'>", unsafe_allow_html=True)
-        search_clicked = st.button("Search →", key="hub_search_btn", type="primary", use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+        search_clicked = st.button("Search →", key="hub_search_btn",
+                                   type="primary", use_container_width=True)
 
-    # ── Modo + info ────────────────────────────────────────────────────────
-    col_m, col_i = st.columns([2, 5])
-    with col_m:
+    # ── Automated / Manual + info
+    cm, ci = st.columns([2, 5])
+    with cm:
         mode = st.radio("Modo", ["Automated", "Manual"],
                         horizontal=True, key="hub_mode", label_visibility="collapsed")
-    with col_i:
+    with ci:
         st.markdown(
-            '<div class="hub-meta" style="padding-top:8px">'
-            '<span>📦 Bulk Search</span>'
-            '<span>🛡 Secure</span>'
-            '<span>📊 15+ Sources</span>'
-            '</div>',
+            '<div class="hub-meta"><span>📦 Bulk</span><span>🛡 Secure</span><span>📊 15+ Sources</span></div>',
             unsafe_allow_html=True,
         )
 
-    # ── Categoria chips ────────────────────────────────────────────────────
     active_cat  = st.session_state.get("hub_active_cat", "Data Leaks")
     active_mods = st.session_state.get("hub_active_mods", {"breaches","stealer"})
 
-    # Renderiza cats como botões compactos em linha
+    # ── Categorias: botões nativos estilizados como pills
+    st.markdown("<div style='margin-top:6px'>", unsafe_allow_html=True)
     cat_cols = st.columns(len(CATEGORIES))
     for i, (cat_name, cat_data) in enumerate(CATEGORIES.items()):
         with cat_cols[i]:
+            is_active = cat_name == active_cat
             if st.button(
                 f"{cat_data['icon']} {cat_name}",
                 key=f"hub_cat_{cat_name}",
-                type="primary" if active_cat == cat_name else "secondary",
+                type="primary" if is_active else "secondary",
             ):
                 st.session_state.hub_active_cat  = cat_name
                 st.session_state.hub_active_mods = set(cat_data["modules"].keys())
                 st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    # ── Módulos da categoria ───────────────────────────────────────────────
+    # ── Módulos da categoria
     cat_modules = CATEGORIES[active_cat]["modules"]
     if mode == "Manual":
-        mod_cols = st.columns(len(cat_modules))
-        for i, (mod_key, (icon, label)) in enumerate(cat_modules.items()):
+        st.markdown("<div style='margin-top:4px'>", unsafe_allow_html=True)
+        mod_cols = st.columns(min(len(cat_modules), 6))
+        for i, (mk, (icon, lbl)) in enumerate(cat_modules.items()):
             with mod_cols[i]:
-                is_sel = mod_key in active_mods
-                if st.button(
-                    f"{icon} {label}",
-                    key=f"hub_mod_{mod_key}",
-                    type="primary" if is_sel else "secondary",
-                ):
+                sel = mk in active_mods
+                if st.button(f"{icon} {lbl}", key=f"hub_mod_{mk}",
+                             type="primary" if sel else "secondary"):
                     mods = set(active_mods)
-                    mods.discard(mod_key) if mod_key in mods else mods.add(mod_key)
+                    mods.discard(mk) if mk in mods else mods.add(mk)
                     st.session_state.hub_active_mods = mods
                     st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
     else:
-        # Automated: mostra chips informativos (não clicáveis)
-        chips = "".join(
-            f'<span class="chip mod-info">{icon} {label}</span>'
-            for mod_key, (icon, label) in cat_modules.items()
-        )
-        st.markdown(f'<div style="margin-top:6px">{chips}</div>', unsafe_allow_html=True)
+        # Automated: só texto, sem botões clicáveis
+        mods_text = "  ·  ".join(f"{icon} {lbl}" for _, (icon, lbl) in cat_modules.items())
+        st.caption(f"Módulos: {mods_text}")
 
-    st.markdown('</div>', unsafe_allow_html=True)  # hub-card
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Executar busca ─────────────────────────────────────────────────────
+    # ── Executar busca
     if search_clicked and query.strip():
         _run_hub_search(query.strip(), active_cat, active_mods, mode)
 
-    # ── Histórico ──────────────────────────────────────────────────────────
+    # ── Histórico
     if st.session_state.cases:
         st.markdown("---")
         ch, cc = st.columns([5, 1])
@@ -2289,21 +2262,16 @@ def _render_welcome():
                 st.session_state.cases = []
                 CASES_FILE.unlink(missing_ok=True)
                 st.rerun()
-
         gcols = st.columns(4)
         for i, case in enumerate(st.session_state.cases[:8]):
             lbl, _ = _risk_label(case["risk_score"])
             badge = "🔴" if lbl=="CRÍTICO" else "🟠" if lbl=="ALTO" else "🟡" if lbl=="MÉDIO" else "🟢"
             with gcols[i % 4]:
                 st.markdown(
-                    f'<div class="case-card">'
-                    f'<div class="case-target">{badge} {case["target"]}</div>'
-                    f'<div class="case-meta">{case["target_type"]} · Risk {case["risk_score"]}<br>{case["timestamp"][:16]}</div>'
-                    f'</div>',
+                    f'<div class="case-card"><div class="case-target">{badge} {case["target"]}</div>'
+                    f'<div class="case-meta">{case["target_type"]} · Risk {case["risk_score"]} · {case["timestamp"][:16]}</div></div>',
                     unsafe_allow_html=True,
                 )
-
-    st.markdown('</div>', unsafe_allow_html=True)  # hub
 
 
 def _run_hub_search(query: str, category: str, selected_mods: set, mode: str):
