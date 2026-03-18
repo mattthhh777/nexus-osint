@@ -2154,243 +2154,156 @@ def _render_hub_extras():
 
 
 def _render_welcome():
-    """
-    Hub de pesquisa central estilo OathNet.
-    Barra de busca + categorias + módulos selecionáveis.
-    """
-    import re as _re
+    """Hub de pesquisa central — layout limpo sem sidebar."""
 
-    # ── CSS extra para o hub ───────────────────────────────────────────────
-    st.markdown("""
-    <style>
-    .hub-wrap {
-        max-width: 820px; margin: 32px auto 0; padding: 0 8px;
+    CATEGORIES = {
+        "Data Leaks":         {"icon": "🛡️", "modules": {"breaches": ("🔓","Breaches"), "stealer": ("📋","Stealer Logs")}},
+        "Social & Gaming":    {"icon": "🎮", "modules": {"sherlock": ("🌐","Sherlock"), "discord": ("💬","Discord"), "steam": ("🎮","Steam"), "xbox": ("🕹️","Xbox"), "roblox": ("🧱","Roblox")}},
+        "Email Intelligence": {"icon": "📧", "modules": {"holehe": ("📨","Holehe"), "ghunt": ("🔍","GHunt")}},
+        "Network":            {"icon": "🌐", "modules": {"ip_info": ("📍","IP Info"), "subdomain": ("🔗","Subdomínios")}},
     }
-    .hub-search-box {
-        background: #161b22;
-        border: 1px solid #30363d;
-        border-radius: 14px;
-        padding: 20px 24px 18px;
-        margin-bottom: 18px;
-        box-shadow: 0 8px 32px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.03) inset;
-        transition: border-color .2s;
-    }
-    .hub-search-box:hover { border-color: #00d4ff44; }
-    .hub-cat-row {
-        display: flex; gap: 8px; flex-wrap: wrap;
-        margin: 12px 0 6px;
-    }
-    .hub-cat {
-        display: inline-flex; align-items: center; gap: 6px;
-        padding: 6px 14px; border-radius: 999px; cursor: pointer;
-        border: 1px solid #30363d; background: rgba(255,255,255,.03);
-        color: #8b949e; font-size: .83rem; transition: all .15s;
-        user-select: none;
-    }
-    .hub-cat:hover { border-color: #00d4ff66; color: #e6edf3; }
-    .hub-cat.active { background: rgba(0,212,255,.12); border-color: #00d4ff; color: #00d4ff; font-weight: 600; }
-    .hub-mod-row {
-        display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 2px;
-    }
-    .hub-mod {
-        display: inline-flex; align-items: center; gap: 5px;
-        padding: 5px 12px; border-radius: 8px; cursor: pointer;
-        border: 1px solid #30363d; background: rgba(255,255,255,.02);
-        color: #8b949e; font-size: .78rem; transition: all .15s;
-        user-select: none;
-    }
-    .hub-mod:hover { border-color: #8b949e; color: #e6edf3; }
-    .hub-mod.active { background: rgba(139,92,246,.15); border-color: #7c3aed; color: #c4b5fd; }
-    .hub-footer {
-        display: flex; align-items: center; gap: 18px;
-        margin-top: 14px; color: #8b949e; font-size: .78rem;
-    }
-    .hub-footer span { display:flex; align-items:center; gap:5px; }
-    .hub-stats {
-        display: grid; grid-template-columns: repeat(3,1fr); gap: 12px;
-        margin: 20px 0 0;
-    }
-    .hub-stat {
-        background: #161b22; border: 1px solid #30363d; border-radius: 10px;
-        padding: 14px 16px; text-align: center;
-    }
-    .hub-stat-n { font-size: 1.4rem; font-weight: 800; color: #00d4ff; }
-    .hub-stat-l { font-size: .72rem; color: #8b949e; margin-top: 2px; }
-    </style>
-    """, unsafe_allow_html=True)
 
-    # ── Título ─────────────────────────────────────────────────────────────
+    # ── CSS hub ────────────────────────────────────────────────────────────
+    st.markdown("""<style>
+    .hub { max-width:760px; margin:20px auto; }
+    .hub-title { text-align:center; padding:12px 0 24px; }
+    .hub-title h1 { font-size:2rem; font-weight:900; color:#e6edf3; margin:0; letter-spacing:.04em; }
+    .hub-title p  { color:#8b949e; font-size:.88rem; margin:4px 0 0; }
+    .hub-card {
+        background:#161b22; border:1px solid #30363d; border-radius:14px;
+        padding:18px 20px 14px; margin-bottom:12px;
+        box-shadow:0 4px 20px rgba(0,0,0,.35);
+    }
+    .hub-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+    .hub-meta { display:flex; gap:20px; color:#8b949e; font-size:.76rem; padding-top:2px; }
+    .hub-meta span { display:flex; align-items:center; gap:5px; }
+    .chip {
+        display:inline-flex; align-items:center; gap:5px;
+        padding:5px 12px; border-radius:999px; font-size:.78rem;
+        border:1px solid #30363d; background:rgba(255,255,255,.03);
+        color:#8b949e; cursor:pointer; margin:3px 2px;
+        transition:all .15s; user-select:none;
+    }
+    .chip.cat-active { background:rgba(0,212,255,.1); border-color:#00d4ff; color:#00d4ff; font-weight:600; }
+    .chip.mod-active { background:rgba(139,92,246,.15); border-color:#7c3aed; color:#c4b5fd; }
+    .chip.mod-info   { background:rgba(0,212,255,.06); border-color:#30363d; color:#8b949e; cursor:default; }
+    /* Esconde label do text_input */
+    div[data-testid="stTextInput"] label { display:none !important; }
+    div[data-testid="stTextInput"] { margin:0; }
+    </style>""", unsafe_allow_html=True)
+
     st.markdown(
-        '<div style="text-align:center;padding:8px 0 20px">'
-        '<span style="font-size:2.2rem;font-weight:900;color:#e6edf3;letter-spacing:.06em">⬡ NexusOSINT</span><br>'
-        '<span style="color:#8b949e;font-size:.9rem">Plataforma de investigação OSINT · Powered by OathNet + Sherlock</span>'
+        '<div class="hub">'
+        '<div class="hub-title">'
+        '<h1>⬡ NexusOSINT</h1>'
+        '<p>Plataforma de investigação OSINT · OathNet + Sherlock</p>'
         '</div>',
         unsafe_allow_html=True,
     )
 
-    # ── Categorias e módulos disponíveis ───────────────────────────────────
-    CATEGORIES = {
-        "Data Leaks": {
-            "icon": "🛡️",
-            "color": "#f85149",
-            "modules": {
-                "breaches":  ("🔓", "Breaches",    "Banco de dados vazados"),
-                "stealer":   ("📋", "Stealer Logs", "Credenciais de malware"),
-            }
-        },
-        "Social & Gaming": {
-            "icon": "🎮",
-            "color": "#a78bfa",
-            "modules": {
-                "sherlock":  ("🌐", "Sherlock",    "25+ redes sociais"),
-                "discord":   ("💬", "Discord",     "Perfil + histórico"),
-                "steam":     ("🎮", "Steam",       "Perfil Steam"),
-                "xbox":      ("🕹️", "Xbox",        "Perfil Xbox"),
-                "roblox":    ("🧱", "Roblox",      "Perfil Roblox"),
-            }
-        },
-        "Email Intelligence": {
-            "icon": "📧",
-            "color": "#39d353",
-            "modules": {
-                "holehe":    ("📨", "Holehe",      "Serviços cadastrados"),
-                "ghunt":     ("🔍", "GHunt",       "Conta Google"),
-            }
-        },
-        "Network": {
-            "icon": "🌐",
-            "color": "#00d4ff",
-            "modules": {
-                "ip_info":   ("📍", "IP Info",     "Geolocalização e rede"),
-                "subdomain": ("🔗", "Subdomínios", "Enumeração de subdomínios"),
-            }
-        },
-    }
+    st.markdown('<div class="hub-card">', unsafe_allow_html=True)
 
-    # ── Session state para hub ─────────────────────────────────────────────
-    if "hub_active_cat" not in st.session_state:
-        st.session_state.hub_active_cat = "Data Leaks"
-    if "hub_active_mods" not in st.session_state:
-        # Por padrão, todos os módulos da categoria ativa marcados
-        st.session_state.hub_active_mods = set(CATEGORIES["Data Leaks"]["modules"].keys())
-    if "hub_query" not in st.session_state:
-        st.session_state.hub_query = ""
-
-    st.markdown('<div class="hub-wrap">', unsafe_allow_html=True)
-
-    # ── Barra de busca ─────────────────────────────────────────────────────
-    st.markdown('<div class="hub-search-box">', unsafe_allow_html=True)
-
-    col_input, col_btn = st.columns([5, 1])
-    with col_input:
+    # ── Barra de busca (1 coluna larga + botão) ────────────────────────────
+    c1, c2 = st.columns([6, 1])
+    with c1:
         query = st.text_input(
-            "query",
-            placeholder="e.g. username: winterfox · email · IP · Discord ID · domínio",
+            "q",
+            placeholder="username · email · IP · Discord ID · domínio · telefone…",
             key="hub_query_input",
-            label_visibility="collapsed",
         )
-    with col_btn:
-        search_clicked = st.button("Search →", use_container_width=True, key="hub_search_btn",
-                                   type="primary")
+    with c2:
+        st.markdown("<div style='padding-top:2px'>", unsafe_allow_html=True)
+        search_clicked = st.button("Search →", key="hub_search_btn", type="primary", use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    # ── Toggle Automated / Manual ──────────────────────────────────────────
-    col_mode, col_info = st.columns([2, 5])
-    with col_mode:
-        mode = st.radio("Modo", ["Automated", "Manual"], horizontal=True,
-                        key="hub_mode", label_visibility="collapsed")
-    with col_info:
+    # ── Modo + info ────────────────────────────────────────────────────────
+    col_m, col_i = st.columns([2, 5])
+    with col_m:
+        mode = st.radio("Modo", ["Automated", "Manual"],
+                        horizontal=True, key="hub_mode", label_visibility="collapsed")
+    with col_i:
         st.markdown(
-            '<div style="display:flex;gap:18px;align-items:center;padding-top:6px;color:#8b949e;font-size:.78rem">'
-            '<span>📦 Bulk Search</span><span>🛡 Secure Search</span><span>📊 15+ Sources</span>'
+            '<div class="hub-meta" style="padding-top:8px">'
+            '<span>📦 Bulk Search</span>'
+            '<span>🛡 Secure</span>'
+            '<span>📊 15+ Sources</span>'
             '</div>',
             unsafe_allow_html=True,
         )
 
-    # ── Categoria pills ────────────────────────────────────────────────────
-    st.markdown('<div class="hub-cat-row">', unsafe_allow_html=True)
+    # ── Categoria chips ────────────────────────────────────────────────────
+    active_cat  = st.session_state.get("hub_active_cat", "Data Leaks")
+    active_mods = st.session_state.get("hub_active_mods", {"breaches","stealer"})
+
+    # Renderiza cats como botões compactos em linha
     cat_cols = st.columns(len(CATEGORIES))
     for i, (cat_name, cat_data) in enumerate(CATEGORIES.items()):
         with cat_cols[i]:
-            is_active = st.session_state.hub_active_cat == cat_name
             if st.button(
                 f"{cat_data['icon']} {cat_name}",
                 key=f"hub_cat_{cat_name}",
-                use_container_width=True,
-                type="primary" if is_active else "secondary",
+                type="primary" if active_cat == cat_name else "secondary",
             ):
-                st.session_state.hub_active_cat = cat_name
-                # Seleciona todos os módulos da nova categoria
+                st.session_state.hub_active_cat  = cat_name
                 st.session_state.hub_active_mods = set(cat_data["modules"].keys())
                 st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Módulo chips (sub-seleção dentro da categoria) ─────────────────────
-    active_cat   = st.session_state.hub_active_cat
-    active_mods  = st.session_state.hub_active_mods
-    cat_modules  = CATEGORIES[active_cat]["modules"]
-
-    # Em modo Manual: mostra chips individuais para selecionar/desselecionar
+    # ── Módulos da categoria ───────────────────────────────────────────────
+    cat_modules = CATEGORIES[active_cat]["modules"]
     if mode == "Manual":
         mod_cols = st.columns(len(cat_modules))
-        for i, (mod_key, (icon, label, desc)) in enumerate(cat_modules.items()):
+        for i, (mod_key, (icon, label)) in enumerate(cat_modules.items()):
             with mod_cols[i]:
                 is_sel = mod_key in active_mods
                 if st.button(
                     f"{icon} {label}",
                     key=f"hub_mod_{mod_key}",
-                    use_container_width=True,
                     type="primary" if is_sel else "secondary",
-                    help=desc,
                 ):
                     mods = set(active_mods)
-                    if mod_key in mods:
-                        mods.discard(mod_key)
-                    else:
-                        mods.add(mod_key)
+                    mods.discard(mod_key) if mod_key in mods else mods.add(mod_key)
                     st.session_state.hub_active_mods = mods
                     st.rerun()
     else:
-        # Automated: mostra apenas quais módulos vão rodar (não selecionável)
-        chips_html = "".join(
-            f'<span style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;'
-            f'border-radius:8px;border:1px solid #30363d;background:rgba(0,212,255,.08);'
-            f'color:#00d4ff;font-size:.78rem;margin:2px">{icon} {label}</span>'
-            for mod_key, (icon, label, _) in cat_modules.items()
+        # Automated: mostra chips informativos (não clicáveis)
+        chips = "".join(
+            f'<span class="chip mod-info">{icon} {label}</span>'
+            for mod_key, (icon, label) in cat_modules.items()
         )
-        st.markdown(f'<div style="margin:8px 0">{chips_html}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="margin-top:6px">{chips}</div>', unsafe_allow_html=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)  # hub-search-box
+    st.markdown('</div>', unsafe_allow_html=True)  # hub-card
 
     # ── Executar busca ─────────────────────────────────────────────────────
     if search_clicked and query.strip():
         _run_hub_search(query.strip(), active_cat, active_mods, mode)
 
-    # ── Histórico de casos (abaixo do hub) ────────────────────────────────
+    # ── Histórico ──────────────────────────────────────────────────────────
     if st.session_state.cases:
         st.markdown("---")
-        col_h, col_c = st.columns([4, 1])
-        with col_h:
-            st.markdown("**📋 Histórico de Buscas Recentes**")
-        with col_c:
+        ch, cc = st.columns([5, 1])
+        with ch:
+            st.markdown("**📋 Buscas Recentes**")
+        with cc:
             if st.button("🗑️ Limpar", key="clear_hist_hub"):
                 st.session_state.cases = []
                 CASES_FILE.unlink(missing_ok=True)
                 st.rerun()
 
-        cols = st.columns(4)
+        gcols = st.columns(4)
         for i, case in enumerate(st.session_state.cases[:8]):
-            label_r, color = _risk_label(case["risk_score"])
-            badge = "🔴" if label_r == "CRÍTICO" else "🟠" if label_r == "ALTO" else "🟡" if label_r == "MÉDIO" else "🟢"
-            with cols[i % 4]:
+            lbl, _ = _risk_label(case["risk_score"])
+            badge = "🔴" if lbl=="CRÍTICO" else "🟠" if lbl=="ALTO" else "🟡" if lbl=="MÉDIO" else "🟢"
+            with gcols[i % 4]:
                 st.markdown(
-                    f'<div class="case-card" style="margin:4px 0">'
+                    f'<div class="case-card">'
                     f'<div class="case-target">{badge} {case["target"]}</div>'
                     f'<div class="case-meta">{case["target_type"]} · Risk {case["risk_score"]}<br>{case["timestamp"][:16]}</div>'
                     f'</div>',
                     unsafe_allow_html=True,
                 )
 
-    st.markdown('</div>', unsafe_allow_html=True)  # hub-wrap
+    st.markdown('</div>', unsafe_allow_html=True)  # hub
 
 
 def _run_hub_search(query: str, category: str, selected_mods: set, mode: str):
