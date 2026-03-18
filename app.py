@@ -2024,14 +2024,10 @@ def _render_owner_debug():
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    import re
-
     _init_state()
 
-    # ── Owner debug panel via URL param ?debug=owner ──────────────────────
     try:
         if st.query_params.get("debug") == "owner":
-            _render_header()
             _render_owner_debug()
             return
     except Exception:
@@ -2040,390 +2036,276 @@ def main():
     if not _check_password():
         return
 
-    _render_header()
-    # Sidebar removida — layout full-page
+    _render_welcome()
 
-    oath: Optional[OathnetResult]   = st.session_state.oathnet_result
-    sherl: Optional[SherlockResult] = st.session_state.sherlock_result
+    oath = st.session_state.oathnet_result
+    sherl = st.session_state.sherlock_result
 
-    # ── Abas sempre visíveis ──────────────────────────────────────────────
-    tab_labels = ["🔍 Buscar", "📊 Resultados", "💥 Vazamentos",
-                  "🌐 Redes Sociais", "📤 Exportar"]
-    if DEBUG_MODE:
-        tab_labels.append("🔧 Debug")
-
-    tabs = st.tabs(tab_labels)
-
-    with tabs[0]:
-        _render_welcome()
-    with tabs[1]:
-        if not st.session_state.investigation:
-            st.markdown('<div class="alert-info">ℹ️ Faça uma busca na aba <b>🔍 Buscar</b> para ver os resultados aqui.</div>', unsafe_allow_html=True)
-        else:
-            _render_tab_summary(oath, sherl)
-            _render_hub_extras()
-    with tabs[2]:
-        _render_tab_oathnet(oath)
-    with tabs[3]:
-        _render_tab_sherlock(sherl)
-    with tabs[4]:
-        _render_tab_export(oath, sherl)
-    if DEBUG_MODE:
-        with tabs[5]:
-            _render_tab_debug(oath, sherl)
+    if st.session_state.investigation:
+        _render_results_page(oath, sherl)
 
 
-def _render_hub_extras():
-    """Exibe resultados extras do hub (Discord, Gaming, IP, etc.) abaixo do resumo."""
+def _render_results_page(oath, sherl):
+    """
+    Resultados inline na mesma página — estilo OathNet.
+    Seções colapsáveis, contadores, copy buttons, export no topo.
+    """
+    import json as _json
+    import re as _re
+
+    inv   = st.session_state.investigation or {}
+    query = inv.get("target", "")
+    risk  = _compute_risk(oath, sherl)
+    rl, _ = _risk_label(risk)
     extra = st.session_state.get("hub_extra", {})
-    if not extra:
-        return
 
+    # Conta totais
+    n_breach  = oath.breach_count   if oath  else 0
+    n_stealer = oath.stealer_count  if oath  else 0
+    n_social  = sherl.found_count   if sherl else 0
+    n_holehe  = len(oath.holehe_domains) if oath else 0
+    n_total   = n_breach + n_stealer + n_social
+
+    # ── Search Report header ───────────────────────────────────────────────
+    st.markdown(f"""
+    <div style="margin:8px 0 16px;padding-bottom:12px;border-bottom:1px solid #30363d">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div>
+          <span style="font-size:1.35rem;font-weight:800;color:#e6edf3">Search Report</span>
+          <span style="color:#8b949e;font-size:.85rem;margin-left:10px">
+            Information found for <b style="color:#e6edf3">"{query}"</b>
+          </span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span style="background:{'#f8514920' if risk>=75 else '#f0883e20' if risk>=50 else '#ffd70020' if risk>=25 else '#39d35320'};
+                       border:1px solid {'#f85149' if risk>=75 else '#f0883e' if risk>=50 else '#ffd700' if risk>=25 else '#39d353'};
+                       color:{'#f85149' if risk>=75 else '#f0883e' if risk>=50 else '#ffd700' if risk>=25 else '#39d353'};
+                       padding:4px 12px;border-radius:6px;font-size:.8rem;font-weight:700">
+            Risk {risk} — {rl}
+          </span>
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Search Summary ─────────────────────────────────────────────────────
+    with st.expander("📋 Search Summary", expanded=True):
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.metric("Total encontrado", n_total)
+        c2.metric("🔓 Breaches",      n_breach)
+        c3.metric("🦠 Stealer",       n_stealer)
+        c4.metric("🌐 Redes Sociais", n_social)
+        c5.metric("📧 Holehe",        n_holehe)
+
+        if oath and oath.meta.plan:
+            rem = oath.meta.left_today
+            used = oath.meta.used_today
+            st.caption(f"Plano: {oath.meta.plan} · {used} lookups usados · {rem} restantes hoje")
+
+    # ── Exportar ───────────────────────────────────────────────────────────
+    with st.expander("📤 Exportar Relatório"):
+        import re as _re2
+        ts        = inv.get("timestamp", datetime.now().isoformat())
+        ts_safe   = ts[:10]
+        tgt_safe  = _re2.sub(r"[^a-zA-Z0-9_\-@.]", "_", query)
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown("**🌐 HTML**")
+            if st.button("⚙️ Gerar HTML", key="exp_html"):
+                with st.spinner("Gerando..."):
+                    try:
+                        html = generate_html(query, inv.get("target_type",""), oath, sherl, risk, ts).encode()
+                        st.session_state["_html_cache"] = html
+                        st.success("✅ Pronto!")
+                    except Exception as e:
+                        st.error(str(e))
+            if st.session_state.get("_html_cache"):
+                st.download_button("⬇️ Baixar HTML", data=st.session_state["_html_cache"],
+                                   file_name=f"nexus_{tgt_safe}_{ts_safe}.html", mime="text/html",
+                                   use_container_width=True)
+        with col2:
+            st.markdown("**📄 PDF**")
+            if st.button("⚙️ Gerar PDF", key="exp_pdf"):
+                with st.spinner("Gerando..."):
+                    try:
+                        pdf = generate_pdf(query, inv.get("target_type",""), oath, sherl, risk, ts)
+                        st.session_state["_pdf_cache"] = pdf
+                        st.success("✅ Pronto!")
+                    except Exception as e:
+                        st.error(str(e))
+            if st.session_state.get("_pdf_cache"):
+                st.download_button("⬇️ Baixar PDF", data=st.session_state["_pdf_cache"],
+                                   file_name=f"nexus_{tgt_safe}_{ts_safe}.pdf", mime="application/pdf",
+                                   use_container_width=True)
+        with col3:
+            st.markdown("**📦 JSON / Excel**")
+            st.download_button("⬇️ JSON", data=_build_export_json(),
+                               file_name=f"nexus_{tgt_safe}_{ts_safe}.json",
+                               mime="application/json", use_container_width=True)
+            st.download_button("⬇️ Excel", data=_build_export_excel(),
+                               file_name=f"nexus_{tgt_safe}_{ts_safe}.xlsx",
+                               mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                               use_container_width=True)
+
+    # ── Data Breaches ──────────────────────────────────────────────────────
+    if oath and oath.breaches:
+        label_str = f"🔓 Data Breaches — {n_breach} encontrados" + (f" ({oath.results_found} total na API)" if oath.results_found > n_breach else "")
+        with st.expander(label_str, expanded=True):
+            # Pagination
+            PAGE = 10
+            total   = len(oath.breaches)
+            max_pg  = max(0, (total-1)//PAGE)
+            pg      = st.session_state.get("breach_page", 0)
+            if pg > max_pg: pg = 0
+            slc     = oath.breaches[pg*PAGE : pg*PAGE+PAGE]
+
+            has_discord = any(b.discord_id for b in slc)
+            has_phone   = any(b.phone      for b in slc)
+            has_pass    = any(b.password   for b in slc)
+
+            rows = []
+            for b in slc:
+                row = {"DB / Fonte": b.dbname, "Email": b.email, "Username": b.username}
+                if has_discord: row["Discord ID"] = b.discord_id
+                if has_phone:   row["Telefone"]   = b.phone
+                if has_pass:    row["Senha"]       = b.password[:30] + "..." if len(b.password)>30 else b.password
+                row["IP"]   = b.ip
+                row["País"] = b.country
+                row["Data"] = b.date[:10] if b.date else ""
+                for k, v in b.extra_fields.items():
+                    row[k] = str(v)[:40]
+                rows.append(row)
+
+            df = pd.DataFrame(rows)
+            # Copy all button
+            c_tbl, c_copy = st.columns([5, 1])
+            with c_tbl:
+                st.caption(f"Mostrando {pg*PAGE+1}–{min(pg*PAGE+PAGE, total)} de {total}")
+            with c_copy:
+                if st.button("📋 Copiar JSON", key="copy_breaches"):
+                    import json as _j
+                    st.code(_j.dumps([{k:str(v) for k,v in r.items()} for r in rows], ensure_ascii=False, indent=2)[:3000])
+
+            st.dataframe(df, use_container_width=True, hide_index=True)
+
+            if max_pg > 0:
+                pc1, pc2, pc3 = st.columns([1,3,1])
+                with pc1:
+                    if st.button("◀", key="pg_prev", disabled=pg==0):
+                        st.session_state.breach_page = pg - 1; st.rerun()
+                with pc2:
+                    st.caption(f"Página {pg+1} de {max_pg+1}")
+                with pc3:
+                    if st.button("▶", key="pg_next", disabled=pg>=max_pg):
+                        st.session_state.breach_page = pg + 1; st.rerun()
+
+            # Discord auto-lookup
+            dids = list({b.discord_id for b in oath.breaches if b.discord_id})
+            if dids:
+                st.markdown("---")
+                st.markdown(f"**🎮 Discord IDs detectados ({len(dids)})**")
+                for did in dids[:5]:
+                    with st.expander(f"Discord: {did}"):
+                        _render_discord_card(did)
+
+    elif oath and oath.success:
+        st.markdown('<div class="alert-success" style="margin:8px 0">✅ Nenhum breach encontrado para este alvo.</div>', unsafe_allow_html=True)
+
+    # ── Stolen Information (Stealer) ───────────────────────────────────────
+    if oath and oath.stealers:
+        with st.expander(f"⚠️ Stolen Information — {n_stealer} credenciais de malware", expanded=True):
+            st.markdown('<div class="alert-danger" style="margin:0 0 10px">Um dispositivo associado pode estar comprometido.</div>', unsafe_allow_html=True)
+            c_tbl2, c_copy2 = st.columns([5,1])
+            with c_copy2:
+                if st.button("📋 Copiar JSON", key="copy_stealer"):
+                    import json as _j2
+                    data_s = [{"url": s.url, "username": s.username, "domain": s.domain} for s in oath.stealers[:50]]
+                    st.code(_j2.dumps(data_s, ensure_ascii=False, indent=2)[:3000])
+            df_st = pd.DataFrame([{
+                "URL":     (s.url or "")[:55],
+                "Username": s.username,
+                "Domínio":  ", ".join((s.domain or [])[:2]) or "—",
+                "Data":     (s.pwned_at or "")[:10],
+                "Log ID":   (s.log_id or "")[:20],
+            } for s in oath.stealers])
+            st.dataframe(df_st, use_container_width=True, hide_index=True)
+
+    # ── Social Networks (Sherlock) ─────────────────────────────────────────
+    if sherl and sherl.found:
+        with st.expander(f"🌐 Redes Sociais — {n_social} perfis encontrados", expanded=True):
+            c_s1, c_s2 = st.columns([5,1])
+            with c_s2:
+                if st.button("📋 Copiar URLs", key="copy_social"):
+                    urls = "\n".join(p.url for p in sherl.found)
+                    st.code(urls)
+            badges = "".join(
+                f'<a href="{p.url}" target="_blank" style="text-decoration:none">'
+                f'<span class="platform-found">{p.icon} {p.platform}</span></a>'
+                for p in sherl.found
+            )
+            st.markdown(badges, unsafe_allow_html=True)
+            st.markdown("")
+            df_sh = pd.DataFrame([{"Plataforma": p.platform, "URL": p.url, "Categoria": p.category} for p in sherl.found])
+            st.dataframe(df_sh, use_container_width=True, hide_index=True)
+
+    # ── Email / Holehe ─────────────────────────────────────────────────────
+    if oath and oath.holehe_domains:
+        with st.expander(f"📧 Email Intelligence — {n_holehe} serviços detectados"):
+            badges_h = "".join(f'<span class="platform-found">📌 {d}</span>' for d in oath.holehe_domains)
+            st.markdown(badges_h, unsafe_allow_html=True)
+            st.markdown("")
+            c_h1, c_h2 = st.columns([5,1])
+            with c_h2:
+                if st.button("📋 Copiar", key="copy_holehe"):
+                    st.code("\n".join(oath.holehe_domains))
+
+    # ── Extras (IP, Discord, Gaming, Subdomains) ───────────────────────────
     if extra.get("ip_info", {}).get("ok"):
-        st.markdown("---")
-        st.subheader("🌐 IP Info")
-        d = extra["ip_info"]["data"] or {}
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("País",     f"{d.get('country','—')} ({d.get('countryCode','—')})")
-        c2.metric("Cidade",   d.get("city","—"))
-        c3.metric("ISP",      (d.get("isp") or "—")[:22])
-        c4.metric("Proxy/VPN","⚠️ Sim" if d.get("proxy") else "Não")
+        with st.expander("🌐 Network — IP Info"):
+            d = extra["ip_info"]["data"] or {}
+            c1,c2,c3,c4 = st.columns(4)
+            c1.metric("País",  f"{d.get('country','—')} ({d.get('countryCode','—')})")
+            c2.metric("Cidade", d.get("city","—"))
+            c3.metric("ISP",   (d.get("isp") or "—")[:22])
+            c4.metric("Proxy/VPN","⚠️ Sim" if d.get("proxy") else "Não")
 
     if extra.get("discord", {}).get("user", {}).get("ok"):
-        st.markdown("---")
-        st.subheader("🎮 Discord")
-        d = extra["discord"]["user"]["data"] or {}
-        col_a, col_b = st.columns([1,4])
-        with col_a:
-            if d.get("avatar_url"): st.image(d["avatar_url"], width=64)
-        with col_b:
-            st.markdown(f"**{d.get('global_name') or d.get('username','—')}** `@{d.get('username','—')}`")
-            st.caption(f"ID: `{d.get('id','—')}` · Criado: `{d.get('creation_date','—')}`")
-        hist = extra["discord"].get("history", {})
-        if hist.get("ok") and hist.get("data", {}).get("history"):
-            rows = []
-            for e in hist["data"]["history"]:
-                name = e.get("name",["—"]); name = name[0] if isinstance(name, list) else name
-                ts   = e.get("time",["—"]); ts = ts[0][:19] if isinstance(ts, list) else str(ts)[:19]
-                rows.append({"Username": name, "Data": ts})
-            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        with st.expander("🎮 Discord Profile"):
+            d = extra["discord"]["user"]["data"] or {}
+            ca, cb = st.columns([1,4])
+            with ca:
+                if d.get("avatar_url"): st.image(d["avatar_url"], width=64)
+            with cb:
+                st.markdown(f"**{d.get('global_name') or d.get('username','—')}** `@{d.get('username','—')}`")
+                st.caption(f"ID: `{d.get('id','—')}` · Criado: `{d.get('creation_date','—')}`")
 
     for plat, icon in [("steam","🎮"),("xbox","🕹️"),("roblox","🧱")]:
-        pdata = extra.get(plat, {})
-        if pdata.get("ok") and pdata.get("data"):
-            st.markdown("---")
-            d = pdata["data"]
-            col_a, col_b = st.columns([1,4])
-            with col_a:
-                if d.get("avatar"): st.image(d["avatar"], width=64)
-            with col_b:
-                st.subheader(f"{icon} {plat.capitalize()}: {d.get('username','—')}")
+        p = extra.get(plat, {})
+        if p.get("ok") and p.get("data"):
+            with st.expander(f"{icon} {plat.capitalize()}"):
+                d = p["data"]
+                cp, cd = st.columns([1,4])
+                with cp:
+                    if d.get("avatar"): st.image(d["avatar"], width=64)
+                with cd:
+                    st.markdown(f"**{d.get('username','—')}**")
 
     if extra.get("subdomains", {}).get("ok"):
-        subs = extra["subdomains"].get("data",[])
+        subs = extra["subdomains"].get("data", [])
         if subs:
-            st.markdown("---")
-            st.subheader(f"🔗 Subdomínios ({len(subs)})")
-            st.dataframe(pd.DataFrame({"Subdomínio": subs[:30]}), use_container_width=True, hide_index=True)
+            with st.expander(f"🔗 Subdomínios ({len(subs)})"):
+                c_d1, c_d2 = st.columns([5,1])
+                with c_d2:
+                    st.download_button("⬇️ .txt", data="\n".join(subs),
+                                       file_name=f"subs_{query}.txt", mime="text/plain")
+                st.dataframe(pd.DataFrame({"Subdomínio": subs[:50]}),
+                             use_container_width=True, hide_index=True)
 
-    if extra.get("ghunt", {}).get("ok"):
-        st.markdown("---")
-        st.subheader("🔍 Google (GHunt)")
-        g = extra["ghunt"].get("data") or {}
-        profile = g.get("data", {}).get("profile") or g
-        if isinstance(profile, dict):
-            for k, v in profile.items():
-                if v: st.markdown(f"**{k}:** `{v}`")
-
-
-def _render_welcome():
-    CATEGORIES = {
-        "Data Leaks":         {"icon": "🛡️", "modules": {"breaches": ("🔓","Breaches"), "stealer": ("📋","Stealer Logs")}},
-        "Social & Gaming":    {"icon": "🎮", "modules": {"sherlock": ("🌐","Sherlock"), "discord": ("💬","Discord"), "steam": ("🎮","Steam"), "xbox": ("🕹️","Xbox"), "roblox": ("🧱","Roblox")}},
-        "Email Intelligence": {"icon": "📧", "modules": {"holehe": ("📨","Holehe"), "ghunt": ("🔍","GHunt")}},
-        "Network":            {"icon": "🌐", "modules": {"ip_info": ("📍","IP Info"), "subdomain": ("🔗","Subdomínios")}},
-    }
-
-    st.markdown("""<style>
-    /* ── Hub layout ── */
-    .hub { max-width:640px; margin:0 auto; padding:0 8px 32px; }
-    .hub h1 { text-align:center; font-size:1.8rem; font-weight:900;
-              color:#e6edf3; letter-spacing:.04em; margin:24px 0 4px; }
-    .hub-sub { text-align:center; color:#8b949e; font-size:.84rem; margin:0 0 22px; }
-    .hub-meta { display:flex; gap:16px; color:#8b949e; font-size:.74rem;
-                margin-top:4px; align-items:center; flex-wrap:wrap; }
-    /* Compact pill-style buttons for categories */
-    div.cat-row div[data-testid="stButton"] button {
-        border-radius: 999px !important;
-        padding: 4px 14px !important;
-        font-size: .78rem !important;
-        min-height: 0 !important;
-        height: 32px !important;
-        line-height: 1 !important;
-    }
-    /* Compact buttons for modules */
-    div.mod-row div[data-testid="stButton"] button {
-        border-radius: 8px !important;
-        padding: 4px 12px !important;
-        font-size: .76rem !important;
-        min-height: 0 !important;
-        height: 30px !important;
-    }
-    /* Fix radio horizontal gap */
-    div[data-testid="stRadio"] > div { flex-direction: row !important; gap: 16px !important; }
-    div[data-testid="stRadio"] label { margin:0 !important; }
-    </style>""", unsafe_allow_html=True)
-
-    st.markdown('<div class="hub">', unsafe_allow_html=True)
-    st.markdown('<h1>⬡ NexusOSINT</h1><p class="hub-sub">Plataforma de investigação OSINT · OathNet + Sherlock</p>', unsafe_allow_html=True)
-
-    # ── Input + botão Search
-    c1, c2 = st.columns([5, 1])
-    with c1:
-        query = st.text_input("Buscar", placeholder="username · email · IP · Discord ID · domínio…",
-                              key="hub_query_input", label_visibility="collapsed")
-    with c2:
-        search_clicked = st.button("Search →", key="hub_search_btn", type="primary", use_container_width=True)
-
-    # ── Modo + badge info
-    cm, ci = st.columns([2, 5])
-    with cm:
-        mode = st.radio("Modo", ["Automated", "Manual"], horizontal=True,
-                        key="hub_mode", label_visibility="collapsed")
-    with ci:
-        st.markdown('<div class="hub-meta"><span>📦 Bulk</span><span>🛡 Secure</span><span>📊 15+ Sources</span></div>',
-                    unsafe_allow_html=True)
-
-    active_cat  = st.session_state.get("hub_active_cat", "Data Leaks")
-    active_mods = st.session_state.get("hub_active_mods", {"breaches", "stealer"})
-
-    # ── Categorias como pills compactas
-    st.markdown('<div class="cat-row" style="margin-top:8px">', unsafe_allow_html=True)
-    cat_cols = st.columns(len(CATEGORIES))
-    for i, (cat_name, cat_data) in enumerate(CATEGORIES.items()):
-        with cat_cols[i]:
-            if st.button(f"{cat_data['icon']} {cat_name}", key=f"hub_cat_{cat_name}",
-                         type="primary" if cat_name == active_cat else "secondary",
-                         use_container_width=True):
-                st.session_state.hub_active_cat  = cat_name
-                st.session_state.hub_active_mods = set(cat_data["modules"].keys())
-                st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # ── Módulos
-    cat_modules = CATEGORIES[active_cat]["modules"]
-    if mode == "Manual":
-        st.markdown('<div class="mod-row" style="margin-top:4px">', unsafe_allow_html=True)
-        mod_cols = st.columns(min(len(cat_modules), 6))
-        for i, (mk, (icon, lbl)) in enumerate(cat_modules.items()):
-            with mod_cols[i]:
-                sel = mk in active_mods
-                if st.button(f"{icon} {lbl}", key=f"hub_mod_{mk}",
-                             type="primary" if sel else "secondary"):
-                    mods = set(active_mods)
-                    mods.discard(mk) if mk in mods else mods.add(mk)
-                    st.session_state.hub_active_mods = mods
-                    st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-    else:
-        mods_str = "  ·  ".join(f"{icon} {lbl}" for _, (icon, lbl) in cat_modules.items())
-        st.caption(f"Módulos: {mods_str}")
-
-    st.markdown('</div>', unsafe_allow_html=True)  # hub
-
-    if search_clicked and query.strip():
-        _run_hub_search(query.strip(), active_cat, active_mods, mode)
-
-    if st.session_state.cases:
-        st.markdown("---")
-        ch, cc = st.columns([5, 1])
-        with ch:
-            st.markdown("**📋 Buscas Recentes**")
-        with cc:
-            if st.button("🗑️ Limpar", key="clear_hist_hub"):
-                st.session_state.cases = []
-                CASES_FILE.unlink(missing_ok=True)
-                st.rerun()
-        gcols = st.columns(4)
-        for i, case in enumerate(st.session_state.cases[:8]):
-            lbl, _ = _risk_label(case["risk_score"])
-            badge = "🔴" if lbl=="CRÍTICO" else "🟠" if lbl=="ALTO" else "🟡" if lbl=="MÉDIO" else "🟢"
-            with gcols[i % 4]:
-                st.markdown(
-                    f'<div class="case-card"><div class="case-target">{badge} {case["target"]}</div>'
-                    f'<div class="case-meta">{case["target_type"]} · Risk {case["risk_score"]} · {case["timestamp"][:16]}</div></div>',
-                    unsafe_allow_html=True,
-                )
-
-
-def _run_hub_search(query: str, category: str, selected_mods: set, mode: str):
-    """
-    Executa os módulos selecionados e armazena resultado no session_state
-    para exibição nas abas.
-    """
-    import re as _re
-    client = OathnetClient(api_key=OATHNET_API_KEY)
-
-    # Detecta tipo automaticamente
-    is_email_q   = "@" in query
-    is_ip_q      = bool(_re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", query))
-    is_discord_q = bool(_re.match(r"^\d{14,19}$", query))
-    is_domain_q  = ("." in query and not is_ip_q and not is_email_q
-                    and not query.replace(".","").isdigit())
-    is_username_q = not is_email_q and not is_ip_q and not is_discord_q and not is_domain_q
-
-    # Monta lista de módulos a rodar
-    # Automated → roda tudo que faz sentido para o tipo detectado (ignora categoria)
-    # Manual → só os módulos selecionados da categoria ativa
-    if mode == "Automated":
-        run_breach   = True
-        run_stealer  = True
-        run_sherlock = is_email_q or is_username_q   # ← sempre para nomes/usernames
-        run_discord  = is_discord_q
-        run_steam    = is_username_q
-        run_xbox     = is_username_q
-        run_roblox   = is_username_q
-        run_holehe   = is_email_q
-        run_ghunt    = is_email_q
-        run_ip       = is_ip_q
-        run_subdomain= is_domain_q
-    else:
-        # Manual: só os módulos que o usuário selecionou
-        run_breach   = "breaches"  in selected_mods
-        run_stealer  = "stealer"   in selected_mods
-        run_sherlock = "sherlock"  in selected_mods and (is_email_q or is_username_q)
-        run_discord  = "discord"   in selected_mods and (is_discord_q or is_username_q)
-        run_steam    = "steam"     in selected_mods and is_username_q
-        run_xbox     = "xbox"      in selected_mods and is_username_q
-        run_roblox   = "roblox"    in selected_mods and is_username_q
-        run_holehe   = "holehe"    in selected_mods and is_email_q
-        run_ghunt    = "ghunt"     in selected_mods and is_email_q
-        run_ip       = "ip_info"   in selected_mods and is_ip_q
-        run_subdomain= "subdomain" in selected_mods and is_domain_q
-
-    total_mods = sum([run_breach, run_stealer, run_sherlock, run_discord,
-                      run_steam, run_xbox, run_roblox, run_holehe, run_ghunt,
-                      run_ip, run_subdomain])
-
-    if total_mods == 0:
-        st.warning("⚠️ Nenhum módulo compatível com este tipo de dado para a categoria selecionada. "
-                   "Tente outra categoria ou o Full Search.")
-        return
-
-    progress = st.progress(0, text="Iniciando...")
-    done = [0]
-
-    def step(label: str):
-        done[0] += 1
-        progress.progress(min(int(done[0] / total_mods * 100), 100), text=f"🔄 {label}...")
-
-    # Resultados que alimentam as abas normais
-    oath_result  = None
-    sherl_result = None
-    extra        = {}  # resultados extras (discord, gaming, ip, etc.)
-
-    # ── Breach ──────────────────────────────────────────────────────────
-    if run_breach or run_stealer:
-        step("Vazamentos")
-        try:
-            res = client.search_breach(query)
-            if run_stealer:
-                step("Stealer logs")
-                sts = client.search_stealer_v2(query)
-                res.stealers       = sts.stealers
-                res.stealers_found = sts.stealers_found
-            if run_holehe and is_email_q:
-                step("Holehe")
-                h = client.holehe(query)
-                res.holehe_domains = h.holehe_domains
-            oath_result = res
-        except Exception as e:
-            st.error(f"Erro OathNet: {e}")
-
-    # ── Sherlock ─────────────────────────────────────────────────────────
-    if run_sherlock:
-        step("Sherlock (redes sociais)")
-        try:
-            sherl_result = search_username(
-                query if is_username_q else query.split("@")[0],
-                prefer_cli=False,
-            )
-        except Exception as e:
-            st.error(f"Erro Sherlock: {e}")
-
-    # ── GHunt ─────────────────────────────────────────────────────────────
-    if run_ghunt and is_email_q:
-        step("GHunt")
-        try:
-            ok, data = client._get("service/ghunt", params={"email": query})
-            extra["ghunt"] = {"ok": ok, "data": data.get("data", data) if ok else None}
-        except Exception:
-            pass
-
-    # ── Discord ───────────────────────────────────────────────────────────
-    if run_discord and is_discord_q:
-        step("Discord")
-        try:
-            ok_u, user = client.discord_userinfo(query)
-            ok_h, hist = client.discord_username_history(query)
-            extra["discord"] = {"user": {"ok": ok_u, "data": user if ok_u else None},
-                                 "history": {"ok": ok_h, "data": hist if ok_h else None}}
-        except Exception:
-            pass
-
-    # ── Gaming ────────────────────────────────────────────────────────────
-    for key, flag, method in [
-        ("steam",  run_steam,  lambda q: client.steam_lookup(q)),
-        ("xbox",   run_xbox,   lambda q: client.xbox_lookup(q)),
-        ("roblox", run_roblox, lambda q: client.roblox_lookup(username=q)),
-    ]:
-        if flag:
-            step(key.capitalize())
-            try:
-                ok, data = method(query)
-                extra[key] = {"ok": ok, "data": data if ok else None,
-                               "error": "" if ok else data.get("error","")}
-            except Exception:
-                pass
-
-    # ── IP Info ───────────────────────────────────────────────────────────
-    if run_ip:
-        step("IP Info")
-        try:
-            ok, data = client.ip_info(query)
-            extra["ip_info"] = {"ok": ok, "data": data if ok else None}
-        except Exception:
-            pass
-
-    # ── Subdomains ────────────────────────────────────────────────────────
-    if run_subdomain:
-        step("Subdomínios")
-        try:
-            ok, data = client.extract_subdomains(query)
-            extra["subdomains"] = {"ok": ok, "data": data.get("subdomains",[]) if ok else []}
-        except Exception:
-            pass
-
-    progress.progress(100, text="✅ Concluído!")
-
-    # Salva nos resultados da investigação
-    st.session_state.oathnet_result  = oath_result
-    st.session_state.sherlock_result = sherl_result
-    st.session_state.hub_extra       = extra
-    st.session_state.investigation   = {
-        "target":      query,
-        "target_type": "Auto",
-        "timestamp":   datetime.now().isoformat(),
-        "category":    category,
-        "modules":     list(selected_mods),
-    }
-
-    if oath_result or sherl_result:
-        _add_case(query, category, oath_result, sherl_result)
-
-    st.rerun()
+    # ── Raw JSON (collapsible) ─────────────────────────────────────────────
+    with st.expander("🔬 Raw API Response"):
+        st.json(oath.raw_response if oath and oath.raw_response else {"_note": "sem dados brutos"})
 
 
 if __name__ == "__main__":
-    import re
     main()
