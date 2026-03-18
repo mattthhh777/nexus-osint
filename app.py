@@ -227,6 +227,10 @@ def _init_state():
         "tool_discord_prefill":  None,
         "tool_gaming_prefill":   None,
         "tool_subdomain_prefill":None,
+        # ── Hub state ─────────────────────────────────────────────────────
+        "hub_active_cat":    "Data Leaks",
+        "hub_active_mods":   {"breaches", "stealer"},
+        "hub_extra":         {},   # resultados extras (discord, gaming, ip, etc.)
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -618,70 +622,32 @@ def _render_header():
 def _render_sidebar():
     with st.sidebar:
         st.markdown(
-            '<div style="text-align:center;padding:8px 0 4px">'
-            '<span style="color:#00d4ff;font-size:1.3rem;font-weight:900;letter-spacing:.12em">⬡ NEXUSOSINT</span>'
+            '<div style="text-align:center;padding:10px 0 6px">'
+            '<span style="color:#00d4ff;font-size:1.4rem;font-weight:900;letter-spacing:.12em">⬡ NEXUSOSINT</span><br>'
+            f'<span style="color:#8b949e;font-size:.7rem">v{APP_VERSION} · Legal & ethical use only</span>'
             '</div>',
             unsafe_allow_html=True,
         )
         st.markdown("---")
 
-        # ── INVESTIGAÇÃO (Email / Username → Oathnet + Sherlock) ──────────
-        st.markdown("**🔍 Investigação**")
-        st.caption("Email ou username: vazamentos + redes sociais")
-
-        target = st.text_input(
-            "Alvo", placeholder="email@example.com ou username",
-            key="target_input", label_visibility="collapsed",
-        )
-        col1, col2 = st.columns([3, 2])
-        with col1:
-            target_type = st.selectbox("Tipo", ["Email", "Username"],
-                                       label_visibility="collapsed")
-        with col2:
-            prefer_cli = st.checkbox("Sherlock", value=True,
-                                     help="Verifica 25+ redes sociais")
-
-        if st.button("🔍 Investigar", use_container_width=True, key="btn_investigate"):
-            if target.strip():
-                st.session_state.target      = target.strip()
-                st.session_state.target_type = target_type
-                st.session_state.prefer_cli  = prefer_cli
-                st.session_state.running     = True
-                st.rerun()
-            else:
-                st.warning("Digite um alvo.")
+        # ── Navegação rápida para abas ─────────────────────────────────────
+        st.markdown("**📂 Resultados**")
+        st.caption("Clique após uma busca para ver os detalhes.")
+        for label in ["📊 Resumo", "💥 Vazamentos", "🌐 Redes Sociais", "📤 Exportar"]:
+            st.markdown(f'<div style="padding:4px 8px;color:#8b949e;font-size:.8rem">{label}</div>', unsafe_allow_html=True)
 
         st.markdown("---")
 
-        # ── FULL SEARCH (qualquer tipo) ────────────────────────────────────
-        st.markdown("**⚡ Full Search**")
-        st.caption("IP, Discord ID, domínio, telefone, qualquer coisa...")
-
-        full_query = st.text_input(
-            "Full Search",
-            placeholder="ex: 174.0.0.1 · discordID · example.com",
-            key="fs_sidebar_input", label_visibility="collapsed",
-        )
-        if st.button("🔍 Buscar Tudo", use_container_width=True, key="fs_sidebar_btn"):
-            if full_query.strip():
-                st.session_state.fs_sidebar_run_query = full_query.strip()
-                st.session_state.active_tab = "ferramentas"
-                st.rerun()
-            else:
-                st.warning("Digite algo para buscar.")
-
-        st.markdown("---")
-
-        # ── HISTÓRICO ─────────────────────────────────────────────────────
+        # ── Histórico ──────────────────────────────────────────────────────
         st.markdown("**📋 Histórico de Casos**")
         if not st.session_state.cases:
-            st.caption("_Nenhum caso ainda._")
+            st.caption("_Nenhuma busca ainda._")
         else:
-            if st.button("🗑️ Limpar", use_container_width=True, key="clear_history"):
+            if st.button("🗑️ Limpar histórico", use_container_width=True, key="clear_history"):
                 st.session_state.cases = []
                 CASES_FILE.unlink(missing_ok=True)
                 st.rerun()
-            for case in st.session_state.cases[:10]:
+            for case in st.session_state.cases[:12]:
                 label_r, _ = _risk_label(case["risk_score"])
                 badge = "🔴" if label_r == "CRÍTICO" else "🟠" if label_r == "ALTO" else "🟡" if label_r == "MÉDIO" else "🟢"
                 st.markdown(
@@ -693,7 +659,7 @@ def _render_sidebar():
                 )
 
         st.markdown("---")
-        st.caption(f"NexusOSINT {APP_VERSION} · Legal & ethical use only.")
+        st.caption("OathNet API · Sherlock Engine")
 
 
 def _render_tab_summary(oath: Optional[OathnetResult], sherl: Optional[SherlockResult]):
@@ -2080,76 +2046,474 @@ def main():
     _render_header()
     _render_sidebar()
 
-    # Trigger investigation
-    if st.session_state.running:
-        st.session_state.running = False
-        _run_investigation(st.session_state.target, st.session_state.target_type)
-        st.rerun()
-
-    # Full Search veio da sidebar → passa para a aba Ferramentas
-    if st.session_state.get("fs_sidebar_run_query"):
-        st.session_state["_fs_autorun"] = st.session_state.pop("fs_sidebar_run_query")
-        st.session_state.tool_fullsearch_result = None
-
     oath: Optional[OathnetResult]   = st.session_state.oathnet_result
     sherl: Optional[SherlockResult] = st.session_state.sherlock_result
 
     # ── Abas sempre visíveis ──────────────────────────────────────────────
+    tab_labels = ["🔍 Buscar", "📊 Resultados", "💥 Vazamentos",
+                  "🌐 Redes Sociais", "🛠️ Ferramentas", "📤 Exportar"]
     if DEBUG_MODE:
-        tabs = st.tabs([
-            "📊 Resumo",
-            "💥 Vazamentos",
-            "🌐 Redes Sociais",
-            "🛠️ Ferramentas",
-            "📤 Exportar",
-            "🔧 Debug",
-        ])
-        with tabs[5]:
-            _render_tab_debug(oath, sherl)
-    else:
-        tabs = st.tabs([
-            "📊 Resumo",
-            "💥 Vazamentos",
-            "🌐 Redes Sociais",
-            "🛠️ Ferramentas",
-            "📤 Exportar",
-        ])
+        tab_labels.append("🔧 Debug")
+
+    tabs = st.tabs(tab_labels)
 
     with tabs[0]:
+        # Hub de busca sempre visível na primeira aba
+        _render_welcome()
+
+    with tabs[1]:
         if not st.session_state.investigation:
-            _render_welcome()
+            st.markdown('<div class="alert-info">ℹ️ Faça uma busca na aba <b>🔍 Buscar</b> para ver os resultados aqui.</div>', unsafe_allow_html=True)
         else:
             _render_tab_summary(oath, sherl)
-    with tabs[1]:
-        _render_tab_oathnet(oath)
+            _render_hub_extras()
+
     with tabs[2]:
-        _render_tab_sherlock(sherl)
+        _render_tab_oathnet(oath)
+
     with tabs[3]:
-        _render_tab_tools()
+        _render_tab_sherlock(sherl)
+
     with tabs[4]:
+        _render_tab_tools()
+
+    with tabs[5]:
         _render_tab_export(oath, sherl)
+
+    if DEBUG_MODE:
+        with tabs[6]:
+            _render_tab_debug(oath, sherl)
+
+
+def _render_hub_extras():
+    """Exibe resultados extras do hub (Discord, Gaming, IP, etc.) abaixo do resumo."""
+    extra = st.session_state.get("hub_extra", {})
+    if not extra:
+        return
+
+    if extra.get("ip_info", {}).get("ok"):
+        st.markdown("---")
+        st.subheader("🌐 IP Info")
+        d = extra["ip_info"]["data"] or {}
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("País",     f"{d.get('country','—')} ({d.get('countryCode','—')})")
+        c2.metric("Cidade",   d.get("city","—"))
+        c3.metric("ISP",      (d.get("isp") or "—")[:22])
+        c4.metric("Proxy/VPN","⚠️ Sim" if d.get("proxy") else "Não")
+
+    if extra.get("discord", {}).get("user", {}).get("ok"):
+        st.markdown("---")
+        st.subheader("🎮 Discord")
+        d = extra["discord"]["user"]["data"] or {}
+        col_a, col_b = st.columns([1,4])
+        with col_a:
+            if d.get("avatar_url"): st.image(d["avatar_url"], width=64)
+        with col_b:
+            st.markdown(f"**{d.get('global_name') or d.get('username','—')}** `@{d.get('username','—')}`")
+            st.caption(f"ID: `{d.get('id','—')}` · Criado: `{d.get('creation_date','—')}`")
+        hist = extra["discord"].get("history", {})
+        if hist.get("ok") and hist.get("data", {}).get("history"):
+            rows = []
+            for e in hist["data"]["history"]:
+                name = e.get("name",["—"]); name = name[0] if isinstance(name, list) else name
+                ts   = e.get("time",["—"]); ts = ts[0][:19] if isinstance(ts, list) else str(ts)[:19]
+                rows.append({"Username": name, "Data": ts})
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+    for plat, icon in [("steam","🎮"),("xbox","🕹️"),("roblox","🧱")]:
+        pdata = extra.get(plat, {})
+        if pdata.get("ok") and pdata.get("data"):
+            st.markdown("---")
+            d = pdata["data"]
+            col_a, col_b = st.columns([1,4])
+            with col_a:
+                if d.get("avatar"): st.image(d["avatar"], width=64)
+            with col_b:
+                st.subheader(f"{icon} {plat.capitalize()}: {d.get('username','—')}")
+
+    if extra.get("subdomains", {}).get("ok"):
+        subs = extra["subdomains"].get("data",[])
+        if subs:
+            st.markdown("---")
+            st.subheader(f"🔗 Subdomínios ({len(subs)})")
+            st.dataframe(pd.DataFrame({"Subdomínio": subs[:30]}), use_container_width=True, hide_index=True)
+
+    if extra.get("ghunt", {}).get("ok"):
+        st.markdown("---")
+        st.subheader("🔍 Google (GHunt)")
+        g = extra["ghunt"].get("data") or {}
+        profile = g.get("data", {}).get("profile") or g
+        if isinstance(profile, dict):
+            for k, v in profile.items():
+                if v: st.markdown(f"**{k}:** `{v}`")
 
 
 def _render_welcome():
+    """
+    Hub de pesquisa central estilo OathNet.
+    Barra de busca + categorias + módulos selecionáveis.
+    """
+    import re as _re
+
+    # ── CSS extra para o hub ───────────────────────────────────────────────
+    st.markdown("""
+    <style>
+    .hub-wrap {
+        max-width: 820px; margin: 32px auto 0; padding: 0 8px;
+    }
+    .hub-search-box {
+        background: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 14px;
+        padding: 20px 24px 18px;
+        margin-bottom: 18px;
+        box-shadow: 0 8px 32px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.03) inset;
+        transition: border-color .2s;
+    }
+    .hub-search-box:hover { border-color: #00d4ff44; }
+    .hub-cat-row {
+        display: flex; gap: 8px; flex-wrap: wrap;
+        margin: 12px 0 6px;
+    }
+    .hub-cat {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 6px 14px; border-radius: 999px; cursor: pointer;
+        border: 1px solid #30363d; background: rgba(255,255,255,.03);
+        color: #8b949e; font-size: .83rem; transition: all .15s;
+        user-select: none;
+    }
+    .hub-cat:hover { border-color: #00d4ff66; color: #e6edf3; }
+    .hub-cat.active { background: rgba(0,212,255,.12); border-color: #00d4ff; color: #00d4ff; font-weight: 600; }
+    .hub-mod-row {
+        display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 2px;
+    }
+    .hub-mod {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 5px 12px; border-radius: 8px; cursor: pointer;
+        border: 1px solid #30363d; background: rgba(255,255,255,.02);
+        color: #8b949e; font-size: .78rem; transition: all .15s;
+        user-select: none;
+    }
+    .hub-mod:hover { border-color: #8b949e; color: #e6edf3; }
+    .hub-mod.active { background: rgba(139,92,246,.15); border-color: #7c3aed; color: #c4b5fd; }
+    .hub-footer {
+        display: flex; align-items: center; gap: 18px;
+        margin-top: 14px; color: #8b949e; font-size: .78rem;
+    }
+    .hub-footer span { display:flex; align-items:center; gap:5px; }
+    .hub-stats {
+        display: grid; grid-template-columns: repeat(3,1fr); gap: 12px;
+        margin: 20px 0 0;
+    }
+    .hub-stat {
+        background: #161b22; border: 1px solid #30363d; border-radius: 10px;
+        padding: 14px 16px; text-align: center;
+    }
+    .hub-stat-n { font-size: 1.4rem; font-weight: 800; color: #00d4ff; }
+    .hub-stat-l { font-size: .72rem; color: #8b949e; margin-top: 2px; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # ── Título ─────────────────────────────────────────────────────────────
     st.markdown(
-        """
-        <div style="text-align:center; padding: 50px 0 30px;">
-            <div style="font-size:3.5rem">⬡</div>
-            <h2 style="color:#00d4ff; letter-spacing:.1em;">Bem-vindo ao NexusOSINT</h2>
-            <p style="color:#8b949e; max-width:480px; margin:0 auto; line-height:1.7;">
-                Use a <b>sidebar</b> para investigar emails e usernames.<br>
-                A aba <b>🛠️ Ferramentas</b> tem IP, Discord, Gaming, Subdomínios e mais.
-            </p>
-        </div>
-        """,
+        '<div style="text-align:center;padding:8px 0 20px">'
+        '<span style="font-size:2.2rem;font-weight:900;color:#e6edf3;letter-spacing:.06em">⬡ NexusOSINT</span><br>'
+        '<span style="color:#8b949e;font-size:.9rem">Plataforma de investigação OSINT · Powered by OathNet + Sherlock</span>'
+        '</div>',
         unsafe_allow_html=True,
     )
-    st.markdown("---")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.markdown("### 💥 Vazamentos\nBreaches e stealer logs via OathNet.")
-    c2.markdown("### 🌐 Redes Sociais\nSherlock em 25+ plataformas.")
-    c3.markdown("### 🛠️ Ferramentas\nIP, Discord, Gaming, Subdomínios…")
-    c4.markdown("### 📤 Exportar\nHTML dark-mode, PDF e Excel.")
+
+    # ── Categorias e módulos disponíveis ───────────────────────────────────
+    CATEGORIES = {
+        "Data Leaks": {
+            "icon": "🛡️",
+            "color": "#f85149",
+            "modules": {
+                "breaches":  ("🔓", "Breaches",    "Banco de dados vazados"),
+                "stealer":   ("📋", "Stealer Logs", "Credenciais de malware"),
+            }
+        },
+        "Social & Gaming": {
+            "icon": "🎮",
+            "color": "#a78bfa",
+            "modules": {
+                "sherlock":  ("🌐", "Sherlock",    "25+ redes sociais"),
+                "discord":   ("💬", "Discord",     "Perfil + histórico"),
+                "steam":     ("🎮", "Steam",       "Perfil Steam"),
+                "xbox":      ("🕹️", "Xbox",        "Perfil Xbox"),
+                "roblox":    ("🧱", "Roblox",      "Perfil Roblox"),
+            }
+        },
+        "Email Intelligence": {
+            "icon": "📧",
+            "color": "#39d353",
+            "modules": {
+                "holehe":    ("📨", "Holehe",      "Serviços cadastrados"),
+                "ghunt":     ("🔍", "GHunt",       "Conta Google"),
+            }
+        },
+        "Network": {
+            "icon": "🌐",
+            "color": "#00d4ff",
+            "modules": {
+                "ip_info":   ("📍", "IP Info",     "Geolocalização e rede"),
+                "subdomain": ("🔗", "Subdomínios", "Enumeração de subdomínios"),
+            }
+        },
+    }
+
+    # ── Session state para hub ─────────────────────────────────────────────
+    if "hub_active_cat" not in st.session_state:
+        st.session_state.hub_active_cat = "Data Leaks"
+    if "hub_active_mods" not in st.session_state:
+        # Por padrão, todos os módulos da categoria ativa marcados
+        st.session_state.hub_active_mods = set(CATEGORIES["Data Leaks"]["modules"].keys())
+    if "hub_query" not in st.session_state:
+        st.session_state.hub_query = ""
+
+    st.markdown('<div class="hub-wrap">', unsafe_allow_html=True)
+
+    # ── Barra de busca ─────────────────────────────────────────────────────
+    st.markdown('<div class="hub-search-box">', unsafe_allow_html=True)
+
+    col_input, col_btn = st.columns([5, 1])
+    with col_input:
+        query = st.text_input(
+            "query",
+            placeholder="e.g. username: winterfox · email · IP · Discord ID · domínio",
+            key="hub_query_input",
+            label_visibility="collapsed",
+        )
+    with col_btn:
+        search_clicked = st.button("Search →", use_container_width=True, key="hub_search_btn",
+                                   type="primary")
+
+    # ── Toggle Automated / Manual ──────────────────────────────────────────
+    col_mode, col_info = st.columns([2, 5])
+    with col_mode:
+        mode = st.radio("Modo", ["Automated", "Manual"], horizontal=True,
+                        key="hub_mode", label_visibility="collapsed")
+    with col_info:
+        st.markdown(
+            '<div style="display:flex;gap:18px;align-items:center;padding-top:6px;color:#8b949e;font-size:.78rem">'
+            '<span>📦 Bulk Search</span><span>🛡 Secure Search</span><span>📊 15+ Sources</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
+    # ── Categoria pills ────────────────────────────────────────────────────
+    st.markdown('<div class="hub-cat-row">', unsafe_allow_html=True)
+    cat_cols = st.columns(len(CATEGORIES))
+    for i, (cat_name, cat_data) in enumerate(CATEGORIES.items()):
+        with cat_cols[i]:
+            is_active = st.session_state.hub_active_cat == cat_name
+            if st.button(
+                f"{cat_data['icon']} {cat_name}",
+                key=f"hub_cat_{cat_name}",
+                use_container_width=True,
+                type="primary" if is_active else "secondary",
+            ):
+                st.session_state.hub_active_cat = cat_name
+                # Seleciona todos os módulos da nova categoria
+                st.session_state.hub_active_mods = set(cat_data["modules"].keys())
+                st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── Módulo chips (sub-seleção dentro da categoria) ─────────────────────
+    active_cat   = st.session_state.hub_active_cat
+    active_mods  = st.session_state.hub_active_mods
+    cat_modules  = CATEGORIES[active_cat]["modules"]
+
+    # Em modo Manual: mostra chips individuais para selecionar/desselecionar
+    if mode == "Manual":
+        mod_cols = st.columns(len(cat_modules))
+        for i, (mod_key, (icon, label, desc)) in enumerate(cat_modules.items()):
+            with mod_cols[i]:
+                is_sel = mod_key in active_mods
+                if st.button(
+                    f"{icon} {label}",
+                    key=f"hub_mod_{mod_key}",
+                    use_container_width=True,
+                    type="primary" if is_sel else "secondary",
+                    help=desc,
+                ):
+                    mods = set(active_mods)
+                    if mod_key in mods:
+                        mods.discard(mod_key)
+                    else:
+                        mods.add(mod_key)
+                    st.session_state.hub_active_mods = mods
+                    st.rerun()
+    else:
+        # Automated: mostra apenas quais módulos vão rodar (não selecionável)
+        chips_html = "".join(
+            f'<span style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;'
+            f'border-radius:8px;border:1px solid #30363d;background:rgba(0,212,255,.08);'
+            f'color:#00d4ff;font-size:.78rem;margin:2px">{icon} {label}</span>'
+            for mod_key, (icon, label, _) in cat_modules.items()
+        )
+        st.markdown(f'<div style="margin:8px 0">{chips_html}</div>', unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)  # hub-search-box
+
+    # ── Executar busca ─────────────────────────────────────────────────────
+    if search_clicked and query.strip():
+        _run_hub_search(query.strip(), active_cat, active_mods, mode)
+
+    st.markdown('</div>', unsafe_allow_html=True)  # hub-wrap
+
+
+def _run_hub_search(query: str, category: str, selected_mods: set, mode: str):
+    """
+    Executa os módulos selecionados e armazena resultado no session_state
+    para exibição nas abas.
+    """
+    import re as _re
+    client = OathnetClient(api_key=OATHNET_API_KEY)
+
+    # Detecta tipo automaticamente
+    is_email_q   = "@" in query
+    is_ip_q      = bool(_re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", query))
+    is_discord_q = bool(_re.match(r"^\d{14,19}$", query))
+    is_domain_q  = ("." in query and not is_ip_q and not is_email_q
+                    and not query.replace(".","").isdigit())
+    is_username_q = not is_email_q and not is_ip_q and not is_discord_q and not is_domain_q
+
+    # Monta lista de módulos a rodar
+    # Automated → todos da categoria; Manual → só os selecionados
+    run_breach   = "breaches"  in selected_mods
+    run_stealer  = "stealer"   in selected_mods
+    run_sherlock = "sherlock"  in selected_mods and (is_email_q or is_username_q)
+    run_discord  = "discord"   in selected_mods and (is_discord_q or is_username_q)
+    run_steam    = "steam"     in selected_mods and is_username_q
+    run_xbox     = "xbox"      in selected_mods and is_username_q
+    run_roblox   = "roblox"    in selected_mods and is_username_q
+    run_holehe   = "holehe"    in selected_mods and is_email_q
+    run_ghunt    = "ghunt"     in selected_mods and is_email_q
+    run_ip       = "ip_info"   in selected_mods and is_ip_q
+    run_subdomain= "subdomain" in selected_mods and is_domain_q
+
+    total_mods = sum([run_breach, run_stealer, run_sherlock, run_discord,
+                      run_steam, run_xbox, run_roblox, run_holehe, run_ghunt,
+                      run_ip, run_subdomain])
+
+    if total_mods == 0:
+        st.warning("⚠️ Nenhum módulo compatível com este tipo de dado para a categoria selecionada. "
+                   "Tente outra categoria ou o Full Search.")
+        return
+
+    progress = st.progress(0, text="Iniciando...")
+    done = [0]
+
+    def step(label: str):
+        done[0] += 1
+        progress.progress(min(int(done[0] / total_mods * 100), 100), text=f"🔄 {label}...")
+
+    # Resultados que alimentam as abas normais
+    oath_result  = None
+    sherl_result = None
+    extra        = {}  # resultados extras (discord, gaming, ip, etc.)
+
+    # ── Breach ──────────────────────────────────────────────────────────
+    if run_breach or run_stealer:
+        step("Vazamentos")
+        try:
+            res = client.search_breach(query)
+            if run_stealer:
+                step("Stealer logs")
+                sts = client.search_stealer_v2(query)
+                res.stealers       = sts.stealers
+                res.stealers_found = sts.stealers_found
+            if run_holehe and is_email_q:
+                step("Holehe")
+                h = client.holehe(query)
+                res.holehe_domains = h.holehe_domains
+            oath_result = res
+        except Exception as e:
+            st.error(f"Erro OathNet: {e}")
+
+    # ── Sherlock ─────────────────────────────────────────────────────────
+    if run_sherlock:
+        step("Sherlock (redes sociais)")
+        try:
+            sherl_result = search_username(
+                query if is_username_q else query.split("@")[0],
+                prefer_cli=False,
+            )
+        except Exception as e:
+            st.error(f"Erro Sherlock: {e}")
+
+    # ── GHunt ─────────────────────────────────────────────────────────────
+    if run_ghunt and is_email_q:
+        step("GHunt")
+        try:
+            ok, data = client._get("service/ghunt", params={"email": query})
+            extra["ghunt"] = {"ok": ok, "data": data.get("data", data) if ok else None}
+        except Exception:
+            pass
+
+    # ── Discord ───────────────────────────────────────────────────────────
+    if run_discord and is_discord_q:
+        step("Discord")
+        try:
+            ok_u, user = client.discord_userinfo(query)
+            ok_h, hist = client.discord_username_history(query)
+            extra["discord"] = {"user": {"ok": ok_u, "data": user if ok_u else None},
+                                 "history": {"ok": ok_h, "data": hist if ok_h else None}}
+        except Exception:
+            pass
+
+    # ── Gaming ────────────────────────────────────────────────────────────
+    for key, flag, method in [
+        ("steam",  run_steam,  lambda q: client.steam_lookup(q)),
+        ("xbox",   run_xbox,   lambda q: client.xbox_lookup(q)),
+        ("roblox", run_roblox, lambda q: client.roblox_lookup(username=q)),
+    ]:
+        if flag:
+            step(key.capitalize())
+            try:
+                ok, data = method(query)
+                extra[key] = {"ok": ok, "data": data if ok else None,
+                               "error": "" if ok else data.get("error","")}
+            except Exception:
+                pass
+
+    # ── IP Info ───────────────────────────────────────────────────────────
+    if run_ip:
+        step("IP Info")
+        try:
+            ok, data = client.ip_info(query)
+            extra["ip_info"] = {"ok": ok, "data": data if ok else None}
+        except Exception:
+            pass
+
+    # ── Subdomains ────────────────────────────────────────────────────────
+    if run_subdomain:
+        step("Subdomínios")
+        try:
+            ok, data = client.extract_subdomains(query)
+            extra["subdomains"] = {"ok": ok, "data": data.get("subdomains",[]) if ok else []}
+        except Exception:
+            pass
+
+    progress.progress(100, text="✅ Concluído!")
+
+    # Salva nos resultados da investigação
+    st.session_state.oathnet_result  = oath_result
+    st.session_state.sherlock_result = sherl_result
+    st.session_state.hub_extra       = extra
+    st.session_state.investigation   = {
+        "target":      query,
+        "target_type": "Auto",
+        "timestamp":   datetime.now().isoformat(),
+        "category":    category,
+        "modules":     list(selected_mods),
+    }
+
+    if oath_result or sherl_result:
+        _add_case(query, category, oath_result, sherl_result)
+
+    st.rerun()
 
 
 if __name__ == "__main__":
