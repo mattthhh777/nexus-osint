@@ -2380,18 +2380,33 @@ def _run_hub_search(query: str, category: str, selected_mods: set, mode: str):
     is_username_q = not is_email_q and not is_ip_q and not is_discord_q and not is_domain_q
 
     # Monta lista de módulos a rodar
-    # Automated → todos da categoria; Manual → só os selecionados
-    run_breach   = "breaches"  in selected_mods
-    run_stealer  = "stealer"   in selected_mods
-    run_sherlock = "sherlock"  in selected_mods and (is_email_q or is_username_q)
-    run_discord  = "discord"   in selected_mods and (is_discord_q or is_username_q)
-    run_steam    = "steam"     in selected_mods and is_username_q
-    run_xbox     = "xbox"      in selected_mods and is_username_q
-    run_roblox   = "roblox"    in selected_mods and is_username_q
-    run_holehe   = "holehe"    in selected_mods and is_email_q
-    run_ghunt    = "ghunt"     in selected_mods and is_email_q
-    run_ip       = "ip_info"   in selected_mods and is_ip_q
-    run_subdomain= "subdomain" in selected_mods and is_domain_q
+    # Automated → roda tudo que faz sentido para o tipo detectado (ignora categoria)
+    # Manual → só os módulos selecionados da categoria ativa
+    if mode == "Automated":
+        run_breach   = True
+        run_stealer  = True
+        run_sherlock = is_email_q or is_username_q   # ← sempre para nomes/usernames
+        run_discord  = is_discord_q
+        run_steam    = is_username_q
+        run_xbox     = is_username_q
+        run_roblox   = is_username_q
+        run_holehe   = is_email_q
+        run_ghunt    = is_email_q
+        run_ip       = is_ip_q
+        run_subdomain= is_domain_q
+    else:
+        # Manual: só os módulos que o usuário selecionou
+        run_breach   = "breaches"  in selected_mods
+        run_stealer  = "stealer"   in selected_mods
+        run_sherlock = "sherlock"  in selected_mods and (is_email_q or is_username_q)
+        run_discord  = "discord"   in selected_mods and (is_discord_q or is_username_q)
+        run_steam    = "steam"     in selected_mods and is_username_q
+        run_xbox     = "xbox"      in selected_mods and is_username_q
+        run_roblox   = "roblox"    in selected_mods and is_username_q
+        run_holehe   = "holehe"    in selected_mods and is_email_q
+        run_ghunt    = "ghunt"     in selected_mods and is_email_q
+        run_ip       = "ip_info"   in selected_mods and is_ip_q
+        run_subdomain= "subdomain" in selected_mods and is_domain_q
 
     total_mods = sum([run_breach, run_stealer, run_sherlock, run_discord,
                       run_steam, run_xbox, run_roblox, run_holehe, run_ghunt,
