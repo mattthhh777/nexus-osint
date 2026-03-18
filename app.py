@@ -211,9 +211,18 @@ def _init_state():
         "target_type":      "Email",
         "prefer_cli":       False,
         "debug_log":        [],
-        "breach_page":      0,        # ← paginação de breaches
-        "discord_lookups":  {},       # ← cache discord_id → dados do perfil
-        "authenticated":    False,    # ← controle de senha
+        "breach_page":      0,
+        "discord_lookups":  {},
+        "authenticated":    False,
+        # ── Ferramentas standalone ────────────────────────────────────────
+        "tool_ip_result":       None,
+        "tool_discord_result":  None,
+        "tool_gaming_result":   None,
+        "tool_subdomain_result":None,
+        "tool_filesearch_result":None,
+        "tool_fullsearch_result":None,
+        "sidebar_active_tool":  "full",   # ferramenta ativa na sidebar
+        "sidebar_modo":         "🔍 Investigação",
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -604,56 +613,119 @@ def _render_header():
 
 def _render_sidebar():
     with st.sidebar:
-        st.markdown("### 🗂️ Gerenciador de Casos")
-        st.markdown("---")
-
-        # ── New investigation form ─────────────────────────────────────
-        st.markdown("**Nova Investigação**")
-        target = st.text_input(
-            "Alvo",
-            placeholder="email@example.com ou username",
-            key="target_input",
-            label_visibility="collapsed",
+        st.markdown(
+            '<div style="text-align:center;padding:8px 0 4px">'
+            '<span style="color:#00d4ff;font-size:1.3rem;font-weight:900;letter-spacing:.12em">⬡ NEXUSOSINT</span>'
+            '</div>',
+            unsafe_allow_html=True,
         )
-        col1, col2 = st.columns(2)
-        with col1:
-            target_type = st.selectbox("Tipo", ["Email", "Username"], label_visibility="collapsed")
-        with col2:
-            prefer_cli = st.checkbox("CLI Sherlock", value=False, help="Usa o Sherlock oficial via subprocess se instalado")
+        st.markdown("---")
 
-        if st.button("🔍 Investigar", use_container_width=True):
-            if target.strip():
-                st.session_state.target = target.strip()
-                st.session_state.target_type = target_type
-                st.session_state.prefer_cli = prefer_cli
-                st.session_state.running = True
-                st.rerun()
-            else:
-                st.warning("Digite um alvo válido.")
+        # ── Seletor de modo ────────────────────────────────────────────────
+        modo = st.radio(
+            "Modo",
+            ["🔍 Investigação", "🛠️ Ferramentas"],
+            label_visibility="collapsed",
+            horizontal=True,
+            key="sidebar_modo",
+        )
 
         st.markdown("---")
 
-        # ── Case history ───────────────────────────────────────────────
-        st.markdown("**Histórico de Casos**")
-        if not st.session_state.cases:
-            st.caption("_Nenhum caso registrado ainda._")
-        else:
-            if st.button("🗑️ Limpar Histórico", use_container_width=True):
-                st.session_state.cases = []
-                CASES_FILE.unlink(missing_ok=True)
-                st.rerun()
+        # ══════════════════════════════════════════════════════════════════
+        if modo == "🔍 Investigação":
+        # ══════════════════════════════════════════════════════════════════
 
-            for case in st.session_state.cases[:15]:
-                label, color = _risk_label(case["risk_score"])
-                is_active = case["id"] == st.session_state.active_case_id
-                badge = "🔴" if label == "CRÍTICO" else "🟠" if label == "ALTO" else "🟡" if label == "MÉDIO" else "🟢"
+            st.markdown("**Nova Investigação**")
+            st.caption("Analisa email ou username: vazamentos + redes sociais")
+
+            target = st.text_input(
+                "Alvo",
+                placeholder="email@example.com ou username",
+                key="target_input",
+                label_visibility="collapsed",
+            )
+            col1, col2 = st.columns(2)
+            with col1:
+                target_type = st.selectbox("Tipo", ["Email", "Username"],
+                                           label_visibility="collapsed")
+            with col2:
+                prefer_cli = st.checkbox("CLI Sherlock", value=False,
+                                         help="Usa o Sherlock oficial via subprocess se instalado")
+
+            if st.button("🔍 Investigar", use_container_width=True):
+                if target.strip():
+                    st.session_state.target      = target.strip()
+                    st.session_state.target_type = target_type
+                    st.session_state.prefer_cli  = prefer_cli
+                    st.session_state.running     = True
+                    # Muda para a aba de resultados
+                    st.session_state.sidebar_active_tool = None
+                    st.rerun()
+                else:
+                    st.warning("Digite um alvo válido.")
+
+            st.markdown("---")
+
+            # ── Histórico de Casos ────────────────────────────────────────
+            st.markdown("**Histórico de Casos**")
+            if not st.session_state.cases:
+                st.caption("_Nenhum caso registrado ainda._")
+            else:
+                if st.button("🗑️ Limpar Histórico", use_container_width=True):
+                    st.session_state.cases = []
+                    CASES_FILE.unlink(missing_ok=True)
+                    st.rerun()
+
+                for case in st.session_state.cases[:12]:
+                    label, color = _risk_label(case["risk_score"])
+                    is_active    = case["id"] == st.session_state.active_case_id
+                    badge = "🔴" if label == "CRÍTICO" else "🟠" if label == "ALTO" else "🟡" if label == "MÉDIO" else "🟢"
+                    st.markdown(
+                        f"""<div class="case-card {'case-card-active' if is_active else ''}">
+                            <div class="case-target">{badge} {case['target']}</div>
+                            <div class="case-meta">{case['target_type']} · Risk {case['risk_score']} · {case['timestamp'][:16]}</div>
+                        </div>""",
+                        unsafe_allow_html=True,
+                    )
+
+        # ══════════════════════════════════════════════════════════════════
+        else:  # 🛠️ Ferramentas
+        # ══════════════════════════════════════════════════════════════════
+
+            st.markdown("**Selecione a Ferramenta**")
+
+            # Cada botão ativa uma ferramenta específica na área principal
+            TOOLS = [
+                ("full",      "🔍 Full Search",      "Email, username, IP, Discord ID…"),
+                ("ip",        "🌐 IP Info",           "Geolocalização e rede"),
+                ("discord",   "🎮 Discord Lookup",    "Perfil + histórico de username"),
+                ("gaming",    "🕹️  Gaming",           "Steam, Xbox, Roblox"),
+                ("subdomain", "🔗 Subdomínios",       "Enumerar subdomínios"),
+                ("filesearch","📁 File Search",       "Buscar em arquivos de vítimas"),
+            ]
+
+            active = st.session_state.get("sidebar_active_tool", "full")
+
+            for key, label, desc in TOOLS:
+                is_active = active == key
+                border    = "border:1px solid #00d4ff;" if is_active else "border:1px solid #30363d;"
+                bg        = "background:#00d4ff18;" if is_active else "background:#161b22;"
+                # Botão customizado com markdown + st.button invisível
                 st.markdown(
-                    f"""<div class="case-card {'case-card-active' if is_active else ''}">
-                        <div class="case-target">{badge} {case['target']}</div>
-                        <div class="case-meta">{case['target_type']} · Risk {case['risk_score']} · {case['timestamp'][:16]}</div>
-                    </div>""",
+                    f'<div style="{bg}{border}border-radius:8px;padding:8px 12px;margin:4px 0;cursor:pointer">'
+                    f'<span style="color:#{"00d4ff" if is_active else "e6edf3"};font-weight:{"700" if is_active else "400"}">{label}</span>'
+                    f'<br><span style="color:#8b949e;font-size:.72rem">{desc}</span>'
+                    f'</div>',
                     unsafe_allow_html=True,
                 )
+                if st.button(label, key=f"tool_btn_{key}", use_container_width=True,
+                             label_visibility="collapsed"):
+                    st.session_state.sidebar_active_tool = key
+                    st.rerun()
+
+            st.markdown("---")
+            st.caption("💡 Cada ferramenta funciona de forma independente — sem precisar de uma investigação ativa.")
 
         st.markdown("---")
         st.caption(f"NexusOSINT {APP_VERSION} · For legal & ethical use only.")
@@ -1243,6 +1315,626 @@ def _render_tab_debug(oath: Optional[OathnetResult], sherl: Optional[SherlockRes
         st.json(env_info)
 
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ── FERRAMENTAS STANDALONE ────────────────────────────────────────────────────
+# Cada ferramenta funciona de forma independente, sem precisar de investigação
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _tool_input(label: str, placeholder: str, key: str) -> str:
+    """Campo de input estilizado para as ferramentas."""
+    return st.text_input(label, placeholder=placeholder, key=key,
+                         label_visibility="collapsed")
+
+
+def _render_tab_tools():
+    """Aba principal de Ferramentas com sub-abas."""
+    st.markdown("### 🛠️ Ferramentas OSINT")
+    st.caption("Ferramentas independentes — funcionam sem precisar de uma investigação ativa.")
+
+    tool_tabs = st.tabs([
+        "🔍 Full Search",
+        "🌐 IP Info",
+        "🎮 Discord",
+        "🕹️ Gaming",
+        "🔗 Subdomínios",
+        "📁 File Search",
+    ])
+
+    with tool_tabs[0]:
+        _render_tool_fullsearch()
+    with tool_tabs[1]:
+        _render_tool_ip()
+    with tool_tabs[2]:
+        _render_tool_discord()
+    with tool_tabs[3]:
+        _render_tool_gaming()
+    with tool_tabs[4]:
+        _render_tool_subdomain()
+    with tool_tabs[5]:
+        _render_tool_filesearch()
+
+
+# ── Full Search ───────────────────────────────────────────────────────────────
+
+def _render_tool_fullsearch():
+    st.markdown("#### 🔍 Full Search — Pesquisa Completa")
+    st.markdown(
+        '<div class="alert-info">ℹ️ Insira qualquer dado (email, username, IP, Discord ID, domínio) '
+        'e o sistema executa <b>todos os módulos relevantes</b> automaticamente.</div>',
+        unsafe_allow_html=True,
+    )
+
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        query = _tool_input("Query", "email, username, IP, Discord ID, domínio...", "fs_query")
+    with col2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        run = st.button("🔍 Buscar Tudo", use_container_width=True, key="fs_run")
+
+    if run and query.strip():
+        client = OathnetClient(api_key=OATHNET_API_KEY)
+        results = {}
+
+        # Detecta tipo para mostrar quais módulos vão rodar
+        import re as _re
+        is_email_q   = "@" in query
+        is_ip_q      = bool(_re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", query))
+        is_discord_q = bool(_re.match(r"^\d{14,19}$", query))
+        is_domain_q  = "." in query and not is_ip_q and not is_email_q
+
+        st.markdown("---")
+        progress = st.progress(0, text="Iniciando busca...")
+
+        modules_total = 0
+        modules_done  = 0
+
+        def step(label: str):
+            nonlocal modules_done
+            modules_done += 1
+            pct = int((modules_done / max(modules_total, 1)) * 100)
+            progress.progress(min(pct, 100), text=f"🔄 {label}...")
+
+        # ── Conta quantos módulos rodarão ──────────────────────────────────
+        module_list = ["Breach", "Stealer"]
+        if is_email_q:   module_list += ["Holehe", "GHunt"]
+        if is_ip_q:      module_list += ["IP Info"]
+        if is_discord_q: module_list += ["Discord User", "Discord History"]
+        if is_domain_q:  module_list += ["Subdomínios"]
+        if not is_ip_q and not is_discord_q: module_list += ["Steam", "Xbox", "Roblox"]
+        modules_total = len(module_list)
+
+        # ── Breach ─────────────────────────────────────────────────────────
+        step("Vazamentos (Breach DB)")
+        try:
+            res = client.search_breach(query)
+            results["breach"] = {"success": res.success, "data": res.breaches,
+                                  "count": res.results_found, "error": res.error}
+        except Exception as e:
+            results["breach"] = {"success": False, "error": str(e)}
+
+        # ── Stealer ────────────────────────────────────────────────────────
+        step("Stealer Logs")
+        try:
+            res = client.search_stealer_v2(query)
+            results["stealer"] = {"success": res.success, "data": res.stealers,
+                                   "count": res.stealers_found, "error": res.error}
+        except Exception as e:
+            results["stealer"] = {"success": False, "error": str(e)}
+
+        # ── Email-specific ─────────────────────────────────────────────────
+        if is_email_q:
+            step("Holehe")
+            try:
+                res = client.holehe(query)
+                results["holehe"] = {"success": res.success, "data": res.holehe_domains,
+                                     "count": len(res.holehe_domains), "error": res.error}
+            except Exception as e:
+                results["holehe"] = {"success": False, "error": str(e)}
+
+            step("GHunt (Google)")
+            try:
+                ok, data = client._get("service/ghunt", params={"email": query})
+                results["ghunt"] = {"success": ok, "data": data.get("data", data) if ok else None,
+                                     "error": "" if ok else data.get("error", "")}
+            except Exception as e:
+                results["ghunt"] = {"success": False, "error": str(e)}
+
+        # ── IP ─────────────────────────────────────────────────────────────
+        if is_ip_q:
+            step("IP Info")
+            try:
+                ok, data = client.ip_info(query)
+                results["ip_info"] = {"success": ok, "data": data if ok else None,
+                                       "error": "" if ok else data.get("error", "")}
+            except Exception as e:
+                results["ip_info"] = {"success": False, "error": str(e)}
+
+        # ── Discord ────────────────────────────────────────────────────────
+        if is_discord_q:
+            step("Discord Userinfo")
+            try:
+                ok, data = client.discord_userinfo(query)
+                results["discord"] = {"success": ok, "data": data if ok else None,
+                                       "error": "" if ok else data.get("error", "")}
+            except Exception as e:
+                results["discord"] = {"success": False, "error": str(e)}
+
+            step("Discord History")
+            try:
+                ok, data = client.discord_username_history(query)
+                results["discord_history"] = {"success": ok, "data": data if ok else None,
+                                               "error": "" if ok else data.get("error", "")}
+            except Exception as e:
+                results["discord_history"] = {"success": False, "error": str(e)}
+
+        # ── Domain ─────────────────────────────────────────────────────────
+        if is_domain_q:
+            step("Subdomínios")
+            try:
+                ok, data = client.extract_subdomains(query)
+                subs = data.get("subdomains", []) if ok else []
+                results["subdomains"] = {"success": ok, "data": subs,
+                                          "count": len(subs), "error": "" if ok else data.get("error", "")}
+            except Exception as e:
+                results["subdomains"] = {"success": False, "error": str(e)}
+
+        # ── Gaming (se não for IP nem Discord) ────────────────────────────
+        if not is_ip_q and not is_discord_q:
+            for platform, method in [("steam", client.steam_lookup),
+                                      ("xbox",  client.xbox_lookup),
+                                      ("roblox", lambda u: client.roblox_lookup(username=u))]:
+                step(platform.capitalize())
+                try:
+                    ok, data = method(query)
+                    results[platform] = {"success": ok, "data": data if ok else None,
+                                          "error": "" if ok else data.get("error", "")}
+                except Exception as e:
+                    results[platform] = {"success": False, "error": str(e)}
+
+        progress.progress(100, text="✅ Concluído!")
+        st.session_state.tool_fullsearch_result = {"query": query, "results": results}
+
+    # ── Exibe resultados ───────────────────────────────────────────────────
+    fs = st.session_state.tool_fullsearch_result
+    if not fs:
+        return
+
+    query   = fs["query"]
+    results = fs["results"]
+
+    # Calcula risk score
+    risk = 0
+    risk += min((results.get("breach", {}).get("count") or 0) * 15, 45)
+    risk += min(len(results.get("stealer", {}).get("data") or []) * 20, 40)
+    risk += min(len(results.get("holehe", {}).get("data") or []) * 3, 15)
+    risk = min(risk, 100)
+    if risk >= 75:   rc, rl = "#f85149", "CRÍTICO"
+    elif risk >= 50: rc, rl = "#f0883e", "ALTO"
+    elif risk >= 25: rc, rl = "#ffd700", "MÉDIO"
+    else:            rc, rl = "#39d353", "BAIXO"
+
+    # Painel de resumo
+    found_modules = [k for k, v in results.items() if v.get("success") and (v.get("count") or v.get("data"))]
+    failed_modules = [k for k, v in results.items() if not v.get("success")]
+
+    cols = st.columns(4)
+    cols[0].metric("🎯 Alvo", query[:20])
+    cols[1].metric("Risk Score", f"{risk} — {rl}")
+    cols[2].metric("✅ Módulos OK", len(found_modules))
+    cols[3].metric("❌ Falhas", len(failed_modules))
+
+    # Resultados por módulo
+    if results.get("breach", {}).get("success") and results["breach"].get("data"):
+        st.markdown("---")
+        st.markdown("##### 💥 Vazamentos")
+        breaches = results["breach"]["data"]
+        has_discord = any(b.discord_id for b in breaches)
+        rows = []
+        for b in breaches[:10]:
+            row = {"DB": b.dbname, "Email": b.email, "Username": b.username}
+            if has_discord: row["Discord ID"] = b.discord_id
+            row["País"] = b.country
+            rows.append(row)
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+    if results.get("stealer", {}).get("success") and results["stealer"].get("data"):
+        st.markdown("---")
+        st.markdown("##### 🦠 Stealer Logs")
+        st.markdown('<div class="alert-danger">⚠️ Credenciais em logs de malware encontradas</div>', unsafe_allow_html=True)
+        stealers = results["stealer"]["data"]
+        st.dataframe(pd.DataFrame([{
+            "URL": s.url[:50], "Username": s.username, "Domínio": ", ".join(s.domain[:1]) or "—"
+        } for s in stealers[:10]]), use_container_width=True, hide_index=True)
+
+    if results.get("holehe", {}).get("success") and results["holehe"].get("data"):
+        st.markdown("---")
+        st.markdown("##### 📧 Serviços com Conta (Holehe)")
+        badges = "".join(f'<span class="platform-found">✓ {d}</span>' for d in results["holehe"]["data"])
+        st.markdown(badges, unsafe_allow_html=True)
+
+    if results.get("ip_info", {}).get("success"):
+        st.markdown("---")
+        st.markdown("##### 🌐 IP Info")
+        d = results["ip_info"]["data"] or {}
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("País", d.get("country", "—"))
+        c2.metric("Cidade", d.get("city", "—"))
+        c3.metric("ISP", (d.get("isp") or "—")[:20])
+        c4.metric("Proxy/VPN", "⚠ Sim" if d.get("proxy") else "Não")
+
+    if results.get("discord", {}).get("success") and results["discord"].get("data"):
+        st.markdown("---")
+        st.markdown("##### 🎮 Discord")
+        d = results["discord"]["data"]
+        st.markdown(f"**{d.get('global_name') or d.get('username', '—')}** · `@{d.get('username','—')}` · ID: `{d.get('id','—')}`")
+        if d.get("avatar_url"):
+            st.image(d["avatar_url"], width=64)
+
+    for plat in ["steam", "xbox", "roblox"]:
+        if results.get(plat, {}).get("success") and results[plat].get("data"):
+            st.markdown("---")
+            d = results[plat]["data"]
+            st.markdown(f"##### {'🎮' if plat=='steam' else '🕹️' if plat=='xbox' else '🧱'} {plat.capitalize()}: **{d.get('username','—')}**")
+
+    if results.get("subdomains", {}).get("success"):
+        subs = results["subdomains"].get("data") or []
+        if subs:
+            st.markdown("---")
+            st.markdown(f"##### 🔗 Subdomínios ({len(subs)} encontrados)")
+            st.dataframe(pd.DataFrame({"Subdomínio": subs[:20]}), use_container_width=True, hide_index=True)
+
+    # Módulos com falha
+    if failed_modules:
+        with st.expander(f"⚠️ Módulos sem resultado ({len(failed_modules)})"):
+            for m in failed_modules:
+                err = results[m].get("error", "sem dados")
+                st.markdown(f"- **{m}**: `{err[:60]}`")
+
+
+# ── IP Info ───────────────────────────────────────────────────────────────────
+
+def _render_tool_ip():
+    st.markdown("#### 🌐 IP Info — Geolocalização e Rede")
+    st.caption("Retorna país, cidade, ISP, organização, fuso horário e detecta Proxy/VPN/Hosting.")
+
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        ip = _tool_input("IP", "ex: 174.235.65.156", "tool_ip_input")
+    with col2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        run = st.button("🔍 Consultar", use_container_width=True, key="ip_run")
+
+    if run and ip.strip():
+        with st.spinner("Consultando..."):
+            client = OathnetClient(api_key=OATHNET_API_KEY)
+            ok, data = client.ip_info(ip.strip())
+            st.session_state.tool_ip_result = {"ok": ok, "data": data, "ip": ip.strip()}
+
+    res = st.session_state.tool_ip_result
+    if not res:
+        return
+    if not res["ok"]:
+        st.markdown(f'<div class="alert-danger">❌ {res["data"].get("error","Falhou")}</div>', unsafe_allow_html=True)
+        return
+
+    d = res["data"]
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("🌍 País",     f"{d.get('country','—')} ({d.get('countryCode','—')})")
+    c2.metric("🏙️ Cidade",  d.get("city", "—"))
+    c3.metric("📡 ISP",     (d.get("isp") or "—")[:22])
+    c4.metric("🔒 Proxy/VPN", "⚠️ Sim" if d.get("proxy") else "Não")
+
+    st.markdown("---")
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.markdown("**Detalhes de Rede**")
+        for k, v in [("Organização", d.get("org")), ("AS", d.get("as")),
+                     ("Reverse DNS", d.get("reverse")), ("Fuso Horário", d.get("timezone"))]:
+            if v:
+                st.markdown(f"**{k}:** `{v}`")
+    with col_b:
+        st.markdown("**Flags de Segurança**")
+        flags = [
+            ("📱 Mobile",   d.get("mobile")),
+            ("🔒 Proxy/VPN", d.get("proxy")),
+            ("🖥️ Hosting",  d.get("hosting")),
+        ]
+        for label, val in flags:
+            color = "#f0883e" if val else "#39d353"
+            st.markdown(f'<span style="color:{color}">{"⚠️" if val else "✅"} {label}: {"Sim" if val else "Não"}</span>', unsafe_allow_html=True)
+
+        if d.get("lat") and d.get("lon"):
+            st.markdown(f"**📍 Coords:** `{d.get('lat')}, {d.get('lon')}`")
+
+
+# ── Discord ───────────────────────────────────────────────────────────────────
+
+def _render_tool_discord():
+    st.markdown("#### 🎮 Discord Lookup")
+    st.caption("Busca perfil público, histórico de usernames e conta Roblox vinculada pelo Discord ID (snowflake).")
+
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        did = _tool_input("Discord ID", "ex: 352826996163739666  (somente números)", "tool_discord_input")
+    with col2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        run = st.button("🔍 Buscar", use_container_width=True, key="discord_run")
+
+    if run and did.strip():
+        import re as _re
+        if not _re.match(r"^\d{14,19}$", did.strip()):
+            st.markdown('<div class="alert-warning">⚠️ Discord ID deve conter 14–19 dígitos numéricos.</div>', unsafe_allow_html=True)
+        else:
+            with st.spinner("Consultando Discord..."):
+                client = OathnetClient(api_key=OATHNET_API_KEY)
+                ok_u, user    = client.discord_userinfo(did.strip())
+                ok_h, history = client.discord_username_history(did.strip())
+                ok_r, roblox  = client.discord_to_roblox(did.strip())
+                st.session_state.tool_discord_result = {
+                    "did": did.strip(),
+                    "user": {"ok": ok_u, "data": user},
+                    "history": {"ok": ok_h, "data": history},
+                    "roblox": {"ok": ok_r, "data": roblox},
+                }
+
+    res = st.session_state.tool_discord_result
+    if not res:
+        return
+
+    # Perfil
+    st.markdown("---")
+    st.markdown("##### 👤 Perfil")
+    if res["user"]["ok"]:
+        d = res["user"]["data"]
+        col_a, col_b = st.columns([1, 4])
+        with col_a:
+            if d.get("avatar_url"):
+                st.image(d["avatar_url"], width=72)
+        with col_b:
+            st.markdown(f"**{d.get('global_name') or d.get('username','—')}** · `@{d.get('username','—')}`")
+            st.caption(f"ID: `{d.get('id','—')}` · Criado em: `{d.get('creation_date','—')}`")
+            if d.get("badges"):
+                st.markdown("🏅 " + " · ".join(d["badges"]))
+    else:
+        st.markdown(f'<div class="alert-warning">⚠️ {res["user"]["data"].get("error","Não encontrado")}</div>', unsafe_allow_html=True)
+
+    # Histórico de usernames
+    st.markdown("##### 📋 Histórico de Usernames")
+    if res["history"]["ok"]:
+        h = res["history"]["data"]
+        entries = h.get("history", [])
+        if entries:
+            rows = []
+            for e in entries:
+                name = e.get("name", ["—"]); name = name[0] if isinstance(name, list) else name
+                ts   = e.get("time",  ["—"]); ts   = ts[0][:19]  if isinstance(ts,   list) else str(ts)[:19]
+                rows.append({"Username": name, "Data": ts})
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        else:
+            st.caption("Nenhum histórico disponível.")
+    else:
+        st.caption(f"Histórico indisponível: {res['history']['data'].get('error','')}")
+
+    # Roblox vinculado
+    st.markdown("##### 🧱 Conta Roblox Vinculada")
+    if res["roblox"]["ok"] and res["roblox"]["data"].get("roblox_id"):
+        d = res["roblox"]["data"]
+        st.markdown(f"**Roblox ID:** `{d.get('roblox_id','—')}` · **Username:** `{d.get('name','—')}` · **Display:** `{d.get('displayName','—')}`")
+        if d.get("avatar"):
+            st.image(d["avatar"], width=64)
+    else:
+        st.caption("Nenhuma conta Roblox vinculada encontrada.")
+
+
+# ── Gaming ────────────────────────────────────────────────────────────────────
+
+def _render_tool_gaming():
+    st.markdown("#### 🕹️ Gaming — Steam / Xbox / Roblox")
+    st.caption("Busca perfis em plataformas de gaming pelo username ou ID.")
+
+    platform = st.radio("Plataforma", ["Steam", "Xbox", "Roblox"], horizontal=True, key="gaming_platform")
+
+    if platform == "Steam":
+        placeholder = "Steam64 ID ou custom URL  (ex: 76561199443618616)"
+    elif platform == "Xbox":
+        placeholder = "Gamertag  (ex: ethan)"
+    else:
+        placeholder = "Username  (ex: chris)"
+
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        query = _tool_input("ID / Username", placeholder, "tool_gaming_input")
+    with col2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        run = st.button("🔍 Buscar", use_container_width=True, key="gaming_run")
+
+    if run and query.strip():
+        with st.spinner(f"Consultando {platform}..."):
+            client = OathnetClient(api_key=OATHNET_API_KEY)
+            if platform == "Steam":
+                ok, data = client.steam_lookup(query.strip())
+            elif platform == "Xbox":
+                ok, data = client.xbox_lookup(query.strip())
+            else:
+                ok, data = client.roblox_lookup(username=query.strip())
+            st.session_state.tool_gaming_result = {
+                "platform": platform, "query": query.strip(), "ok": ok, "data": data
+            }
+
+    res = st.session_state.tool_gaming_result
+    if not res:
+        return
+
+    st.markdown("---")
+    if not res["ok"]:
+        st.markdown(f'<div class="alert-danger">❌ {res["data"].get("error","Perfil não encontrado")}</div>', unsafe_allow_html=True)
+        return
+
+    d = res["data"]
+    plat = res["platform"]
+
+    col_a, col_b = st.columns([1, 4])
+    with col_a:
+        if d.get("avatar"):
+            st.image(d["avatar"], width=80)
+    with col_b:
+        st.markdown(f"### {d.get('username','—')}")
+        if plat == "Steam":
+            raw = d.get("raw_data", {})
+            vis = {1:"🔒 Privado", 2:"👥 Amigos", 3:"🌐 Público"}.get(raw.get("communityvisibilitystate",0),"—")
+            st.caption(f"Steam ID: `{d.get('id','—')}` · {vis}")
+            if raw.get("profileurl"):
+                st.markdown(f"[🔗 Ver perfil]({raw['profileurl']})")
+        elif plat == "Xbox":
+            meta = (d.get("meta") or {}).get("meta") or {}
+            sc = d.get("scraper_data") or {}
+            st.caption(f"XUID: `{(d.get('meta') or {}).get('id','—')}` · Tier: `{meta.get('accounttier','—')}` · Gamerscore: `{meta.get('gamerscore','—')}`")
+            if sc.get("games_played"):
+                st.metric("Jogos", sc["games_played"])
+        else:
+            st.caption(f"ID: `{d.get('user_id') or d.get('User ID','—')}` · Criado em: `{d.get('Join Date','—')[:10]}`")
+            old = d.get("Old Usernames")
+            if old and old != "None":
+                st.caption(f"Usernames anteriores: {old}")
+
+
+# ── Subdomínios ───────────────────────────────────────────────────────────────
+
+def _render_tool_subdomain():
+    st.markdown("#### 🔗 Enumeração de Subdomínios")
+    st.caption("Descobre subdomínios conhecidos de um domínio usando os dados da OathNet.")
+
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        domain = _tool_input("Domínio", "ex: example.com", "tool_sub_input")
+    with col2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        run = st.button("🔍 Enumerar", use_container_width=True, key="sub_run")
+
+    if run and domain.strip():
+        with st.spinner("Buscando subdomínios..."):
+            client = OathnetClient(api_key=OATHNET_API_KEY)
+            ok, data = client.extract_subdomains(domain.strip())
+            subs = data.get("subdomains", []) if ok else []
+            st.session_state.tool_subdomain_result = {
+                "domain": domain.strip(), "ok": ok,
+                "data": subs, "error": "" if ok else data.get("error", "Falhou")
+            }
+
+    res = st.session_state.tool_subdomain_result
+    if not res:
+        return
+
+    st.markdown("---")
+    if not res["ok"]:
+        st.markdown(f'<div class="alert-danger">❌ {res["error"]}</div>', unsafe_allow_html=True)
+        return
+
+    subs = res["data"]
+    st.metric("Subdomínios encontrados", len(subs))
+    if subs:
+        # Mostrar em duas colunas
+        col1, col2 = st.columns(2)
+        mid = len(subs) // 2
+        with col1:
+            st.dataframe(pd.DataFrame({"Subdomínio": subs[:mid]}),
+                         use_container_width=True, hide_index=True)
+        with col2:
+            st.dataframe(pd.DataFrame({"Subdomínio": subs[mid:]}),
+                         use_container_width=True, hide_index=True)
+
+        # Download
+        st.download_button(
+            "⬇️ Baixar lista (.txt)",
+            data="\n".join(subs),
+            file_name=f"subdomains_{res['domain']}.txt",
+            mime="text/plain",
+        )
+    else:
+        st.markdown('<div class="alert-success">✅ Nenhum subdomínio encontrado.</div>', unsafe_allow_html=True)
+
+
+# ── File Search ───────────────────────────────────────────────────────────────
+
+def _render_tool_filesearch():
+    st.markdown("#### 📁 File Search — Busca em Arquivos de Vítimas")
+    st.markdown('<div class="alert-warning">⚠️ Esta ferramenta busca dentro de arquivos capturados de máquinas comprometidas. Use com responsabilidade.</div>', unsafe_allow_html=True)
+    st.markdown("")
+
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        expr = _tool_input("Expressão", "ex: password, @gmail.com, .*secret.*", "tool_fs_expr")
+    with col2:
+        mode = st.selectbox("Modo", ["literal", "wildcard", "regex"], key="tool_fs_mode", label_visibility="collapsed")
+
+    run = st.button("🔍 Buscar em Arquivos", use_container_width=True, key="filesearch_run")
+
+    if run and expr.strip():
+        with st.spinner("Criando job de busca... pode levar até 30s."):
+            import time as _time
+            client  = OathnetClient(api_key=OATHNET_API_KEY)
+            payload = {
+                "expression":      expr.strip(),
+                "search_mode":     mode,
+                "include_matches": True,
+                "case_sensitive":  False,
+                "context_lines":   1,
+            }
+            ok, data = client._post("service/v2/file-search", payload)
+            if not ok:
+                st.session_state.tool_filesearch_result = {"ok": False, "error": data.get("error","Job creation failed")}
+            else:
+                job_id = (data.get("data") or data).get("job_id", "")
+                result = None
+                for _ in range(15):
+                    _time.sleep(2)
+                    ok2, jdata = client._get(f"service/v2/file-search/{job_id}")
+                    if ok2:
+                        status = (jdata.get("data") or jdata).get("status","")
+                        if status in ("completed","canceled"):
+                            result = jdata.get("data") or jdata
+                            break
+                st.session_state.tool_filesearch_result = {
+                    "ok": result is not None,
+                    "data": result,
+                    "error": "Timeout" if result is None else "",
+                }
+
+    res = st.session_state.tool_filesearch_result
+    if not res:
+        return
+
+    st.markdown("---")
+    if not res["ok"]:
+        st.markdown(f'<div class="alert-danger">❌ {res.get("error","Falhou")}</div>', unsafe_allow_html=True)
+        return
+
+    data    = res["data"] or {}
+    matches = data.get("matches", [])
+    summary = data.get("summary", {})
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("📄 Arquivos escaneados", summary.get("files_scanned","—"))
+    c2.metric("✅ Arquivos com match",  summary.get("files_matched","—"))
+    c3.metric("🔍 Total de matches",   summary.get("matches","—"))
+    c4.metric("📊 Bytes escaneados",   summary.get("bytes_scanned","—"))
+
+    if matches:
+        st.markdown("**Matches encontrados:**")
+        rows = []
+        for m in matches[:50]:
+            rows.append({
+                "Arquivo":   m.get("file_name","—"),
+                "Log ID":    (m.get("log_id") or "")[:20],
+                "Linha":     m.get("line_number","—"),
+                "Match":     (m.get("match_text") or "")[:80],
+            })
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    else:
+        st.markdown('<div class="alert-success">✅ Nenhum match encontrado.</div>', unsafe_allow_html=True)
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
@@ -1250,14 +1942,12 @@ def main():
 
     _init_state()
 
-    # ── Password gate ─────────────────────────────────────────────────────
     if not _check_password():
         return
 
     _render_header()
     _render_sidebar()
 
-    # Trigger investigation if running flag is set
     if st.session_state.running:
         st.session_state.running = False
         _run_investigation(st.session_state.target, st.session_state.target_type)
@@ -1265,52 +1955,70 @@ def main():
 
     oath: Optional[OathnetResult] = st.session_state.oathnet_result
     sherl: Optional[SherlockResult] = st.session_state.sherlock_result
+    modo = st.session_state.get("sidebar_modo", "🔍 Investigação")
 
-    if not st.session_state.investigation:
-        # Welcome screen
-        st.markdown(
-            """
-            <div style="text-align:center; padding: 60px 0 40px;">
-                <div style="font-size:4rem;">🔍</div>
-                <h2 style="color:#00d4ff; letter-spacing:0.1em;">Bem-vindo ao NexusOSINT</h2>
-                <p style="color:#8b949e; max-width:500px; margin:0 auto; line-height:1.7;">
-                    Plataforma modular de investigação OSINT para análise de emails e
-                    usernames. Use a sidebar para iniciar uma investigação.
-                </p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+    # ══════════════════════════════════════════════════════════════════════
+    # MODO FERRAMENTAS — renderiza diretamente a ferramenta ativa
+    # ══════════════════════════════════════════════════════════════════════
+    if modo == "🛠️ Ferramentas":
+        tool = st.session_state.get("sidebar_active_tool", "full")
+        TOOL_MAP = {
+            "full":       ("🔍 Full Search",             _render_tool_fullsearch),
+            "ip":         ("🌐 IP Info",                 _render_tool_ip),
+            "discord":    ("🎮 Discord Lookup",          _render_tool_discord),
+            "gaming":     ("🕹️ Gaming — Steam/Xbox/Roblox", _render_tool_gaming),
+            "subdomain":  ("🔗 Subdomínios",             _render_tool_subdomain),
+            "filesearch": ("📁 File Search",             _render_tool_filesearch),
+        }
+        title, render_fn = TOOL_MAP.get(tool, TOOL_MAP["full"])
+        st.markdown(f"## {title}")
         st.markdown("---")
-        c1, c2, c3 = st.columns(3)
-        c1.markdown("### 💥 Vazamentos\nConsulta a API Oathnet para verificar se o alvo aparece em bases de dados comprometidas.")
-        c2.markdown("### 🌐 Redes Sociais\nVerifica presença pública em 25+ plataformas usando o motor Sherlock.")
-        c3.markdown("### 📤 Exportar\nExporte relatórios completos em JSON ou Excel para documentação de casos.")
-
-        # Debug tab only visible when DEBUG=true (local dev)
-        if DEBUG_MODE:
-            st.markdown("---")
-            _tab_debug_pre, = st.tabs(["🛠️ Diagnóstico de Ambiente"])
-            with _tab_debug_pre:
-                _render_tab_debug(None, None)
+        render_fn()
         return
 
-    # Tabs — Debug tab only shown in DEBUG mode
+    # ══════════════════════════════════════════════════════════════════════
+    # MODO INVESTIGAÇÃO — abas com resultados
+    # ══════════════════════════════════════════════════════════════════════
     if DEBUG_MODE:
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Resumo", "💥 Vazamentos (Oathnet)", "🌐 Redes Sociais (Sherlock)", "📤 Exportar", "🛠️ Debug"])
-        with tab5:
+        tabs = st.tabs(["📊 Resumo", "💥 Vazamentos", "🌐 Redes Sociais", "📤 Exportar", "🔧 Debug"])
+        with tabs[4]:
             _render_tab_debug(oath, sherl)
     else:
-        tab1, tab2, tab3, tab4 = st.tabs(["📊 Resumo", "💥 Vazamentos (Oathnet)", "🌐 Redes Sociais (Sherlock)", "📤 Exportar"])
+        tabs = st.tabs(["📊 Resumo", "💥 Vazamentos", "🌐 Redes Sociais", "📤 Exportar"])
 
-    with tab1:
-        _render_tab_summary(oath, sherl)
-    with tab2:
+    with tabs[0]:
+        if not st.session_state.investigation:
+            _render_welcome()
+        else:
+            _render_tab_summary(oath, sherl)
+    with tabs[1]:
         _render_tab_oathnet(oath)
-    with tab3:
+    with tabs[2]:
         _render_tab_sherlock(sherl)
-    with tab4:
+    with tabs[3]:
         _render_tab_export(oath, sherl)
+
+
+def _render_welcome():
+    st.markdown(
+        """
+        <div style="text-align:center; padding: 50px 0 30px;">
+            <div style="font-size:3.5rem">⬡</div>
+            <h2 style="color:#00d4ff; letter-spacing:.1em;">Bem-vindo ao NexusOSINT</h2>
+            <p style="color:#8b949e; max-width:480px; margin:0 auto; line-height:1.7;">
+                Use a <b>sidebar → 🔍 Investigação</b> para analisar emails e usernames,<br>
+                ou <b>sidebar → 🛠️ Ferramentas</b> para buscas avulsas de IP, Discord, Gaming e mais.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown("---")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.markdown("### 💥 Vazamentos\nBusca em breaches e stealer logs.")
+    c2.markdown("### 🌐 Redes Sociais\nSherlock em 25+ plataformas.")
+    c3.markdown("### 🛠️ Ferramentas\nIP, Discord, Gaming, Subdomínios…")
+    c4.markdown("### 📤 Exportar\nHTML, PDF e Excel.")
 
 
 if __name__ == "__main__":
