@@ -222,7 +222,6 @@ def _init_state():
         "tool_filesearch_result":None,
         "tool_fullsearch_result":None,
         "sidebar_active_tool":   "full",
-        "sidebar_modo":          "🔍 Investigação",
         "fs_sidebar_run_query":  None,
         "tool_ip_prefill":       None,
         "tool_discord_prefill":  None,
@@ -626,136 +625,63 @@ def _render_sidebar():
         )
         st.markdown("---")
 
-        # ── FULL SEARCH ────────────────────────────────────────────────────
-        st.markdown("**🔍 Full Search**")
-        st.caption("Coloque qualquer coisa — IP, email, username, Discord ID, nome, número de telefone, domínio...")
-
-        full_query = st.text_input(
-            "Full Search",
-            placeholder="ex: bictoftw, 174.0.0.1, user@gmail.com...",
-            key="fs_sidebar_input",
-            label_visibility="collapsed",
-        )
-        if st.button("🔍 Buscar Tudo", use_container_width=True, key="fs_sidebar_btn"):
-            if full_query.strip():
-                st.session_state.sidebar_active_tool   = "full"
-                st.session_state.sidebar_modo          = "🛠️ Ferramentas"
-                st.session_state.fs_sidebar_run_query  = full_query.strip()
-                st.rerun()
-            else:
-                st.warning("Digite algo para buscar.")
-
-        st.markdown("---")
-
-        # ── BUSCA ESPECÍFICA ───────────────────────────────────────────────
-        st.markdown("**🎯 Busca Específica**")
-        st.caption("Escolha o tipo e pesquise com mais precisão.")
+        # ── INVESTIGAÇÃO (Email / Username → Oathnet + Sherlock) ──────────
+        st.markdown("**🔍 Investigação**")
+        st.caption("Email ou username: vazamentos + redes sociais")
 
         target = st.text_input(
-            "Alvo",
-            placeholder="Digite o alvo...",
-            key="target_input",
-            label_visibility="collapsed",
+            "Alvo", placeholder="email@example.com ou username",
+            key="target_input", label_visibility="collapsed",
         )
+        col1, col2 = st.columns([3, 2])
+        with col1:
+            target_type = st.selectbox("Tipo", ["Email", "Username"],
+                                       label_visibility="collapsed")
+        with col2:
+            prefer_cli = st.checkbox("Sherlock", value=True,
+                                     help="Verifica 25+ redes sociais")
 
-        target_type = st.selectbox(
-            "Tipo",
-            [
-                "📧 Email",
-                "👤 Username",
-                "🌐 IP",
-                "🎮 Discord ID",
-                "🧱 Roblox",
-                "🎮 Steam",
-                "🕹️ Xbox",
-                "📱 Telefone",
-                "🔗 Domínio",
-            ],
-            label_visibility="collapsed",
-            key="target_type_select",
-        )
-
-        # Checkbox Sherlock só aparece para tipos relevantes
-        tipo_limpo = target_type.split(" ", 1)[1]  # remove emoji
-        prefer_cli = False
-        if tipo_limpo in ("Email", "Username"):
-            prefer_cli = st.checkbox(
-                "Incluir Sherlock (redes sociais)",
-                value=True,
-                key="prefer_cli_check",
-                help="Verifica presença em 25+ plataformas sociais",
-            )
-
-        if st.button("🎯 Pesquisar", use_container_width=True, key="specific_search_btn"):
+        if st.button("🔍 Investigar", use_container_width=True, key="btn_investigate"):
             if target.strip():
-                # Roteia para o módulo correto
-                tool_map = {
-                    "Email":      "investigation",
-                    "Username":   "investigation",
-                    "IP":         "ip",
-                    "Discord ID": "discord",
-                    "Roblox":     "gaming",
-                    "Steam":      "gaming",
-                    "Xbox":       "gaming",
-                    "Telefone":   "full",
-                    "Domínio":    "subdomain",
-                }
-                tool = tool_map.get(tipo_limpo, "full")
-
-                if tool == "investigation":
-                    # Usa o fluxo normal de investigação (Oathnet + Sherlock)
-                    st.session_state.target       = target.strip()
-                    st.session_state.target_type  = tipo_limpo
-                    st.session_state.prefer_cli   = prefer_cli
-                    st.session_state.running      = True
-                    st.session_state.sidebar_modo = "🔍 Investigação"
-                else:
-                    # Pré-preenche o campo da ferramenta e abre ela
-                    st.session_state.sidebar_active_tool  = tool
-                    st.session_state.sidebar_modo         = "🛠️ Ferramentas"
-                    st.session_state[f"tool_{tool}_prefill"] = {
-                        "query": target.strip(),
-                        "tipo":  tipo_limpo,
-                    }
+                st.session_state.target      = target.strip()
+                st.session_state.target_type = target_type
+                st.session_state.prefer_cli  = prefer_cli
+                st.session_state.running     = True
                 st.rerun()
             else:
                 st.warning("Digite um alvo.")
 
         st.markdown("---")
 
-        # ── FERRAMENTAS RÁPIDAS ────────────────────────────────────────────
-        st.markdown("**⚡ Ferramentas**")
-        TOOLS = [
-            ("ip",        "🌐 IP Info"),
-            ("discord",   "🎮 Discord"),
-            ("gaming",    "🕹️ Gaming"),
-            ("subdomain", "🔗 Subdomínios"),
-            ("filesearch","📁 File Search"),
-        ]
-        cols = st.columns(2)
-        for i, (key, label) in enumerate(TOOLS):
-            with cols[i % 2]:
-                active = st.session_state.get("sidebar_active_tool") == key
-                if st.button(
-                    label,
-                    key=f"tool_quick_{key}",
-                    use_container_width=True,
-                    type="primary" if active else "secondary",
-                ):
-                    st.session_state.sidebar_active_tool = key
-                    st.session_state.sidebar_modo        = "🛠️ Ferramentas"
-                    st.rerun()
+        # ── FULL SEARCH (qualquer tipo) ────────────────────────────────────
+        st.markdown("**⚡ Full Search**")
+        st.caption("IP, Discord ID, domínio, telefone, qualquer coisa...")
+
+        full_query = st.text_input(
+            "Full Search",
+            placeholder="ex: 174.0.0.1 · discordID · example.com",
+            key="fs_sidebar_input", label_visibility="collapsed",
+        )
+        if st.button("🔍 Buscar Tudo", use_container_width=True, key="fs_sidebar_btn"):
+            if full_query.strip():
+                st.session_state.fs_sidebar_run_query = full_query.strip()
+                st.session_state.active_tab = "ferramentas"
+                st.rerun()
+            else:
+                st.warning("Digite algo para buscar.")
 
         st.markdown("---")
 
         # ── HISTÓRICO ─────────────────────────────────────────────────────
-        if st.session_state.cases:
-            st.markdown("**📋 Histórico**")
+        st.markdown("**📋 Histórico de Casos**")
+        if not st.session_state.cases:
+            st.caption("_Nenhum caso ainda._")
+        else:
             if st.button("🗑️ Limpar", use_container_width=True, key="clear_history"):
                 st.session_state.cases = []
                 CASES_FILE.unlink(missing_ok=True)
                 st.rerun()
-            for case in st.session_state.cases[:8]:
+            for case in st.session_state.cases[:10]:
                 label_r, _ = _risk_label(case["risk_score"])
                 badge = "🔴" if label_r == "CRÍTICO" else "🟠" if label_r == "ALTO" else "🟡" if label_r == "MÉDIO" else "🟢"
                 st.markdown(
@@ -2141,8 +2067,7 @@ def main():
 
     # ── Owner debug panel via URL param ?debug=owner ──────────────────────
     try:
-        params = st.query_params
-        if params.get("debug") == "owner":
+        if st.query_params.get("debug") == "owner":
             _render_header()
             _render_owner_debug()
             return
@@ -2155,48 +2080,40 @@ def main():
     _render_header()
     _render_sidebar()
 
+    # Trigger investigation
     if st.session_state.running:
         st.session_state.running = False
         _run_investigation(st.session_state.target, st.session_state.target_type)
         st.rerun()
 
-    # Se veio um Full Search da sidebar, injeta a query no render function
+    # Full Search veio da sidebar → passa para a aba Ferramentas
     if st.session_state.get("fs_sidebar_run_query"):
         st.session_state["_fs_autorun"] = st.session_state.pop("fs_sidebar_run_query")
         st.session_state.tool_fullsearch_result = None
 
-    oath: Optional[OathnetResult] = st.session_state.oathnet_result
+    oath: Optional[OathnetResult]   = st.session_state.oathnet_result
     sherl: Optional[SherlockResult] = st.session_state.sherlock_result
-    modo = st.session_state.get("sidebar_modo", "🔍 Investigação")
 
-    # ══════════════════════════════════════════════════════════════════════
-    # MODO FERRAMENTAS — renderiza diretamente a ferramenta ativa
-    # ══════════════════════════════════════════════════════════════════════
-    if modo == "🛠️ Ferramentas":
-        tool = st.session_state.get("sidebar_active_tool", "full")
-        TOOL_MAP = {
-            "full":       ("🔍 Full Search",             _render_tool_fullsearch),
-            "ip":         ("🌐 IP Info",                 _render_tool_ip),
-            "discord":    ("🎮 Discord Lookup",          _render_tool_discord),
-            "gaming":     ("🕹️ Gaming — Steam/Xbox/Roblox", _render_tool_gaming),
-            "subdomain":  ("🔗 Subdomínios",             _render_tool_subdomain),
-            "filesearch": ("📁 File Search",             _render_tool_filesearch),
-        }
-        title, render_fn = TOOL_MAP.get(tool, TOOL_MAP["full"])
-        st.markdown(f"## {title}")
-        st.markdown("---")
-        render_fn()
-        return
-
-    # ══════════════════════════════════════════════════════════════════════
-    # MODO INVESTIGAÇÃO — abas com resultados
-    # ══════════════════════════════════════════════════════════════════════
+    # ── Abas sempre visíveis ──────────────────────────────────────────────
     if DEBUG_MODE:
-        tabs = st.tabs(["📊 Resumo", "💥 Vazamentos", "🌐 Redes Sociais", "📤 Exportar", "🔧 Debug"])
-        with tabs[4]:
+        tabs = st.tabs([
+            "📊 Resumo",
+            "💥 Vazamentos",
+            "🌐 Redes Sociais",
+            "🛠️ Ferramentas",
+            "📤 Exportar",
+            "🔧 Debug",
+        ])
+        with tabs[5]:
             _render_tab_debug(oath, sherl)
     else:
-        tabs = st.tabs(["📊 Resumo", "💥 Vazamentos", "🌐 Redes Sociais", "📤 Exportar"])
+        tabs = st.tabs([
+            "📊 Resumo",
+            "💥 Vazamentos",
+            "🌐 Redes Sociais",
+            "🛠️ Ferramentas",
+            "📤 Exportar",
+        ])
 
     with tabs[0]:
         if not st.session_state.investigation:
@@ -2208,6 +2125,8 @@ def main():
     with tabs[2]:
         _render_tab_sherlock(sherl)
     with tabs[3]:
+        _render_tab_tools()
+    with tabs[4]:
         _render_tab_export(oath, sherl)
 
 
@@ -2218,8 +2137,8 @@ def _render_welcome():
             <div style="font-size:3.5rem">⬡</div>
             <h2 style="color:#00d4ff; letter-spacing:.1em;">Bem-vindo ao NexusOSINT</h2>
             <p style="color:#8b949e; max-width:480px; margin:0 auto; line-height:1.7;">
-                Use a <b>sidebar → 🔍 Investigação</b> para analisar emails e usernames,<br>
-                ou <b>sidebar → 🛠️ Ferramentas</b> para buscas avulsas de IP, Discord, Gaming e mais.
+                Use a <b>sidebar</b> para investigar emails e usernames.<br>
+                A aba <b>🛠️ Ferramentas</b> tem IP, Discord, Gaming, Subdomínios e mais.
             </p>
         </div>
         """,
@@ -2227,10 +2146,10 @@ def _render_welcome():
     )
     st.markdown("---")
     c1, c2, c3, c4 = st.columns(4)
-    c1.markdown("### 💥 Vazamentos\nBusca em breaches e stealer logs.")
+    c1.markdown("### 💥 Vazamentos\nBreaches e stealer logs via OathNet.")
     c2.markdown("### 🌐 Redes Sociais\nSherlock em 25+ plataformas.")
     c3.markdown("### 🛠️ Ferramentas\nIP, Discord, Gaming, Subdomínios…")
-    c4.markdown("### 📤 Exportar\nHTML, PDF e Excel.")
+    c4.markdown("### 📤 Exportar\nHTML dark-mode, PDF e Excel.")
 
 
 if __name__ == "__main__":
