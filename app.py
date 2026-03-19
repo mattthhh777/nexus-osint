@@ -107,50 +107,236 @@ import re
 # Importar de um arquivo separado mantém o app.py limpo
 
 _DARK_CSS = """
-
 <style>
+    /* ── Hide Streamlit chrome ── */
     [data-testid="stSidebar"]        { display: none !important; }
     [data-testid="collapsedControl"] { display: none !important; }
-    .stMainBlockContainer            { max-width: 100% !important; padding: 0 2rem !important; }
+    header[data-testid="stHeader"]   { display: none !important; }
+    .stMainBlockContainer            { max-width: 100% !important; padding: 0 !important; }
+    #root > div:first-child          { padding-top: 0 !important; }
+
+    /* ── Design tokens — OathNet-inspired deep navy palette ── */
     :root {
-        --bg:      #0d1117; --bg2: #161b22; --bg3: #1c2128;
-        --border:  #30363d; --cyan: #00d4ff; --green: #39d353;
-        --red:     #f85149; --orange: #f0883e; --yellow: #ffd700;
-        --text:    #e6edf3; --muted: #8b949e;
+        --bg:        #08090e;
+        --bg2:       #0f1117;
+        --bg3:       #151720;
+        --bg4:       #1c1f2e;
+        --border:    #252836;
+        --border2:   #2e3149;
+        --accent:    #7c6af7;
+        --accent2:   #5b4fcf;
+        --accent-glow: rgba(124,106,247,.25);
+        --cyan:      #4fc9f0;
+        --green:     #3dd68c;
+        --red:       #f85149;
+        --orange:    #f0883e;
+        --yellow:    #ffd060;
+        --text:      #eeeef0;
+        --text2:     #9496a8;
+        --text3:     #5c5f72;
+        --radius:    12px;
+        --radius-sm: 8px;
     }
+
+    /* ── Base ── */
     html, body, [data-testid="stApp"] {
-        background-color: var(--bg) !important;
+        background: var(--bg) !important;
         color: var(--text) !important;
-        font-family: 'Consolas', 'Courier New', monospace;
+        font-family: 'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif !important;
+        font-size: 14px;
     }
+
+    /* ── Metrics — clean cards ── */
     [data-testid="stMetric"] {
-        background: var(--bg3); border: 1px solid var(--border);
-        border-radius: 8px; padding: 12px 16px;
+        background: var(--bg3);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 14px 18px;
+        transition: border-color .2s;
     }
-    [data-testid="stMetricValue"]  { color: var(--cyan)  !important; font-size: 1.6rem; font-weight: 700; }
-    [data-testid="stMetricLabel"]  { color: var(--muted) !important; font-size: 0.75rem; }
-    [data-testid="stMetricDelta"]  { font-size: 0.75rem !important; }
-    [data-testid="stDataFrame"]    { border: 1px solid var(--border); border-radius: 6px; }
-    [data-testid="stExpander"]     { background: var(--bg3) !important; border: 1px solid var(--border) !important; border-radius: 6px !important; }
-    .stTextInput input             { background: var(--bg3) !important; border: 1px solid var(--border) !important; color: var(--text) !important; border-radius: 6px !important; }
-    .stButton > button             { background: linear-gradient(135deg, #00d4ff22, #00d4ff11) !important; border: 1px solid var(--cyan) !important; color: var(--cyan) !important; border-radius: 6px !important; transition: all 0.2s; }
-    .stButton > button:hover       { background: var(--cyan) !important; color: #000 !important; }
-    hr                             { border-color: var(--border) !important; }
-    .platform-found  { display: inline-block; background: #39d35322; border: 1px solid #39d353; color: #39d353; border-radius: 4px; padding: 2px 8px; font-size: 0.75rem; margin: 2px; }
-    .alert-success   { background:#39d35315; border:1px solid #39d353; border-radius:6px; padding:10px 14px; color:#39d353; margin:6px 0; }
-    .alert-danger    { background:#f8514915; border:1px solid #f85149; border-radius:6px; padding:10px 14px; color:#f85149; margin:6px 0; }
-    .alert-warning   { background:#f0883e15; border:1px solid #f0883e; border-radius:6px; padding:10px 14px; color:#f0883e; margin:6px 0; }
-    .alert-info      { background:#00d4ff15; border:1px solid #00d4ff; border-radius:6px; padding:10px 14px; color:#00d4ff; margin:6px 0; }
-    .case-card       { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; margin: 6px 0; }
-    .case-card:hover { border-color: var(--cyan); }
-    .case-target     { font-weight: 700; color: var(--cyan); font-size: 0.9rem; }
-    .case-meta       { font-size: 0.7rem; color: var(--muted); }
-    div.cat-row div[data-testid="stButton"] button { border-radius: 999px !important; padding: 4px 14px !important; font-size: .78rem !important; min-height: 0 !important; height: 32px !important; }
-    div.mod-row div[data-testid="stButton"] button { border-radius: 8px !important; padding: 4px 12px !important; font-size: .76rem !important; height: 30px !important; }
-    div[data-testid="stRadio"] > div { flex-direction: row !important; gap: 16px !important; }
-    .hub h1          { text-align: center; font-size: 1.8rem; font-weight: 900; color: var(--text); letter-spacing: .04em; margin: 24px 0 4px; }
-    .hub-sub         { text-align: center; color: var(--muted); font-size: .84rem; margin: 0 0 22px; }
-    .hub-meta        { display: flex; gap: 16px; color: var(--muted); font-size: .74rem; margin-top: 4px; flex-wrap: wrap; }
+    [data-testid="stMetric"]:hover    { border-color: var(--border2); }
+    [data-testid="stMetricValue"]     { color: var(--text) !important; font-size: 1.5rem !important; font-weight: 700 !important; }
+    [data-testid="stMetricLabel"]     { color: var(--text2) !important; font-size: .72rem !important; text-transform: uppercase; letter-spacing: .06em; }
+    [data-testid="stMetricDelta"]     { font-size: .72rem !important; }
+
+    /* ── DataFrames ── */
+    [data-testid="stDataFrame"]       { border: 1px solid var(--border) !important; border-radius: var(--radius-sm) !important; }
+
+    /* ── Expanders ── */
+    [data-testid="stExpander"]        { background: var(--bg3) !important; border: 1px solid var(--border) !important; border-radius: var(--radius) !important; margin: 4px 0 !important; }
+    [data-testid="stExpander"]:hover  { border-color: var(--border2) !important; }
+
+    /* ── Text inputs ── */
+    .stTextInput input {
+        background: var(--bg3) !important;
+        border: 1px solid var(--border2) !important;
+        color: var(--text) !important;
+        border-radius: var(--radius-sm) !important;
+        font-size: 15px !important;
+        padding: 10px 14px !important;
+        transition: border-color .2s, box-shadow .2s;
+    }
+    .stTextInput input:focus {
+        border-color: var(--accent) !important;
+        box-shadow: 0 0 0 3px var(--accent-glow) !important;
+        outline: none !important;
+    }
+
+    /* ── Radio ── */
+    div[data-testid="stRadio"] > div      { flex-direction: row !important; gap: 4px !important; }
+    div[data-testid="stRadio"] label      { margin: 0 !important; }
+    div[data-testid="stRadio"] label > div:first-child { display: none !important; }
+    div[data-testid="stRadio"] label span {
+        background: var(--bg4) !important;
+        border: 1px solid var(--border2) !important;
+        color: var(--text2) !important;
+        border-radius: 999px !important;
+        padding: 5px 16px !important;
+        font-size: .8rem !important;
+        cursor: pointer;
+        transition: all .15s;
+    }
+    div[data-testid="stRadio"] label[data-testid*="checked"] span,
+    div[data-testid="stRadio"] label input[type="radio"]:checked ~ span {
+        background: var(--accent) !important;
+        border-color: var(--accent) !important;
+        color: #fff !important;
+        font-weight: 600 !important;
+    }
+
+    /* ── Buttons — default secondary ── */
+    .stButton > button {
+        background: var(--bg4) !important;
+        border: 1px solid var(--border2) !important;
+        color: var(--text2) !important;
+        border-radius: var(--radius-sm) !important;
+        font-size: .82rem !important;
+        transition: all .15s !important;
+        font-family: inherit !important;
+    }
+    .stButton > button:hover {
+        border-color: var(--accent) !important;
+        color: var(--text) !important;
+        background: rgba(124,106,247,.08) !important;
+    }
+    /* Primary button (Search →) */
+    .stButton > button[kind="primary"],
+    button[data-testid="hub_search_btn"] {
+        background: linear-gradient(135deg, #7c6af7, #5b4fcf) !important;
+        border: none !important;
+        color: #fff !important;
+        font-weight: 600 !important;
+        box-shadow: 0 4px 20px rgba(124,106,247,.4) !important;
+    }
+    .stButton > button[kind="primary"]:hover {
+        background: linear-gradient(135deg, #8f7ef9, #6b5fe0) !important;
+        box-shadow: 0 6px 28px rgba(124,106,247,.55) !important;
+        color: #fff !important;
+    }
+    /* Active category / module buttons */
+    div.cat-row div[data-testid="stButton"] button {
+        border-radius: 999px !important;
+        padding: 5px 16px !important;
+        font-size: .8rem !important;
+        height: auto !important;
+        min-height: 0 !important;
+    }
+    div.cat-row div[data-testid="stButton"] button[kind="primary"] {
+        background: rgba(124,106,247,.15) !important;
+        border: 1px solid var(--accent) !important;
+        color: var(--accent) !important;
+        font-weight: 600 !important;
+        box-shadow: none !important;
+    }
+    div.mod-row div[data-testid="stButton"] button {
+        border-radius: var(--radius-sm) !important;
+        padding: 4px 12px !important;
+        font-size: .76rem !important;
+        height: auto !important;
+    }
+    div.mod-row div[data-testid="stButton"] button[kind="primary"] {
+        background: rgba(124,106,247,.12) !important;
+        border: 1px solid var(--accent) !important;
+        color: var(--accent) !important;
+        box-shadow: none !important;
+    }
+
+    /* ── Alerts ── */
+    hr                 { border-color: var(--border) !important; }
+    .platform-found    { display:inline-block; background:rgba(61,214,140,.1); border:1px solid #3dd68c; color:#3dd68c; border-radius:5px; padding:3px 9px; font-size:.74rem; margin:2px; }
+    .alert-success     { background:rgba(61,214,140,.08); border:1px solid rgba(61,214,140,.3); border-radius:var(--radius-sm); padding:10px 14px; color:#3dd68c; margin:6px 0; }
+    .alert-danger      { background:rgba(248,81,73,.08);  border:1px solid rgba(248,81,73,.3);  border-radius:var(--radius-sm); padding:10px 14px; color:#f85149; margin:6px 0; }
+    .alert-warning     { background:rgba(240,136,62,.08); border:1px solid rgba(240,136,62,.3); border-radius:var(--radius-sm); padding:10px 14px; color:#f0883e; margin:6px 0; }
+    .alert-info        { background:rgba(79,201,240,.08); border:1px solid rgba(79,201,240,.3); border-radius:var(--radius-sm); padding:10px 14px; color:#4fc9f0; margin:6px 0; }
+
+    /* ── Case cards ── */
+    .case-card         { background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px 14px; margin:4px 0; transition:all .15s; }
+    .case-card:hover   { border-color:var(--border2); background:var(--bg4); }
+    .case-target       { font-weight:600; color:var(--text); font-size:.88rem; }
+    .case-meta         { font-size:.7rem; color:var(--text3); margin-top:2px; }
+
+    /* ── Hub layout ── */
+    .hub-wrap {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 0 16px 40px;
+    }
+    .hub-logo {
+        text-align: center;
+        padding: 48px 0 32px;
+    }
+    .hub-logo-icon {
+        font-size: 2.2rem;
+        display: block;
+        margin-bottom: 8px;
+        filter: drop-shadow(0 0 20px rgba(124,106,247,.5));
+    }
+    .hub-logo h1 {
+        font-size: 1.9rem;
+        font-weight: 800;
+        color: var(--text);
+        letter-spacing: -.01em;
+        margin: 0 0 6px;
+    }
+    .hub-logo p {
+        color: var(--text2);
+        font-size: .88rem;
+        margin: 0;
+    }
+    /* Search box card */
+    .hub-card {
+        background: var(--bg2);
+        border: 1px solid var(--border2);
+        border-radius: 16px;
+        padding: 20px 24px 18px;
+        box-shadow: 0 0 0 1px rgba(255,255,255,.02) inset,
+                    0 8px 40px rgba(0,0,0,.4),
+                    0 0 60px rgba(124,106,247,.06);
+        margin-bottom: 16px;
+    }
+    .hub-meta-row {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        font-size: .76rem;
+        color: var(--text3);
+        margin-top: 6px;
+        flex-wrap: wrap;
+    }
+    .hub-meta-row span {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+    /* History section */
+    .history-title {
+        font-size: .78rem;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        color: var(--text3);
+        margin: 24px 0 10px;
+        font-weight: 600;
+    }
 </style>
 """
 
@@ -276,27 +462,33 @@ def _check_password() -> bool:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _render_hub() -> None:
-    """
-    Tela principal de busca — o hub.
-    Agora usa validate_query() para sanitizar inputs e
-    SearchConfig para configurar os módulos.
-    """
     CATEGORIES = {
         "Data Leaks":         {"icon": "🛡️", "modules": {"breaches": ("🔓","Breaches"), "stealer": ("📋","Stealer Logs")}},
         "Social & Gaming":    {"icon": "🎮", "modules": {"sherlock": ("🌐","Sherlock"), "discord": ("💬","Discord"), "steam": ("🎮","Steam"), "xbox": ("🕹️","Xbox"), "roblox": ("🧱","Roblox")}},
         "Email Intelligence": {"icon": "📧", "modules": {"holehe": ("📨","Holehe"), "ghunt": ("🔍","GHunt")}},
         "Network":            {"icon": "🌐", "modules": {"ip_info": ("📍","IP Info"), "subdomain": ("🔗","Subdomínios")}},
-        "SpiderFoot":         {"icon": "🕷️", "modules": {"spiderfoot": ("🕷️","SpiderFoot")}},  # local only
+        "SpiderFoot":         {"icon": "🕷️", "modules": {"spiderfoot": ("🕷️","SpiderFoot")}},
     }
 
-    st.markdown('<div class="hub">', unsafe_allow_html=True)
-    st.markdown('<h1>⬡ NexusOSINT</h1><p class="hub-sub">Plataforma de investigação OSINT · OathNet + Sherlock</p>', unsafe_allow_html=True)
+    # ── Logo + título ───────────────────────────────────────────────────────
+    st.markdown(
+        '<div class="hub-wrap">'
+        '<div class="hub-logo">'
+        '<span class="hub-logo-icon">⬡</span>'
+        '<h1>NexusOSINT</h1>'
+        '<p>Intelligence Gathering Platform · OathNet + Sherlock + SpiderFoot</p>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
-    # Widget de quota — mostra uso da API em tempo real
+    # ── Card de busca ───────────────────────────────────────────────────────
+    st.markdown('<div class="hub-card">', unsafe_allow_html=True)
+
+    # Quota widget dentro do card
     QuotaGuardian.load().render_widget()
 
-    # ── Barra de busca ──────────────────────────────────────────────────────
-    c1, c2 = st.columns([5, 1])
+    # Input + botão Search
+    c1, c2 = st.columns([6, 1])
     with c1:
         raw_query = st.text_input(
             "Buscar",
@@ -305,37 +497,47 @@ def _render_hub() -> None:
             label_visibility="collapsed",
         )
     with c2:
-        search_clicked = st.button("Search →", key="hub_search_btn", type="primary", use_container_width=True)
+        search_clicked = st.button("Search →", key="hub_search_btn",
+                                   type="primary", use_container_width=True)
 
-    # ── Modo + info ─────────────────────────────────────────────────────────
+    # Modo + badges info
     cm, ci = st.columns([2, 5])
     with cm:
         mode = st.radio("Modo", ["Automated", "Manual"], horizontal=True,
                         key="hub_mode", label_visibility="collapsed")
     with ci:
-        st.markdown('<div class="hub-meta"><span>📦 Bulk</span><span>🛡 Secure</span><span>📊 15+ Sources</span></div>',
-                    unsafe_allow_html=True)
+        st.markdown(
+            '<div class="hub-meta-row">'
+            '<span>⚡ Bulk Search</span>'
+            '<span>🔒 Secure</span>'
+            '<span>📊 15+ Sources</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
 
     # ── Categorias ──────────────────────────────────────────────────────────
     active_cat  = st.session_state.get("hub_active_cat", "Data Leaks")
     active_mods = st.session_state.get("hub_active_mods", {"breaches", "stealer"})
 
-    st.markdown('<div class="cat-row" style="margin-top:8px">', unsafe_allow_html=True)
+    st.markdown('<div class="cat-row" style="margin-top:12px">', unsafe_allow_html=True)
     cat_cols = st.columns(len(CATEGORIES))
     for i, (cat_name, cat_data) in enumerate(CATEGORIES.items()):
         with cat_cols[i]:
-            if st.button(f"{cat_data['icon']} {cat_name}", key=f"hub_cat_{cat_name}",
-                         type="primary" if cat_name == active_cat else "secondary",
-                         use_container_width=True):
+            if st.button(
+                f"{cat_data['icon']} {cat_name}",
+                key=f"hub_cat_{cat_name}",
+                type="primary" if cat_name == active_cat else "secondary",
+                use_container_width=True,
+            ):
                 st.session_state.hub_active_cat  = cat_name
                 st.session_state.hub_active_mods = set(cat_data["modules"].keys())
                 st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Módulos da categoria ────────────────────────────────────────────────
+    # ── Módulos ─────────────────────────────────────────────────────────────
     cat_modules = CATEGORIES[active_cat]["modules"]
     if mode == "Manual":
-        st.markdown('<div class="mod-row" style="margin-top:4px">', unsafe_allow_html=True)
+        st.markdown('<div class="mod-row" style="margin-top:8px">', unsafe_allow_html=True)
         mod_cols = st.columns(min(len(cat_modules), 6))
         for i, (mk, (icon, lbl)) in enumerate(cat_modules.items()):
             with mod_cols[i]:
@@ -348,10 +550,17 @@ def _render_hub() -> None:
                     st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
     else:
-        mods_str = "  ·  ".join(f"{icon} {lbl}" for _, (icon, lbl) in cat_modules.items())
-        st.caption(f"Módulos: {mods_str}")
+        # Automated: mostra pills estáticas com os módulos que vão rodar
+        mods_html = "".join(
+            f'<span style="display:inline-flex;align-items:center;gap:4px;'
+            f'background:rgba(124,106,247,.08);border:1px solid rgba(124,106,247,.2);'
+            f'color:#9490e8;border-radius:6px;padding:3px 10px;font-size:.74rem;margin:2px">'
+            f'{icon} {lbl}</span>'
+            for _, (icon, lbl) in cat_modules.items()
+        )
+        st.markdown(f'<div style="margin-top:8px">{mods_html}</div>', unsafe_allow_html=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)  # hub-card
 
     # ── Executar busca ──────────────────────────────────────────────────────
     if search_clicked and raw_query.strip():
@@ -359,27 +568,28 @@ def _render_hub() -> None:
 
     # ── Histórico ───────────────────────────────────────────────────────────
     if st.session_state.cases:
-        st.markdown("---")
+        st.markdown('<p class="history-title">📋 Buscas Recentes</p>', unsafe_allow_html=True)
         ch, cc = st.columns([5, 1])
-        with ch:
-            st.markdown("**📋 Buscas Recentes**")
         with cc:
-            if st.button("🗑️ Limpar", key="clear_hist"):
+            if st.button("Limpar", key="clear_hist"):
                 st.session_state.cases = []
                 CASES_FILE.unlink(missing_ok=True)
                 st.rerun()
         gcols = st.columns(4)
         for i, case in enumerate(st.session_state.cases[:8]):
-            lbl, _ = _risk_label(case["risk_score"])
-            badge = "🔴" if lbl=="CRÍTICO" else "🟠" if lbl=="ALTO" else "🟡" if lbl=="MÉDIO" else "🟢"
+            lbl, color = _risk_label(case["risk_score"])
             with gcols[i % 4]:
                 st.markdown(
                     f'<div class="case-card">'
-                    f'<div class="case-target">{badge} {case["target"]}</div>'
-                    f'<div class="case-meta">{case["target_type"]} · Risk {case["risk_score"]} · {case["timestamp"][:16]}</div>'
-                    f'</div>',
+                    f'<div class="case-target">{case["target"]}</div>'
+                    f'<div class="case-meta" style="margin-top:4px">'
+                    f'<span style="color:{color};font-weight:600">{lbl}</span>'
+                    f' · {case["risk_score"]} · {case["timestamp"][:16]}'
+                    f'</div></div>',
                     unsafe_allow_html=True,
                 )
+
+    st.markdown('</div>', unsafe_allow_html=True)  # hub-wrap
 
 
 def _execute_search(
@@ -416,18 +626,29 @@ def _execute_search(
     # MELHORIA UX: mostra cada módulo que está sendo executado
     st.markdown(f"**Buscando:** `{query}` ({type_lbl}) · {config.total_modules} módulos")
 
-    # ── Passo 2.5: verificar cota ANTES de buscar ─────────────────────────
-    guardian = QuotaGuardian.load()
-    can_run, quota_msg = guardian.can_run(config)
+    # ── Passo 2.5: verificar cota ANTES de buscar ────────────────────────
+    # SpiderFoot não usa OathNet — só verifica cota se há módulos OathNet
+    needs_oathnet = any([
+        config.run_breach, config.run_stealer, config.run_holehe,
+        config.run_ghunt, config.run_ip, config.run_discord,
+        config.run_steam, config.run_xbox, config.run_roblox, config.run_subdomain,
+    ])
 
-    if not can_run:
-        st.error(quota_msg)
-        return
-    elif quota_msg:
-        st.warning(quota_msg)
-
-    cost = guardian.estimate_cost(config)
-    guardian.record_usage(cost)   # registra localmente (API vai confirmar depois)
+    if needs_oathnet:
+        if not OATHNET_API_KEY:
+            st.error("❌ OATHNET_API_KEY não configurada. Configure em Settings → Secrets.")
+            return
+        guardian = QuotaGuardian.load()
+        can_run, quota_msg = guardian.can_run(config)
+        if not can_run:
+            st.error(quota_msg)
+            return
+        elif quota_msg:
+            st.warning(quota_msg)
+        cost = guardian.estimate_cost(config)
+        guardian.record_usage(cost)
+    else:
+        guardian = None  # SpiderFoot only — sem cota OathNet
 
     progress_bar = st.progress(0, text="Iniciando…")
     status_area  = st.empty()   # área que atualiza o módulo atual
@@ -442,12 +663,8 @@ def _execute_search(
         status_area.caption(f"⏱ {recent}")
 
     # ── Passo 4: executar busca ───────────────────────────────────────────
-    if not OATHNET_API_KEY:
-        st.error("❌ OATHNET_API_KEY não configurada.")
-        return
-
     try:
-        results = _cached_search(query, config) if _cached_search else _fallback_search(query, config)
+        results = _cached_search(query, config) if (_cached_search and needs_oathnet) else _fallback_search(query, config)
     except Exception as exc:
         logging.getLogger("nexusosint").error("Search execution failed: %s", exc, exc_info=True)
         st.error(f"❌ Erro durante a busca: {exc}")
@@ -458,16 +675,16 @@ def _execute_search(
     status_area.empty()
 
     # ── Passo 5: salvar e exibir resultados ───────────────────────────────
-    st.session_state.search_results  = results
+    st.session_state.search_results   = results
     st.session_state.spiderfoot_result = results.sf_result
-    st.session_state.investigation   = {
+    st.session_state.investigation    = {
         "target":      query,
         "target_type": category,
         "timestamp":   __import__("datetime").datetime.now().isoformat(),
     }
 
-    # Sincroniza cota com os dados REAIS da API (mais preciso que o contador local)
-    if results.oath_result and results.oath_result.meta:
+    # Sincroniza cota com os dados REAIS da API (só se usou OathNet)
+    if guardian and results.oath_result and results.oath_result.meta:
         guardian.sync_from_api(results.oath_result.meta)
         guardian.save()
 
