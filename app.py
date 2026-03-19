@@ -108,237 +108,365 @@ import re
 
 _DARK_CSS = """
 <style>
-    /* ── Hide Streamlit chrome ── */
-    [data-testid="stSidebar"]        { display: none !important; }
-    [data-testid="collapsedControl"] { display: none !important; }
-    header[data-testid="stHeader"]   { display: none !important; }
-    .stMainBlockContainer            { max-width: 100% !important; padding: 0 !important; }
-    #root > div:first-child          { padding-top: 0 !important; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
-    /* ── Design tokens — OathNet-inspired deep navy palette ── */
-    :root {
-        --bg:        #08090e;
-        --bg2:       #0f1117;
-        --bg3:       #151720;
-        --bg4:       #1c1f2e;
-        --border:    #252836;
-        --border2:   #2e3149;
-        --accent:    #7c6af7;
-        --accent2:   #5b4fcf;
-        --accent-glow: rgba(124,106,247,.25);
-        --cyan:      #4fc9f0;
-        --green:     #3dd68c;
-        --red:       #f85149;
-        --orange:    #f0883e;
-        --yellow:    #ffd060;
-        --text:      #eeeef0;
-        --text2:     #9496a8;
-        --text3:     #5c5f72;
-        --radius:    12px;
-        --radius-sm: 8px;
-    }
+/* ── Hide Streamlit chrome ── */
+[data-testid="stSidebar"]        { display:none!important; }
+[data-testid="collapsedControl"] { display:none!important; }
+header[data-testid="stHeader"]   { display:none!important; }
+.stMainBlockContainer            { max-width:100%!important; padding:0!important; }
+footer                           { display:none!important; }
 
-    /* ── Base ── */
-    html, body, [data-testid="stApp"] {
-        background: var(--bg) !important;
-        color: var(--text) !important;
-        font-family: 'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif !important;
-        font-size: 14px;
-    }
+/* ── Design tokens ── */
+:root {
+  --bg:      #0b0c14;
+  --bg2:     #10111d;
+  --bg3:     #16172a;
+  --bg4:     #1e2035;
+  --border:  rgba(255,255,255,.07);
+  --border2: rgba(255,255,255,.12);
+  --purple:  #7b68ee;
+  --purple2: #6255d3;
+  --purple-glow: rgba(123,104,238,.3);
+  --text:    #f0f0f8;
+  --text2:   #8a8aaa;
+  --text3:   #555575;
+  --red:     #ff4f4f;
+  --orange:  #ff8c42;
+  --green:   #3ecf8e;
+  --yellow:  #ffc84a;
+  --r:       14px;
+  --r-sm:    8px;
+}
 
-    /* ── Metrics — clean cards ── */
-    [data-testid="stMetric"] {
-        background: var(--bg3);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        padding: 14px 18px;
-        transition: border-color .2s;
-    }
-    [data-testid="stMetric"]:hover    { border-color: var(--border2); }
-    [data-testid="stMetricValue"]     { color: var(--text) !important; font-size: 1.5rem !important; font-weight: 700 !important; }
-    [data-testid="stMetricLabel"]     { color: var(--text2) !important; font-size: .72rem !important; text-transform: uppercase; letter-spacing: .06em; }
-    [data-testid="stMetricDelta"]     { font-size: .72rem !important; }
+html, body, [data-testid="stApp"] {
+  background: var(--bg)!important;
+  color: var(--text)!important;
+  font-family: 'Inter', -apple-system, sans-serif!important;
+  font-size: 14px;
+}
 
-    /* ── DataFrames ── */
-    [data-testid="stDataFrame"]       { border: 1px solid var(--border) !important; border-radius: var(--radius-sm) !important; }
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width:6px; height:6px; }
+::-webkit-scrollbar-track { background:var(--bg2); }
+::-webkit-scrollbar-thumb { background:var(--bg4); border-radius:3px; }
 
-    /* ── Expanders ── */
-    [data-testid="stExpander"]        { background: var(--bg3) !important; border: 1px solid var(--border) !important; border-radius: var(--radius) !important; margin: 4px 0 !important; }
-    [data-testid="stExpander"]:hover  { border-color: var(--border2) !important; }
+/* ── Metrics ── */
+[data-testid="stMetric"] {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 16px 20px;
+  transition: border-color .2s;
+}
+[data-testid="stMetric"]:hover { border-color: var(--border2); }
+[data-testid="stMetricValue"]  { color: var(--text)!important; font-size:1.6rem!important; font-weight:700!important; letter-spacing:-.02em; }
+[data-testid="stMetricLabel"]  { color: var(--text2)!important; font-size:.7rem!important; text-transform:uppercase; letter-spacing:.08em; font-weight:600; }
+[data-testid="stMetricDelta"]  { font-size:.72rem!important; }
 
-    /* ── Text inputs ── */
-    .stTextInput input {
-        background: var(--bg3) !important;
-        border: 1px solid var(--border2) !important;
-        color: var(--text) !important;
-        border-radius: var(--radius-sm) !important;
-        font-size: 15px !important;
-        padding: 10px 14px !important;
-        transition: border-color .2s, box-shadow .2s;
-    }
-    .stTextInput input:focus {
-        border-color: var(--accent) !important;
-        box-shadow: 0 0 0 3px var(--accent-glow) !important;
-        outline: none !important;
-    }
+/* ── DataFrames ── */
+[data-testid="stDataFrame"] {
+  border: 1px solid var(--border)!important;
+  border-radius: var(--r-sm)!important;
+  overflow: hidden;
+}
 
-    /* ── Radio ── */
-    div[data-testid="stRadio"] > div      { flex-direction: row !important; gap: 4px !important; }
-    div[data-testid="stRadio"] label      { margin: 0 !important; }
-    div[data-testid="stRadio"] label > div:first-child { display: none !important; }
-    div[data-testid="stRadio"] label span {
-        background: var(--bg4) !important;
-        border: 1px solid var(--border2) !important;
-        color: var(--text2) !important;
-        border-radius: 999px !important;
-        padding: 5px 16px !important;
-        font-size: .8rem !important;
-        cursor: pointer;
-        transition: all .15s;
-    }
-    div[data-testid="stRadio"] label[data-testid*="checked"] span,
-    div[data-testid="stRadio"] label input[type="radio"]:checked ~ span {
-        background: var(--accent) !important;
-        border-color: var(--accent) !important;
-        color: #fff !important;
-        font-weight: 600 !important;
-    }
+/* ── Expanders ── */
+[data-testid="stExpander"] {
+  background: var(--bg2)!important;
+  border: 1px solid var(--border)!important;
+  border-radius: var(--r)!important;
+  margin: 6px 0!important;
+  overflow: hidden;
+}
+[data-testid="stExpander"]:hover { border-color: var(--border2)!important; }
+[data-testid="stExpander"] summary {
+  padding: 12px 16px!important;
+  font-weight: 600!important;
+  font-size: .88rem!important;
+  color: var(--text)!important;
+}
 
-    /* ── Buttons — default secondary ── */
-    .stButton > button {
-        background: var(--bg4) !important;
-        border: 1px solid var(--border2) !important;
-        color: var(--text2) !important;
-        border-radius: var(--radius-sm) !important;
-        font-size: .82rem !important;
-        transition: all .15s !important;
-        font-family: inherit !important;
-    }
-    .stButton > button:hover {
-        border-color: var(--accent) !important;
-        color: var(--text) !important;
-        background: rgba(124,106,247,.08) !important;
-    }
-    /* Primary button (Search →) */
-    .stButton > button[kind="primary"],
-    button[data-testid="hub_search_btn"] {
-        background: linear-gradient(135deg, #7c6af7, #5b4fcf) !important;
-        border: none !important;
-        color: #fff !important;
-        font-weight: 600 !important;
-        box-shadow: 0 4px 20px rgba(124,106,247,.4) !important;
-    }
-    .stButton > button[kind="primary"]:hover {
-        background: linear-gradient(135deg, #8f7ef9, #6b5fe0) !important;
-        box-shadow: 0 6px 28px rgba(124,106,247,.55) !important;
-        color: #fff !important;
-    }
-    /* Active category / module buttons */
-    div.cat-row div[data-testid="stButton"] button {
-        border-radius: 999px !important;
-        padding: 5px 16px !important;
-        font-size: .8rem !important;
-        height: auto !important;
-        min-height: 0 !important;
-    }
-    div.cat-row div[data-testid="stButton"] button[kind="primary"] {
-        background: rgba(124,106,247,.15) !important;
-        border: 1px solid var(--accent) !important;
-        color: var(--accent) !important;
-        font-weight: 600 !important;
-        box-shadow: none !important;
-    }
-    div.mod-row div[data-testid="stButton"] button {
-        border-radius: var(--radius-sm) !important;
-        padding: 4px 12px !important;
-        font-size: .76rem !important;
-        height: auto !important;
-    }
-    div.mod-row div[data-testid="stButton"] button[kind="primary"] {
-        background: rgba(124,106,247,.12) !important;
-        border: 1px solid var(--accent) !important;
-        color: var(--accent) !important;
-        box-shadow: none !important;
-    }
+/* ── Text inputs ── */
+.stTextInput input {
+  background: var(--bg3)!important;
+  border: 1px solid var(--border2)!important;
+  border-radius: var(--r-sm)!important;
+  color: var(--text)!important;
+  font-size: 15px!important;
+  padding: 12px 16px!important;
+  transition: all .2s;
+}
+.stTextInput input:focus {
+  border-color: var(--purple)!important;
+  box-shadow: 0 0 0 3px var(--purple-glow)!important;
+  outline: none!important;
+}
+.stTextInput input::placeholder { color: var(--text3)!important; }
 
-    /* ── Alerts ── */
-    hr                 { border-color: var(--border) !important; }
-    .platform-found    { display:inline-block; background:rgba(61,214,140,.1); border:1px solid #3dd68c; color:#3dd68c; border-radius:5px; padding:3px 9px; font-size:.74rem; margin:2px; }
-    .alert-success     { background:rgba(61,214,140,.08); border:1px solid rgba(61,214,140,.3); border-radius:var(--radius-sm); padding:10px 14px; color:#3dd68c; margin:6px 0; }
-    .alert-danger      { background:rgba(248,81,73,.08);  border:1px solid rgba(248,81,73,.3);  border-radius:var(--radius-sm); padding:10px 14px; color:#f85149; margin:6px 0; }
-    .alert-warning     { background:rgba(240,136,62,.08); border:1px solid rgba(240,136,62,.3); border-radius:var(--radius-sm); padding:10px 14px; color:#f0883e; margin:6px 0; }
-    .alert-info        { background:rgba(79,201,240,.08); border:1px solid rgba(79,201,240,.3); border-radius:var(--radius-sm); padding:10px 14px; color:#4fc9f0; margin:6px 0; }
+/* ── Buttons ── */
+.stButton > button {
+  background: var(--bg4)!important;
+  border: 1px solid var(--border2)!important;
+  color: var(--text2)!important;
+  border-radius: var(--r-sm)!important;
+  font-size: .82rem!important;
+  font-weight: 500!important;
+  transition: all .15s!important;
+  font-family: inherit!important;
+}
+.stButton > button:hover {
+  border-color: var(--purple)!important;
+  color: var(--text)!important;
+  background: rgba(123,104,238,.1)!important;
+}
+.stButton > button[kind="primary"] {
+  background: linear-gradient(135deg, var(--purple), var(--purple2))!important;
+  border: none!important;
+  color: #fff!important;
+  font-weight: 600!important;
+  box-shadow: 0 4px 20px var(--purple-glow)!important;
+}
+.stButton > button[kind="primary"]:hover {
+  box-shadow: 0 6px 28px var(--purple-glow)!important;
+  filter: brightness(1.08)!important;
+  color: #fff!important;
+}
 
-    /* ── Case cards ── */
-    .case-card         { background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px 14px; margin:4px 0; transition:all .15s; }
-    .case-card:hover   { border-color:var(--border2); background:var(--bg4); }
-    .case-target       { font-weight:600; color:var(--text); font-size:.88rem; }
-    .case-meta         { font-size:.7rem; color:var(--text3); margin-top:2px; }
+/* ── Category pills ── */
+div.cat-row div[data-testid="stButton"] button {
+  border-radius: 999px!important;
+  padding: 5px 16px!important;
+  font-size: .8rem!important;
+  height: auto!important;
+  min-height: 0!important;
+  letter-spacing: .01em;
+}
+div.cat-row div[data-testid="stButton"] button[kind="primary"] {
+  background: rgba(123,104,238,.15)!important;
+  border: 1px solid var(--purple)!important;
+  color: #a89af0!important;
+  font-weight: 600!important;
+  box-shadow: none!important;
+}
+div.mod-row div[data-testid="stButton"] button {
+  border-radius: var(--r-sm)!important;
+  padding: 4px 12px!important;
+  font-size: .76rem!important;
+  height: auto!important;
+  min-height: 0!important;
+}
+div.mod-row div[data-testid="stButton"] button[kind="primary"] {
+  background: rgba(123,104,238,.12)!important;
+  border: 1px solid var(--purple)!important;
+  color: #a89af0!important;
+  box-shadow: none!important;
+}
 
-    /* ── Hub layout ── */
-    .hub-wrap {
-        max-width: 760px;
-        margin: 0 auto;
-        padding: 0 16px 40px;
-    }
-    .hub-logo {
-        text-align: center;
-        padding: 48px 0 32px;
-    }
-    .hub-logo-icon {
-        font-size: 2.2rem;
-        display: block;
-        margin-bottom: 8px;
-        filter: drop-shadow(0 0 20px rgba(124,106,247,.5));
-    }
-    .hub-logo h1 {
-        font-size: 1.9rem;
-        font-weight: 800;
-        color: var(--text);
-        letter-spacing: -.01em;
-        margin: 0 0 6px;
-    }
-    .hub-logo p {
-        color: var(--text2);
-        font-size: .88rem;
-        margin: 0;
-    }
-    /* Search box card */
-    .hub-card {
-        background: var(--bg2);
-        border: 1px solid var(--border2);
-        border-radius: 16px;
-        padding: 20px 24px 18px;
-        box-shadow: 0 0 0 1px rgba(255,255,255,.02) inset,
-                    0 8px 40px rgba(0,0,0,.4),
-                    0 0 60px rgba(124,106,247,.06);
-        margin-bottom: 16px;
-    }
-    .hub-meta-row {
-        display: flex;
-        align-items: center;
-        gap: 20px;
-        font-size: .76rem;
-        color: var(--text3);
-        margin-top: 6px;
-        flex-wrap: wrap;
-    }
-    .hub-meta-row span {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-    }
-    /* History section */
-    .history-title {
-        font-size: .78rem;
-        text-transform: uppercase;
-        letter-spacing: .08em;
-        color: var(--text3);
-        margin: 24px 0 10px;
-        font-weight: 600;
-    }
+/* ── Radio toggle pill ── */
+div[data-testid="stRadio"] > div {
+  display: inline-flex!important;
+  flex-direction: row!important;
+  gap: 0!important;
+  background: var(--bg4)!important;
+  border: 1px solid var(--border2)!important;
+  border-radius: 999px!important;
+  padding: 3px!important;
+}
+div[data-testid="stRadio"] label { margin:0!important; cursor:pointer; }
+div[data-testid="stRadio"] label > div:first-child { display:none!important; }
+div[data-testid="stRadio"] label span {
+  display:block!important;
+  padding: 6px 20px!important;
+  border-radius: 999px!important;
+  font-size: .82rem!important;
+  font-weight: 500!important;
+  color: var(--text2)!important;
+  background: transparent!important;
+  border: none!important;
+  transition: all .15s!important;
+}
+div[data-testid="stRadio"] label:has(input:checked) span {
+  background: var(--purple)!important;
+  color: #fff!important;
+  font-weight: 600!important;
+  box-shadow: 0 2px 8px var(--purple-glow)!important;
+}
+
+/* ── Alerts ── */
+hr { border-color: var(--border)!important; }
+.platform-found {
+  display:inline-flex; align-items:center; gap:4px;
+  background: rgba(62,207,142,.08); border: 1px solid rgba(62,207,142,.25);
+  color: var(--green); border-radius:6px; padding:3px 9px;
+  font-size:.74rem; margin:2px; font-weight:500;
+}
+.alert-success { background:rgba(62,207,142,.07); border:1px solid rgba(62,207,142,.2); border-radius:var(--r-sm); padding:12px 16px; color:var(--green); margin:6px 0; }
+.alert-danger  { background:rgba(255,79,79,.07); border:1px solid rgba(255,79,79,.2); border-radius:var(--r-sm); padding:12px 16px; color:var(--red); margin:6px 0; }
+.alert-warning { background:rgba(255,140,66,.07); border:1px solid rgba(255,140,66,.2); border-radius:var(--r-sm); padding:12px 16px; color:var(--orange); margin:6px 0; }
+.alert-info    { background:rgba(123,104,238,.07); border:1px solid rgba(123,104,238,.2); border-radius:var(--r-sm); padding:12px 16px; color:#a89af0; margin:6px 0; }
+
+/* ── Case / history cards ── */
+.case-card {
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 12px 14px; margin: 4px 0;
+  cursor: pointer; transition: all .15s;
+}
+.case-card:hover { border-color: var(--purple); background: var(--bg4); }
+.case-target { font-weight: 600; color: var(--text); font-size:.88rem; }
+.case-meta   { font-size: .7rem; color: var(--text3); margin-top: 3px; }
+
+/* ══════════════════════════════════════════════
+   HUB LAYOUT
+══════════════════════════════════════════════ */
+.hub-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(123,104,238,.18), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(100,80,220,.08), transparent),
+    var(--bg);
+}
+.hub-wrap {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 0 20px 60px;
+}
+.hub-logo {
+  text-align: center;
+  padding: 56px 0 36px;
+}
+.hub-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(123,104,238,.1);
+  border: 1px solid rgba(123,104,238,.25);
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-size: .74rem;
+  font-weight: 600;
+  color: #a89af0;
+  letter-spacing: .04em;
+  margin-bottom: 18px;
+}
+.hub-logo h1 {
+  font-size: 2.4rem;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -.03em;
+  margin: 0 0 10px;
+  line-height: 1;
+}
+.hub-logo p {
+  color: var(--text2);
+  font-size: .9rem;
+  margin: 0;
+  font-weight: 400;
+}
+
+/* Search card */
+.hub-card {
+  background: rgba(16,17,29,.7);
+  border: 1px solid var(--border2);
+  border-radius: 18px;
+  padding: 20px 24px;
+  backdrop-filter: blur(20px);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.03) inset,
+    0 20px 60px rgba(0,0,0,.5),
+    0 0 80px rgba(123,104,238,.05);
+  margin-bottom: 20px;
+}
+
+/* Section dividers for results */
+.results-page { max-width: 100%; padding: 0 20px 60px; }
+
+.report-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 20px 0 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+.report-title { font-size: 1.4rem; font-weight: 800; color: var(--text); letter-spacing: -.02em; }
+.report-sub   { color: var(--text2); font-size: .85rem; margin-top: 2px; }
+.risk-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-size: .82rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
+/* Section cards (breach, stealer, social) */
+.section-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+  margin: 8px 0;
+  transition: border-color .2s;
+}
+.section-card:hover { border-color: var(--border2); }
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.section-title { font-weight: 600; font-size: .9rem; color: var(--text); }
+.section-count {
+  background: rgba(123,104,238,.12);
+  border: 1px solid rgba(123,104,238,.2);
+  color: #a89af0;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: .74rem;
+  font-weight: 700;
+}
+
+/* Stat row inline */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin: 12px 0;
+}
+.stat-cell {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 14px 16px;
+  text-align: center;
+}
+.stat-value { font-size: 1.6rem; font-weight: 700; color: var(--text); letter-spacing: -.02em; }
+.stat-label { font-size: .68rem; color: var(--text2); text-transform: uppercase; letter-spacing: .07em; font-weight: 600; margin-top: 3px; }
+.stat-delta { font-size: .7rem; margin-top: 4px; }
+
+/* History section */
+.history-title {
+  font-size: .7rem;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--text3);
+  font-weight: 700;
+  margin: 28px 0 8px;
+}
+
+/* Export row */
+.export-btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
 </style>
 """
+
 
 
 # ── Gerenciamento de state ────────────────────────────────────────────────────
@@ -474,9 +602,10 @@ def _render_hub() -> None:
     st.markdown(
         '<div class="hub-wrap">'
         '<div class="hub-logo">'
-        '<span class="hub-logo-icon">⬡</span>'
-        '<h1>NexusOSINT</h1>'
-        '<p>Intelligence Gathering Platform · OathNet + Sherlock + SpiderFoot</p>'
+        '<div class="hub-badge">⬡ NEXUSOSINT · v2.0</div>'
+        '<h1>Investigate any data,<br>instantly.</h1>'
+        '<p>Run targeted lookups across breaches, social profiles, gaming accounts,<br>'
+        'emails and network infrastructure — all in one place.</p>'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -739,10 +868,9 @@ def _fallback_search(query: str, config: SearchConfig) -> SearchResults:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _render_results(results: SearchResults) -> None:
-    """
-    Exibe os resultados inline na mesma página.
-    Cada seção é um st.expander colapsável.
-    """
+    import pandas as pd
+    import re as _re
+
     inv     = st.session_state.investigation or {}
     query   = inv.get("target", results.query)
     risk    = results.risk_score
@@ -752,125 +880,118 @@ def _render_results(results: SearchResults) -> None:
     extra   = results.extras
     summary = results.summary()
     inv_ts  = inv.get("timestamp", "")
+    ts_safe = inv_ts[:10] if inv_ts else ""
+    q_safe  = _re.sub(r"[^a-zA-Z0-9_\-@.]", "_", query)
 
-    # ── Header do relatório ────────────────────────────────────────────────
+    # ── Search Report header ───────────────────────────────────────────────
+    st.markdown(
+        f'<div class="results-page">'
+        f'<div class="report-header">'
+        f'<div>'
+        f'  <div class="report-title">Search Report</div>'
+        f'  <div class="report-sub">Information found for <b style="color:var(--text)">{query}</b>'
+        f'  · {results.elapsed_s}s</div>'
+        f'</div>'
+        f'<span class="risk-badge" style="background:{rc}18;border:1px solid {rc}55;color:{rc}">'
+        f'  {risk} — {rl}'
+        f'</span>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+    # ── Stat row (OathNet style — sem expander, direto) ────────────────────
+    n_breach  = summary["breaches"]
+    n_stealer = summary["stealers"]
+    n_social  = summary["social"]
+    n_holehe  = summary["holehe"]
+    n_total   = n_breach + n_stealer + n_social + n_holehe
+
+    def _delta_color(val: int, inverse: bool = False) -> str:
+        if val == 0: return "var(--green)"
+        return "var(--red)" if not inverse else "var(--orange)"
+
     st.markdown(f"""
-    <div style="margin:8px 0 16px;padding-bottom:12px;border-bottom:1px solid #30363d">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-        <div>
-          <span style="font-size:1.35rem;font-weight:800;color:#e6edf3">Search Report</span>
-          <span style="color:#8b949e;font-size:.85rem;margin-left:10px">
-            Information found for <b style="color:#e6edf3">"{query}"</b>
-            · {results.elapsed_s}s
-          </span>
+    <div class="stat-row">
+      <div class="stat-cell">
+        <div class="stat-value">{n_total}</div>
+        <div class="stat-label">Total Found</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-value" style="color:{'var(--red)' if n_breach>10 else 'var(--orange)' if n_breach>0 else 'var(--green)'}">{n_breach}</div>
+        <div class="stat-label">Security Breaches</div>
+        <div class="stat-delta" style="color:{'var(--red)' if n_breach>10 else 'var(--orange)' if n_breach>0 else 'var(--green)'}">
+          {'⚠ Alto risco' if n_breach>10 else '⚠ Atenção' if n_breach>0 else '✓ Limpo'}
         </div>
-        <span style="background:{rc}20;border:1px solid {rc};color:{rc};
-              padding:4px 12px;border-radius:6px;font-size:.8rem;font-weight:700">
-          Risk {risk} — {rl}
-        </span>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-value" style="color:{'var(--red)' if n_stealer>0 else 'var(--green)'}">{n_stealer}</div>
+        <div class="stat-label">Stolen Info</div>
+        <div class="stat-delta" style="color:{'var(--red)' if n_stealer>0 else 'var(--green)'}">
+          {'🚨 Comprometido' if n_stealer>0 else '✓ Limpo'}
+        </div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-value">{n_social}</div>
+        <div class="stat-label">Social Profiles</div>
+        <div class="stat-delta" style="color:var(--text2)">{sherl.total_checked if sherl else 0} checked</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-value">{n_holehe}</div>
+        <div class="stat-label">Email Services</div>
       </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Metric cards COM DELTA (melhoria enterprise) ───────────────────────
-    # Delta mostra o significado do número, não só o número em si
-    with st.expander("📋 Search Summary", expanded=True):
-        c1, c2, c3, c4, c5 = st.columns(5)
+    # Quota info + erros inline (sem expander extra)
+    if oath and oath.meta.plan:
+        st.caption(f"🔑 {oath.meta.plan.upper()} · {oath.meta.used_today}/{oath.meta.daily_limit} lookups usados · {oath.meta.left_today} restantes")
+    if results.errors:
+        errs = " · ".join(f"**{m}**: {e[:40]}" for m, e in results.errors.items())
+        st.markdown(f'<div class="alert-warning" style="font-size:.78rem">⚠ {errs}</div>', unsafe_allow_html=True)
 
-        # Cada metric card tem um "delta" que explica o nível de risco
-        # ANTES: st.metric("Breaches", 95)  ← sem contexto
-        # AGORA: st.metric("Breaches", 95, delta="⚠ Alto risco") ← com contexto
-        c1.metric("Total", sum(summary.values()))
-        c2.metric(
-            "🔓 Breaches", summary["breaches"],
-            delta = "⚠ Alto risco" if summary["breaches"] > 10 else ("OK" if summary["breaches"] == 0 else "Atenção"),
-            delta_color = "inverse" if summary["breaches"] > 10 else "normal",
-        )
-        c3.metric(
-            "🦠 Stealer", summary["stealers"],
-            delta = "🚨 Dispositivo comprometido" if summary["stealers"] > 0 else "Limpo",
-            delta_color = "inverse" if summary["stealers"] > 0 else "normal",
-        )
-        c4.metric(
-            "🌐 Social", summary["social"],
-            delta = f"em {sherl.total_checked if sherl else 0} plataformas",
-        )
-        c5.metric("📧 Holehe", summary["holehe"])
-
-        if oath and oath.meta.plan:
-            st.caption(
-                f"🔑 Plano: {oath.meta.plan} · "
-                f"{oath.meta.used_today} lookups usados · "
-                f"{oath.meta.left_today} restantes"
-            )
-
-        # Erros de módulos (se houver) — visível mas não assustador
-        if results.errors:
-            with st.expander(f"⚠️ {len(results.errors)} módulo(s) com falha"):
-                for mod, err in results.errors.items():
-                    st.caption(f"**{mod}**: {err[:100]}")
-
-    # ── Exportar ───────────────────────────────────────────────────────────
-    with st.expander("📤 Exportar Relatório"):
-        ts      = inv_ts or __import__("datetime").datetime.now().isoformat()
-        ts_safe = ts[:10]
-        q_safe  = re.sub(r"[^a-zA-Z0-9_\-@.]", "_", query)
-
+    # ── Export inline (sem "gerar primeiro") ─────────────────────────────
+    with st.expander("📤 Export Report", expanded=False):
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.markdown("**🌐 HTML (dark-mode)**")
-            if st.button("⚙️ Gerar HTML", key="exp_html"):
-                with st.spinner("Gerando…"):
+            if st.button("⚙️ Generate HTML", key="exp_html"):
+                with st.spinner("Generating…"):
                     try:
-                        html_bytes = generate_html(
-                            query, inv.get("target_type",""),
-                            oath, sherl, risk, ts
-                        ).encode()
-                        st.session_state["_html_cache"] = html_bytes
-                        st.success("✅ Pronto!")
+                        h = generate_html(query, inv.get("target_type",""), oath, sherl, risk, inv_ts or "").encode()
+                        st.session_state["_html_cache"] = h
                     except Exception as e:
                         st.error(str(e))
             if st.session_state.get("_html_cache"):
-                st.download_button("⬇️ Baixar HTML", data=st.session_state["_html_cache"],
+                st.download_button("⬇️ HTML", data=st.session_state["_html_cache"],
                                    file_name=f"nexus_{q_safe}_{ts_safe}.html",
                                    mime="text/html", use_container_width=True)
-
         with col2:
-            st.markdown("**📄 PDF (profissional)**")
-            if st.button("⚙️ Gerar PDF", key="exp_pdf"):
-                with st.spinner("Gerando…"):
+            if st.button("⚙️ Generate PDF", key="exp_pdf"):
+                with st.spinner("Generating…"):
                     try:
-                        pdf = generate_pdf(query, inv.get("target_type",""), oath, sherl, risk, ts)
-                        st.session_state["_pdf_cache"] = pdf
-                        st.success("✅ Pronto!")
+                        p = generate_pdf(query, inv.get("target_type",""), oath, sherl, risk, inv_ts or "")
+                        st.session_state["_pdf_cache"] = p
                     except Exception as e:
                         st.error(str(e))
             if st.session_state.get("_pdf_cache"):
-                st.download_button("⬇️ Baixar PDF", data=st.session_state["_pdf_cache"],
+                st.download_button("⬇️ PDF", data=st.session_state["_pdf_cache"],
                                    file_name=f"nexus_{q_safe}_{ts_safe}.pdf",
                                    mime="application/pdf", use_container_width=True)
-
         with col3:
-            st.markdown("**📦 JSON / Excel**")
-            # JSON direto (sem "gerar" — melhoria UX)
-            st.download_button(
-                "⬇️ Baixar JSON",
-                data=_build_json_export(results, inv),
-                file_name=f"nexus_{q_safe}_{ts_safe}.json",
-                mime="application/json", use_container_width=True,
-            )
+            st.download_button("⬇️ JSON", data=_build_json_export(results, inv),
+                               file_name=f"nexus_{q_safe}_{ts_safe}.json",
+                               mime="application/json", use_container_width=True)
 
     # ── Data Breaches ──────────────────────────────────────────────────────
     if oath and oath.breaches:
         _render_breach_section(oath, inv_ts)
-    elif oath and oath.success:
-        st.markdown('<div class="alert-success">✅ Nenhum breach encontrado.</div>', unsafe_allow_html=True)
+    elif oath and oath.success and not oath.breaches:
+        st.markdown('<div class="alert-success">✓ No breaches found for this target.</div>', unsafe_allow_html=True)
 
     # ── Stealer Logs ───────────────────────────────────────────────────────
     if oath and oath.stealers:
         _render_stealer_section(oath, inv_ts)
 
-    # ── Redes Sociais (Sherlock) ───────────────────────────────────────────
+    # ── Social (Sherlock) ──────────────────────────────────────────────────
     if sherl and sherl.found:
         _render_social_section(sherl, inv_ts)
 
@@ -878,10 +999,10 @@ def _render_results(results: SearchResults) -> None:
     if oath and oath.holehe_domains:
         _render_holehe_section(oath, inv_ts)
 
-    # ── Extras ─────────────────────────────────────────────────────────────
+    # ── Extras (IP, Discord, Gaming, Subdomains) ───────────────────────────
     _render_extras(extra, query)
 
-    # ── SpiderFoot ────────────────────────────────────────────────────────────
+    # ── SpiderFoot ────────────────────────────────────────────────────────
     sf = results.sf_result
     if sf is not None:
         from modules.spiderfoot_wrapper import render_spiderfoot_results
@@ -889,7 +1010,9 @@ def _render_results(results: SearchResults) -> None:
 
     # ── Raw JSON ───────────────────────────────────────────────────────────
     with st.expander("🔬 Raw API Response"):
-        st.json(oath.raw_response if oath and oath.raw_response else {"_note": "sem dados brutos"})
+        st.json(oath.raw_response if oath and oath.raw_response else {"_note": "no raw data"})
+
+    st.markdown('</div>', unsafe_allow_html=True)  # results-page
 
 
 # ── Seções de resultado (cada uma separada para legibilidade) ─────────────────
@@ -1166,16 +1289,9 @@ def _inject_css() -> None:
 
 
 def main() -> None:
-    """
-    Ponto de entrada principal — apenas 3 responsabilidades:
-      1. Inicializar estado
-      2. Verificar acesso
-      3. Renderizar a página certa
-    """
     _inject_css()
     _init_state()
 
-    # Owner debug via URL param
     try:
         if st.query_params.get("debug") == "owner":
             _render_owner_debug()
@@ -1183,17 +1299,17 @@ def main() -> None:
     except Exception as _qp_err:
         logging.getLogger("nexusosint").debug("query_params check failed: %s", _qp_err)
 
-    # Password gate
     if not _check_password():
         return
 
-    # Hub de busca (sempre visível no topo)
+    st.markdown('<div class="hub-page">', unsafe_allow_html=True)
     _render_hub()
 
-    # Resultados (aparecem logo abaixo quando há uma busca ativa)
     results: Optional[SearchResults] = st.session_state.get("search_results")
     if results is not None:
         _render_results(results)
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
