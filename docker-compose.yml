@@ -11,7 +11,7 @@ services:
     ports:
       - "8501:8501"
     environment:
-      - OATHNET_API_KEY=${OATHNET_API_KEY:-3c97dd514ff02fc5235e479ea0b98249e810a95a2ee75e96f763d351361de3cd}
+      - OATHNET_API_KEY=${OATHNET_API_KEY:?Set OATHNET_API_KEY in .env}
       - STREAMLIT_SERVER_HEADLESS=true
       - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
     volumes:
