@@ -23,6 +23,7 @@ Como usar no app.py:
 from __future__ import annotations
 
 import logging
+import os
 import re
 import time
 from dataclasses import dataclass, field
@@ -54,6 +55,7 @@ class SearchConfig:
     run_breach:    bool = True
     run_stealer:   bool = True
     run_sherlock:  bool = False
+    run_spiderfoot:bool = False   # requer instalação local — não funciona no Streamlit Cloud
     run_discord:   bool = False
     run_steam:     bool = False
     run_xbox:      bool = False
@@ -93,7 +95,8 @@ class SearchConfig:
             run_holehe    = is_email,
             run_ghunt     = is_email,
             run_ip        = is_ip,
-            run_subdomain = is_domain,
+            run_subdomain  = is_domain,
+            run_spiderfoot = False,  # desabilitado por padrão — scan lento, habilite manualmente
         )
 
     @classmethod
@@ -126,7 +129,8 @@ class SearchConfig:
             run_holehe    = "holehe"    in selected_modules and is_email,
             run_ghunt     = "ghunt"     in selected_modules and is_email,
             run_ip        = "ip_info"   in selected_modules and is_ip,
-            run_subdomain = "subdomain" in selected_modules and is_domain,
+            run_subdomain  = "subdomain" in selected_modules and is_domain,
+            run_spiderfoot = "spiderfoot" in selected_modules,
         )
 
     @property
@@ -136,6 +140,7 @@ class SearchConfig:
             self.run_breach, self.run_stealer, self.run_sherlock,
             self.run_discord, self.run_steam, self.run_xbox, self.run_roblox,
             self.run_holehe, self.run_ghunt, self.run_ip, self.run_subdomain,
+            self.run_spiderfoot,
         ])
 
     def module_labels(self) -> list[str]:
@@ -151,7 +156,8 @@ class SearchConfig:
             "run_holehe":    "📧 Holehe",
             "run_ghunt":     "🔍 GHunt",
             "run_ip":        "📍 IP Info",
-            "run_subdomain": "🔗 Subdomínios",
+            "run_subdomain":  "🔗 Subdomínios",
+            "run_spiderfoot": "🕷️ SpiderFoot",
         }
         return [label for attr, label in mapping.items() if getattr(self, attr)]
 
@@ -177,6 +183,7 @@ class SearchResults:
     query_type:   QueryType
     oath_result:  Optional[object] = None   # OathnetResult
     sherl_result: Optional[object] = None   # SherlockResult
+    sf_result:    Optional[object] = None   # SpiderFootResult
     extras:       dict = field(default_factory=dict)
     errors:       dict[str, str] = field(default_factory=dict)
     elapsed_s:    float = 0.0
@@ -197,6 +204,8 @@ class SearchResults:
             score += self.oath_result.risk_score
         if self.sherl_result:
             score += self.sherl_result.risk_score
+        if self.sf_result and hasattr(self.sf_result, "risk_contribution"):
+            score += self.sf_result.risk_contribution
         return min(score, 100)
 
     @property
@@ -355,6 +364,26 @@ def run_search(
             logger.error("Sherlock failed | query='%s' | error: %s", query, exc, exc_info=True)
             results.errors["sherlock"] = str(exc)
 
+    # ── Módulo 5: SpiderFoot (scan OSINT completo — apenas local) ─────────
+    # NOTA: SpiderFoot não funciona no Streamlit Cloud.
+    # Só roda se: 1) config.run_spiderfoot=True  2) SpiderFoot instalado
+    if config.run_spiderfoot:
+        _step("🕷️ SpiderFoot (scan completo)…")
+        try:
+            from modules.spiderfoot_wrapper import run_spiderfoot_scan, is_spiderfoot_available
+            if is_spiderfoot_available():
+                results.sf_result = run_spiderfoot_scan(
+                    query,
+                    scan_mode="passive",  # rápido e não-intrusivo
+                    timeout=int(os.getenv("SPIDERFOOT_TIMEOUT", "300")),
+                )
+            else:
+                logger.info("SpiderFoot not installed, skipping")
+                results.sf_result = None
+        except Exception as exc:
+            logger.error("SpiderFoot failed | query='%s' | %s", query, exc, exc_info=True)
+            results.errors["spiderfoot"] = str(exc)
+
     # ── Módulos extras (Discord, Gaming, IP, Subdomain) ───────────────────
     _run_extra_modules(client, query, q_type, config, results, _step)
 
@@ -377,7 +406,8 @@ def run_search(
 # MÓDULOS EXTRAS — separados para manter run_search() legível
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _run_extra_modules(
+def _run_extra_modules(  # noqa
+
     client: object,
     query: str,
     q_type: QueryType,

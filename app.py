@@ -47,8 +47,8 @@ def _setup_logging() -> None:
         fh.setLevel(logging.INFO)   # tudo no arquivo
         fh.setFormatter(fmt)
         root.addHandler(fh)
-    except OSError:
-        pass  # Streamlit Cloud pode não ter filesystem writável — sem problema
+    except OSError as _log_err:
+        print(f"[nexusosint] Could not create log file: {_log_err}")  # sem logger ainda
 
 _setup_logging()
 
@@ -286,6 +286,7 @@ def _render_hub() -> None:
         "Social & Gaming":    {"icon": "🎮", "modules": {"sherlock": ("🌐","Sherlock"), "discord": ("💬","Discord"), "steam": ("🎮","Steam"), "xbox": ("🕹️","Xbox"), "roblox": ("🧱","Roblox")}},
         "Email Intelligence": {"icon": "📧", "modules": {"holehe": ("📨","Holehe"), "ghunt": ("🔍","GHunt")}},
         "Network":            {"icon": "🌐", "modules": {"ip_info": ("📍","IP Info"), "subdomain": ("🔗","Subdomínios")}},
+        "SpiderFoot":         {"icon": "🕷️", "modules": {"spiderfoot": ("🕷️","SpiderFoot")}},  # local only
     }
 
     st.markdown('<div class="hub">', unsafe_allow_html=True)
@@ -457,8 +458,9 @@ def _execute_search(
     status_area.empty()
 
     # ── Passo 5: salvar e exibir resultados ───────────────────────────────
-    st.session_state.search_results = results
-    st.session_state.investigation  = {
+    st.session_state.search_results  = results
+    st.session_state.spiderfoot_result = results.sf_result
+    st.session_state.investigation   = {
         "target":      query,
         "target_type": category,
         "timestamp":   __import__("datetime").datetime.now().isoformat(),
@@ -631,6 +633,12 @@ def _render_results(results: SearchResults) -> None:
 
     # ── Extras ─────────────────────────────────────────────────────────────
     _render_extras(extra, query)
+
+    # ── SpiderFoot ────────────────────────────────────────────────────────────
+    sf = results.sf_result
+    if sf is not None:
+        from modules.spiderfoot_wrapper import render_spiderfoot_results
+        render_spiderfoot_results(sf)
 
     # ── Raw JSON ───────────────────────────────────────────────────────────
     with st.expander("🔬 Raw API Response"):
@@ -925,8 +933,8 @@ def main() -> None:
         if st.query_params.get("debug") == "owner":
             _render_owner_debug()
             return
-    except Exception:
-        pass
+    except Exception as _qp_err:
+        logging.getLogger("nexusosint").debug("query_params check failed: %s", _qp_err)
 
     # Password gate
     if not _check_password():

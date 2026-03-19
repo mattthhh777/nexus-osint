@@ -28,3 +28,11 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+# NexusOSINT runtime files
+.quota_state.json
+logs/
+*.log
+
+# Python compiled files
+*.pyc
+*.pyd
