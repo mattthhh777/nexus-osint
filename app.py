@@ -110,26 +110,33 @@ _DARK_CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
-/* ── Hide Streamlit chrome ── */
+/* ── Hide ALL Streamlit chrome + fix gaps ── */
 [data-testid="stSidebar"]        { display:none!important; }
 [data-testid="collapsedControl"] { display:none!important; }
 header[data-testid="stHeader"]   { display:none!important; }
-.stMainBlockContainer            { max-width:100%!important; padding:0!important; }
 footer                           { display:none!important; }
+/* Remove ALL default padding/margin from Streamlit wrappers */
+.stMainBlockContainer            { max-width:100%!important; padding:0!important; }
+.stApp                           { padding:0!important; }
+section[data-testid="stMain"]    { padding:0!important; }
+.block-container                 { padding:0!important; max-width:100%!important; }
+/* Kill the invisible gap Streamlit adds before first element */
+.stApp > div > div > div:first-child { margin-top:0!important; padding-top:0!important; }
+[data-testid="stVerticalBlock"] > div:first-child { margin-top:0!important; }
+[data-testid="stVerticalBlockBorderWrapper"]:first-child { padding-top:0!important; }
 
 /* ── Design tokens ── */
 :root {
-  --bg:      #0b0c14;
-  --bg2:     #10111d;
-  --bg3:     #16172a;
-  --bg4:     #1e2035;
-  --border:  rgba(255,255,255,.07);
-  --border2: rgba(255,255,255,.12);
-  --purple:  #7b68ee;
-  --purple2: #6255d3;
+  --bg:          #0b0c14;
+  --bg2:         #10111d;
+  --bg3:         #16172a;
+  --bg4:         #1e2035;
+  --border:      rgba(255,255,255,.07);
+  --border2:     rgba(255,255,255,.12);
+  --purple:      #7b68ee;
+  --purple2:     #6255d3;
   --purple-glow: rgba(123,104,238,.3);
-  --accent:  #7b68ee;
-  --bg4:     #1e2035;
+  --accent:      #7b68ee;
   --text:    #f0f0f8;
   --text2:   #8a8aaa;
   --text3:   #555575;
@@ -337,7 +344,7 @@ hr { border-color: var(--border)!important; }
 }
 .hub-logo {
   text-align: center;
-  padding: 28px 0 20px;
+  padding: 20px 0 16px;
 }
 .hub-badge {
   display: inline-flex;
@@ -358,12 +365,12 @@ hr { border-color: var(--border)!important; }
   font-weight: 800;
   color: var(--text);
   letter-spacing: -.03em;
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   line-height: 1.1;
 }
 .hub-logo p {
-  color: var(--text2);
-  font-size: .9rem;
+  color: var(--text3);
+  font-size: .85rem;
   margin: 0;
   font-weight: 400;
 }
@@ -383,7 +390,7 @@ hr { border-color: var(--border)!important; }
 }
 
 /* Section dividers for results */
-.results-page { max-width: 100%; padding: 0 20px 60px; }
+.results-page { max-width: 900px; margin: 0 auto; padding: 0 20px 60px; }
 
 .report-header {
   display: flex;
@@ -608,8 +615,7 @@ def _render_hub() -> None:
         '<div class="hub-logo">'
         '<div class="hub-badge">⬡ NEXUSOSINT</div>'
         '<h1>Investigate any data,<br>instantly.</h1>'
-        '<p>Run targeted lookups across breaches, social profiles, gaming accounts,<br>'
-        'emails and network infrastructure — all in one place.</p>'
+        '<p>Breaches · Social Profiles · Gaming · Email · Network</p>'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -643,9 +649,9 @@ def _render_hub() -> None:
 
     if mode == "Manual":
         st.markdown(
-            '<div style="height:1px;background:var(--border);margin:12px -24px;"></div>'
-            '<div style="color:var(--text3);font-size:.7rem;text-transform:uppercase;'
-            'letter-spacing:.1em;font-weight:700;margin-bottom:8px">Categoria</div>',
+            '<div style="height:1px;background:rgba(255,255,255,.06);margin:12px 0 10px;"></div>'
+            '<div style="color:rgba(255,255,255,.3);font-size:.68rem;text-transform:uppercase;'
+            'letter-spacing:.12em;font-weight:700;margin-bottom:8px">Categoria</div>',
             unsafe_allow_html=True,
         )
         st.markdown('<div class="cat-row">', unsafe_allow_html=True)
@@ -665,8 +671,8 @@ def _render_hub() -> None:
 
         cat_modules = CATEGORIES[active_cat]["modules"]
         st.markdown(
-            '<div style="color:var(--text3);font-size:.7rem;text-transform:uppercase;'
-            'letter-spacing:.1em;font-weight:700;margin:10px 0 6px">Módulos</div>',
+            '<div style="color:rgba(255,255,255,.3);font-size:.68rem;text-transform:uppercase;'
+            'letter-spacing:.12em;font-weight:700;margin:10px 0 6px">Módulos</div>',
             unsafe_allow_html=True,
         )
         st.markdown('<div class="mod-row">', unsafe_allow_html=True)

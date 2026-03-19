@@ -278,56 +278,54 @@ class QuotaGuardian:
 
         s = self._state
         if s.is_unlimited:
-            st.caption(f"🟢 Plano {s.plan.upper()} · Lookups ilimitados")
+            st.caption(f"✓ {s.plan.upper()} · Unlimited lookups")
             return
 
         color = s.status_color
         pct   = s.usage_pct
 
-        # Calcula quando o limite reinicia (meia-noite UTC)
         now_utc    = datetime.now(timezone.utc)
         reset_hour = 24 - now_utc.hour
-        reset_msg  = f"Reinicia em ~{reset_hour}h (meia-noite UTC)"
+        reset_msg  = f"Resets in ~{reset_hour}h"
 
         st.markdown(
             f"""<div style="
                 display:flex; align-items:center; gap:10px;
-                background:#161b22; border:1px solid #30363d;
-                border-radius:8px; padding:8px 14px; margin:4px 0;
-                font-size:.78rem; color:#8b949e;
+                background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07);
+                border-radius:8px; padding:8px 14px; margin:0 0 8px;
+                font-size:.76rem; color:#8a8aaa;
             ">
-                <span>{s.status_icon}</span>
+                <span style="font-size:.7rem">{s.status_icon}</span>
                 <div style="flex:1">
                     <div style="
-                        background:#30363d; border-radius:999px;
-                        height:6px; overflow:hidden; margin-bottom:3px;
+                        background:rgba(255,255,255,.06); border-radius:999px;
+                        height:4px; overflow:hidden; margin-bottom:4px;
                     ">
                         <div style="
                             width:{pct:.0f}%; height:100%;
                             background:{color}; border-radius:999px;
                         "></div>
                     </div>
-                    <span>OathNet API: <b style="color:{color}">{s.used_today}</b>/{s.daily_limit} lookups usados hoje
-                    · <span style="color:#8b949e;font-size:.72rem">{reset_msg}</span></span>
+                    <span>OathNet API · <b style="color:{color}">{s.used_today}</b>/{s.daily_limit} lookups today
+                    · <span style="opacity:.7">{reset_msg}</span></span>
                 </div>
-                <span style="color:{color}; font-weight:700">{s.remaining} restantes</span>
+                <span style="color:{color}; font-weight:700; font-size:.8rem">{s.remaining} left</span>
             </div>""",
             unsafe_allow_html=True,
         )
 
-        # Banner contextual baseado no estado real
         if s.remaining == 0:
             st.markdown(
-                f'<div style="background:#f8514915;border:1px solid #f85149;'
-                f'border-radius:6px;padding:8px 12px;color:#f85149;font-size:.8rem;margin:4px 0">'
-                f'🚨 <b>Cota esgotada.</b> Nenhum lookup disponível hoje. {reset_msg}. '
-                f'<a href="https://oathnet.org/pricing" target="_blank" style="color:#f85149">Fazer upgrade →</a></div>',
+                f'<div style="background:rgba(255,79,79,.08);border:1px solid rgba(255,79,79,.2);'
+                f'border-radius:6px;padding:8px 12px;color:#ff4f4f;font-size:.78rem;margin:0 0 8px">'
+                f'🚨 <b>Quota exhausted.</b> No lookups available today. {reset_msg}. '
+                f'<a href="https://oathnet.org/pricing" target="_blank" style="color:#ff4f4f;text-decoration:underline">Upgrade →</a></div>',
                 unsafe_allow_html=True,
             )
         elif pct >= 90:
             st.markdown(
-                f'<div style="background:#f0883e15;border:1px solid #f0883e;'
-                f'border-radius:6px;padding:8px 12px;color:#f0883e;font-size:.8rem;margin:4px 0">'
-                f'⚠️ Apenas <b>{s.remaining} lookups restantes</b> hoje. {reset_msg}.</div>',
+                f'<div style="background:rgba(255,140,66,.07);border:1px solid rgba(255,140,66,.2);'
+                f'border-radius:6px;padding:8px 12px;color:#ff8c42;font-size:.78rem;margin:0 0 8px">'
+                f'⚠ <b>{s.remaining} lookups remaining</b> today. {reset_msg}.</div>',
                 unsafe_allow_html=True,
             )
