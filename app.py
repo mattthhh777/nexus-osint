@@ -470,7 +470,7 @@ def _render_hub() -> None:
         "SpiderFoot":         {"icon": "🕷️", "modules": {"spiderfoot": ("🕷️","SpiderFoot")}},
     }
 
-    # ── Logo + título ───────────────────────────────────────────────────────
+    # ── Logo ────────────────────────────────────────────────────────────────
     st.markdown(
         '<div class="hub-wrap">'
         '<div class="hub-logo">'
@@ -484,7 +484,7 @@ def _render_hub() -> None:
     # ── Card de busca ───────────────────────────────────────────────────────
     st.markdown('<div class="hub-card">', unsafe_allow_html=True)
 
-    # Quota widget dentro do card
+    # Quota widget
     QuotaGuardian.load().render_widget()
 
     # Input + botão Search
@@ -500,43 +500,85 @@ def _render_hub() -> None:
         search_clicked = st.button("Search →", key="hub_search_btn",
                                    type="primary", use_container_width=True)
 
-    # Modo + badges info
-    cm, ci = st.columns([2, 5])
-    with cm:
-        mode = st.radio("Modo", ["Automated", "Manual"], horizontal=True,
-                        key="hub_mode", label_visibility="collapsed")
-    with ci:
-        st.markdown(
-            '<div class="hub-meta-row">'
-            '<span>⚡ Bulk Search</span>'
-            '<span>🔒 Secure</span>'
-            '<span>📊 15+ Sources</span>'
-            '</div>',
-            unsafe_allow_html=True,
-        )
+    # ── Toggle Automated / Manual com visual claro ──────────────────────────
+    st.markdown("""
+    <style>
+    /* Toggle pill estilo OathNet */
+    div[data-testid="stRadio"] {
+        margin-top: 10px;
+    }
+    div[data-testid="stRadio"] > div {
+        display: inline-flex !important;
+        flex-direction: row !important;
+        gap: 0 !important;
+        background: var(--bg4) !important;
+        border: 1px solid var(--border2) !important;
+        border-radius: 999px !important;
+        padding: 3px !important;
+    }
+    div[data-testid="stRadio"] label {
+        margin: 0 !important;
+        cursor: pointer;
+    }
+    div[data-testid="stRadio"] label > div:first-child {
+        display: none !important;
+    }
+    div[data-testid="stRadio"] label span {
+        display: block !important;
+        padding: 6px 20px !important;
+        border-radius: 999px !important;
+        font-size: .82rem !important;
+        font-weight: 500 !important;
+        color: var(--text2) !important;
+        background: transparent !important;
+        border: none !important;
+        transition: all .15s !important;
+        cursor: pointer;
+    }
+    div[data-testid="stRadio"] label:has(input:checked) span {
+        background: var(--accent) !important;
+        color: #fff !important;
+        font-weight: 600 !important;
+        box-shadow: 0 2px 8px rgba(124,106,247,.4) !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-    # ── Categorias ──────────────────────────────────────────────────────────
+    mode = st.radio("", ["Automated", "Manual"],
+                    horizontal=True, key="hub_mode", label_visibility="collapsed")
+
+    st.markdown('</div>', unsafe_allow_html=True)  # hub-card
+
+    # ── Manual: mostra categorias e módulos ─────────────────────────────────
+    # Automated: não mostra nada — roda tudo automaticamente pelo tipo do query
     active_cat  = st.session_state.get("hub_active_cat", "Data Leaks")
     active_mods = st.session_state.get("hub_active_mods", {"breaches", "stealer"})
 
-    st.markdown('<div class="cat-row" style="margin-top:12px">', unsafe_allow_html=True)
-    cat_cols = st.columns(len(CATEGORIES))
-    for i, (cat_name, cat_data) in enumerate(CATEGORIES.items()):
-        with cat_cols[i]:
-            if st.button(
-                f"{cat_data['icon']} {cat_name}",
-                key=f"hub_cat_{cat_name}",
-                type="primary" if cat_name == active_cat else "secondary",
-                use_container_width=True,
-            ):
-                st.session_state.hub_active_cat  = cat_name
-                st.session_state.hub_active_mods = set(cat_data["modules"].keys())
-                st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # ── Módulos ─────────────────────────────────────────────────────────────
-    cat_modules = CATEGORIES[active_cat]["modules"]
     if mode == "Manual":
+        st.markdown(
+            '<div style="margin-top:8px;color:var(--text3);font-size:.74rem;'
+            'text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">'
+            'Selecione a categoria e os módulos</div>',
+            unsafe_allow_html=True,
+        )
+        # Categorias
+        st.markdown('<div class="cat-row">', unsafe_allow_html=True)
+        cat_cols = st.columns(len(CATEGORIES))
+        for i, (cat_name, cat_data) in enumerate(CATEGORIES.items()):
+            with cat_cols[i]:
+                if st.button(
+                    f"{cat_data['icon']} {cat_name}",
+                    key=f"hub_cat_{cat_name}",
+                    type="primary" if cat_name == active_cat else "secondary",
+                    use_container_width=True,
+                ):
+                    st.session_state.hub_active_cat  = cat_name
+                    st.session_state.hub_active_mods = set(cat_data["modules"].keys())
+                    st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # Módulos da categoria selecionada
+        cat_modules = CATEGORIES[active_cat]["modules"]
         st.markdown('<div class="mod-row" style="margin-top:8px">', unsafe_allow_html=True)
         mod_cols = st.columns(min(len(cat_modules), 6))
         for i, (mk, (icon, lbl)) in enumerate(cat_modules.items()):
@@ -549,18 +591,6 @@ def _render_hub() -> None:
                     st.session_state.hub_active_mods = mods
                     st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
-    else:
-        # Automated: mostra pills estáticas com os módulos que vão rodar
-        mods_html = "".join(
-            f'<span style="display:inline-flex;align-items:center;gap:4px;'
-            f'background:rgba(124,106,247,.08);border:1px solid rgba(124,106,247,.2);'
-            f'color:#9490e8;border-radius:6px;padding:3px 10px;font-size:.74rem;margin:2px">'
-            f'{icon} {lbl}</span>'
-            for _, (icon, lbl) in cat_modules.items()
-        )
-        st.markdown(f'<div style="margin-top:8px">{mods_html}</div>', unsafe_allow_html=True)
-
-    st.markdown('</div>', unsafe_allow_html=True)  # hub-card
 
     # ── Executar busca ──────────────────────────────────────────────────────
     if search_clicked and raw_query.strip():
@@ -568,7 +598,7 @@ def _render_hub() -> None:
 
     # ── Histórico ───────────────────────────────────────────────────────────
     if st.session_state.cases:
-        st.markdown('<p class="history-title">📋 Buscas Recentes</p>', unsafe_allow_html=True)
+        st.markdown('<p class="history-title">Buscas Recentes</p>', unsafe_allow_html=True)
         ch, cc = st.columns([5, 1])
         with cc:
             if st.button("Limpar", key="clear_hist"):
