@@ -185,43 +185,46 @@ class QuotaGuardian:
           (True, "")               → pode rodar
           (True, "aviso: X%")      → pode rodar, mas avisa
           (False, "erro: sem cota")→ não pode rodar
-
-        Uso no app.py:
-          can_search, msg = guardian.can_run(config)
-          if not can_search:
-              st.error(msg)
-              return
-          elif msg:
-              st.warning(msg)
         """
         if self._state.is_unlimited:
             return True, ""
 
         cost      = self.estimate_cost(config)
         remaining = self._state.remaining
+        from datetime import datetime, timezone
+        reset_hour = 24 - datetime.now(timezone.utc).hour
 
-        # Sem cota suficiente
-        if cost > remaining:
+        # Sem cota — bloqueado
+        if remaining == 0:
             return False, (
-                f"❌ **Cota insuficiente.** "
-                f"Esta busca custaria ~{cost} lookup(s), "
-                f"mas você tem apenas {remaining} restantes hoje. "
-                f"Reinicia amanhã ou faça upgrade do plano."
+                f"❌ **Cota esgotada hoje.** "
+                f"Seus {self._state.daily_limit} lookups diários foram usados. "
+                f"Reinicia em ~{reset_hour}h (meia-noite UTC). "
+                f"[Ver planos](https://oathnet.org/pricing)"
             )
 
-        # Aviso de 90%+
+        # Custo maior que o disponível
+        if cost > remaining:
+            return False, (
+                f"❌ **Lookups insuficientes.** "
+                f"Esta busca precisa de ~{cost} lookup(s), "
+                f"mas você tem apenas {remaining} restante(s) hoje. "
+                f"Reinicia em ~{reset_hour}h."
+            )
+
+        # Aviso de 90%+ (mas ainda pode rodar)
         if self._state.usage_pct >= 90:
             return True, (
-                f"⚠️ **Atenção: {self._state.remaining} lookups restantes hoje** "
+                f"⚠️ **Apenas {remaining} lookups restantes hoje** "
                 f"({self._state.usage_pct:.0f}% usado). "
-                f"Esta busca vai usar ~{cost}."
+                f"Esta busca vai usar ~{cost}. Reinicia em ~{reset_hour}h."
             )
 
         # Aviso de 70%+
         if self._state.usage_pct >= 70:
             return True, (
-                f"🟡 {self._state.used_today}/{self._state.daily_limit} lookups usados hoje. "
-                f"Esta busca vai usar ~{cost} mais."
+                f"🟡 {self._state.used_today}/{self._state.daily_limit} lookups usados hoje "
+                f"(+{cost} nesta busca)."
             )
 
         return True, ""
@@ -269,15 +272,9 @@ class QuotaGuardian:
         return self._state
 
     def render_widget(self) -> None:
-        """
-        Renderiza o widget de quota para o app.py.
-        Exibe uma barra de progresso compacta com status.
-
-        Use assim no app.py (dentro de _render_hub() ou no topo da página):
-          guardian = QuotaGuardian.load()
-          guardian.render_widget()
-        """
+        """Renderiza o widget de quota compacto no topo da página."""
         import streamlit as st
+        from datetime import datetime, timezone
 
         s = self._state
         if s.is_unlimited:
@@ -286,6 +283,11 @@ class QuotaGuardian:
 
         color = s.status_color
         pct   = s.usage_pct
+
+        # Calcula quando o limite reinicia (meia-noite UTC)
+        now_utc    = datetime.now(timezone.utc)
+        reset_hour = 24 - now_utc.hour
+        reset_msg  = f"Reinicia em ~{reset_hour}h (meia-noite UTC)"
 
         st.markdown(
             f"""<div style="
@@ -303,21 +305,29 @@ class QuotaGuardian:
                         <div style="
                             width:{pct:.0f}%; height:100%;
                             background:{color}; border-radius:999px;
-                            transition: width .3s;
                         "></div>
                     </div>
-                    <span>OathNet API: <b style="color:{color}">{s.used_today}</b>/{s.daily_limit} lookups usados hoje</span>
+                    <span>OathNet API: <b style="color:{color}">{s.used_today}</b>/{s.daily_limit} lookups usados hoje
+                    · <span style="color:#8b949e;font-size:.72rem">{reset_msg}</span></span>
                 </div>
                 <span style="color:{color}; font-weight:700">{s.remaining} restantes</span>
             </div>""",
             unsafe_allow_html=True,
         )
 
-        # Banner de alerta se estiver quase esgotando
-        if pct >= 90:
+        # Banner contextual baseado no estado real
+        if s.remaining == 0:
             st.markdown(
                 f'<div style="background:#f8514915;border:1px solid #f85149;'
                 f'border-radius:6px;padding:8px 12px;color:#f85149;font-size:.8rem;margin:4px 0">'
-                f'🚨 Cota quase esgotada! Apenas {s.remaining} lookups restantes.</div>',
+                f'🚨 <b>Cota esgotada.</b> Nenhum lookup disponível hoje. {reset_msg}. '
+                f'<a href="https://oathnet.org/pricing" target="_blank" style="color:#f85149">Fazer upgrade →</a></div>',
+                unsafe_allow_html=True,
+            )
+        elif pct >= 90:
+            st.markdown(
+                f'<div style="background:#f0883e15;border:1px solid #f0883e;'
+                f'border-radius:6px;padding:8px 12px;color:#f0883e;font-size:.8rem;margin:4px 0">'
+                f'⚠️ Apenas <b>{s.remaining} lookups restantes</b> hoje. {reset_msg}.</div>',
                 unsafe_allow_html=True,
             )
