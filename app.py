@@ -108,375 +108,249 @@ import re
 
 _DARK_CSS = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-/* ── Hide ALL Streamlit chrome + fix gaps ── */
-[data-testid="stSidebar"]        { display:none!important; }
-[data-testid="collapsedControl"] { display:none!important; }
-header[data-testid="stHeader"]   { display:none!important; }
-footer                           { display:none!important; }
-/* Remove ALL default padding/margin from Streamlit wrappers */
-.stMainBlockContainer            { max-width:100%!important; padding:0!important; }
-.stApp                           { padding:0!important; }
-section[data-testid="stMain"]    { padding:0!important; }
-.block-container                 { padding:0!important; max-width:100%!important; }
-/* Kill the invisible gap Streamlit adds before first element */
-.stApp > div > div > div:first-child { margin-top:0!important; padding-top:0!important; }
-[data-testid="stVerticalBlock"] > div:first-child { margin-top:0!important; }
-[data-testid="stVerticalBlockBorderWrapper"]:first-child { padding-top:0!important; }
+/* ── Strip all Streamlit chrome ── */
+[data-testid="stSidebar"],[data-testid="collapsedControl"],
+header[data-testid="stHeader"],footer,#MainMenu { display:none!important; }
+.stMainBlockContainer,.block-container,section[data-testid="stMain"],
+.stApp { padding:0!important; max-width:100%!important; }
+.stApp > div:first-child,[data-testid="stVerticalBlock"] > .stElementContainer:first-child,
+[data-testid="stVerticalBlockBorderWrapper"]:first-child { margin-top:0!important; padding-top:0!important; }
+.stTextInput label[data-testid="stWidgetLabel"] { display:none!important; }
+.stTextInput > div > div { margin-top:0!important; }
 
 /* ── Design tokens ── */
 :root {
-  --bg:          #0b0c14;
-  --bg2:         #10111d;
-  --bg3:         #16172a;
-  --bg4:         #1e2035;
-  --border:      rgba(255,255,255,.07);
-  --border2:     rgba(255,255,255,.12);
-  --purple:      #7b68ee;
-  --purple2:     #6255d3;
-  --purple-glow: rgba(123,104,238,.3);
-  --accent:      #7b68ee;
-  --text:    #f0f0f8;
-  --text2:   #8a8aaa;
-  --text3:   #555575;
-  --red:     #ff4f4f;
-  --orange:  #ff8c42;
-  --green:   #3ecf8e;
-  --yellow:  #ffc84a;
-  --r:       14px;
-  --r-sm:    8px;
+  --bg:       #070810;
+  --surface:  #0d0e1a;
+  --card:     #121321;
+  --elevated: #181a2e;
+  --hover:    #1e2038;
+  --line:     rgba(255,255,255,.06);
+  --line2:    rgba(255,255,255,.1);
+  --line3:    rgba(255,255,255,.16);
+  --brand:    #7c6aff;
+  --brand2:   #5f4fe8;
+  --brand-lo: rgba(124,106,255,.12);
+  --brand-glow: rgba(124,106,255,.35);
+  --danger:   #ff4757;
+  --warn:     #ffa502;
+  --safe:     #2ed573;
+  --info:     #5352ed;
+  --text:     #eeeef5;
+  --text2:    #888899;
+  --text3:    #444458;
+  --r:        14px; --r-sm:10px; --r-xs:6px; --r-lg:20px; --r-xl:28px;
+}
+html,body,[data-testid="stApp"] {
+  background:var(--bg)!important; color:var(--text)!important;
+  font-family:'Inter',system-ui,-apple-system,sans-serif!important;
+  -webkit-font-smoothing:antialiased;
+}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--elevated);border-radius:99px;}
+
+/* ── Inputs ── */
+.stTextInput input {
+  background:var(--elevated)!important; border:1px solid var(--line2)!important;
+  border-radius:var(--r-sm)!important; color:var(--text)!important;
+  font-size:15px!important; font-family:inherit!important;
+  padding:13px 18px!important; transition:all .2s; caret-color:var(--brand);
+}
+.stTextInput input:focus {
+  border-color:var(--brand)!important;
+  box-shadow:0 0 0 3px var(--brand-lo),0 0 20px rgba(124,106,255,.1)!important;
+}
+.stTextInput input::placeholder{color:var(--text3)!important;}
+
+/* ── Buttons secondary ── */
+.stButton>button {
+  background:var(--elevated)!important; border:1px solid var(--line2)!important;
+  color:var(--text2)!important; border-radius:var(--r-xs)!important;
+  font-family:inherit!important; font-size:.82rem!important; font-weight:500!important;
+  letter-spacing:.01em; transition:all .15s!important; white-space:nowrap;
+}
+.stButton>button:hover {
+  background:var(--brand-lo)!important; border-color:var(--brand)!important; color:var(--text)!important;
+}
+.stButton>button:active{transform:scale(.98)!important;}
+
+/* ── Button primary (Search) ── */
+.stButton>button[kind="primary"] {
+  background:var(--brand)!important; border:none!important; color:#fff!important;
+  font-weight:600!important; font-size:.88rem!important;
+  box-shadow:0 0 24px var(--brand-glow)!important; letter-spacing:.01em;
+}
+.stButton>button[kind="primary"]:hover {
+  background:#8f7fff!important; box-shadow:0 0 36px var(--brand-glow)!important; color:#fff!important;
 }
 
-html, body, [data-testid="stApp"] {
-  background: var(--bg)!important;
-  color: var(--text)!important;
-  font-family: 'Inter', -apple-system, sans-serif!important;
-  font-size: 14px;
+/* ── Radio pill toggle ── */
+div[data-testid="stRadio"]{margin:0!important;}
+div[data-testid="stRadio"]>div {
+  display:inline-flex!important; flex-direction:row!important; gap:0!important;
+  background:rgba(255,255,255,.04)!important; border:1px solid var(--line2)!important;
+  border-radius:999px!important; padding:3px!important;
 }
-
-/* ── Scrollbar ── */
-::-webkit-scrollbar { width:6px; height:6px; }
-::-webkit-scrollbar-track { background:var(--bg2); }
-::-webkit-scrollbar-thumb { background:var(--bg4); border-radius:3px; }
+div[data-testid="stRadio"]>div>label{margin:0!important;}
+div[data-testid="stRadio"] label>div:first-child{display:none!important;}
+div[data-testid="stRadio"] label span {
+  display:block!important; padding:6px 18px!important; border-radius:999px!important;
+  font-size:.8rem!important; font-weight:500!important; color:var(--text2)!important;
+  background:transparent!important; border:none!important; transition:all .15s!important;
+  white-space:nowrap; user-select:none;
+}
+div[data-testid="stRadio"] label:has(input:checked) span {
+  background:var(--brand)!important; color:#fff!important; font-weight:600!important;
+  box-shadow:0 2px 10px var(--brand-glow)!important;
+}
 
 /* ── Metrics ── */
 [data-testid="stMetric"] {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  padding: 16px 20px;
-  transition: border-color .2s;
+  background:var(--card)!important; border:1px solid var(--line)!important;
+  border-radius:var(--r-sm)!important; padding:16px 18px!important; transition:all .2s;
 }
-[data-testid="stMetric"]:hover { border-color: var(--border2); }
-[data-testid="stMetricValue"]  { color: var(--text)!important; font-size:1.6rem!important; font-weight:700!important; letter-spacing:-.02em; }
-[data-testid="stMetricLabel"]  { color: var(--text2)!important; font-size:.7rem!important; text-transform:uppercase; letter-spacing:.08em; font-weight:600; }
-[data-testid="stMetricDelta"]  { font-size:.72rem!important; }
+[data-testid="stMetric"]:hover{border-color:var(--line2)!important;background:var(--elevated)!important;}
+[data-testid="stMetricValue"]{color:var(--text)!important;font-size:1.55rem!important;font-weight:700!important;letter-spacing:-.03em!important;line-height:1;}
+[data-testid="stMetricLabel"]{color:var(--text2)!important;font-size:.68rem!important;text-transform:uppercase!important;letter-spacing:.1em!important;font-weight:600!important;margin-bottom:4px!important;}
+[data-testid="stMetricDelta"]{font-size:.72rem!important;margin-top:4px!important;}
 
 /* ── DataFrames ── */
-[data-testid="stDataFrame"] {
-  border: 1px solid var(--border)!important;
-  border-radius: var(--r-sm)!important;
-  overflow: hidden;
-}
+[data-testid="stDataFrame"]{border:1px solid var(--line)!important;border-radius:var(--r-sm)!important;overflow:hidden!important;}
 
 /* ── Expanders ── */
 [data-testid="stExpander"] {
-  background: var(--bg2)!important;
-  border: 1px solid var(--border)!important;
-  border-radius: var(--r)!important;
-  margin: 6px 0!important;
-  overflow: hidden;
+  background:var(--card)!important; border:1px solid var(--line)!important;
+  border-radius:var(--r)!important; margin:8px 0!important; transition:border-color .2s!important; overflow:hidden!important;
 }
-[data-testid="stExpander"]:hover { border-color: var(--border2)!important; }
-[data-testid="stExpander"] summary {
-  padding: 12px 16px!important;
-  font-weight: 600!important;
-  font-size: .88rem!important;
-  color: var(--text)!important;
+[data-testid="stExpander"]:hover{border-color:var(--line2)!important;}
+[data-testid="stExpander"]>details>summary {
+  padding:14px 20px!important; font-size:.9rem!important; font-weight:600!important;
+  color:var(--text)!important; letter-spacing:-.01em;
 }
-
-/* ── Text inputs ── */
-.stTextInput input {
-  background: var(--bg3)!important;
-  border: 1px solid var(--border2)!important;
-  border-radius: var(--r-sm)!important;
-  color: var(--text)!important;
-  font-size: 15px!important;
-  padding: 12px 16px!important;
-  transition: all .2s;
-}
-.stTextInput input:focus {
-  border-color: var(--purple)!important;
-  box-shadow: 0 0 0 3px var(--purple-glow)!important;
-  outline: none!important;
-}
-.stTextInput input::placeholder { color: var(--text3)!important; }
-
-/* ── Buttons ── */
-.stButton > button {
-  background: var(--bg4)!important;
-  border: 1px solid var(--border2)!important;
-  color: var(--text2)!important;
-  border-radius: var(--r-sm)!important;
-  font-size: .82rem!important;
-  font-weight: 500!important;
-  transition: all .15s!important;
-  font-family: inherit!important;
-}
-.stButton > button:hover {
-  border-color: var(--purple)!important;
-  color: var(--text)!important;
-  background: rgba(123,104,238,.1)!important;
-}
-.stButton > button[kind="primary"] {
-  background: linear-gradient(135deg, var(--purple), var(--purple2))!important;
-  border: none!important;
-  color: #fff!important;
-  font-weight: 600!important;
-  box-shadow: 0 4px 20px var(--purple-glow)!important;
-}
-.stButton > button[kind="primary"]:hover {
-  box-shadow: 0 6px 28px var(--purple-glow)!important;
-  filter: brightness(1.08)!important;
-  color: #fff!important;
-}
-
-/* ── Category pills ── */
-div.cat-row div[data-testid="stButton"] button {
-  border-radius: 999px!important;
-  padding: 5px 16px!important;
-  font-size: .8rem!important;
-  height: auto!important;
-  min-height: 0!important;
-  letter-spacing: .01em;
-}
-div.cat-row div[data-testid="stButton"] button[kind="primary"] {
-  background: rgba(123,104,238,.15)!important;
-  border: 1px solid var(--purple)!important;
-  color: #a89af0!important;
-  font-weight: 600!important;
-  box-shadow: none!important;
-}
-div.mod-row div[data-testid="stButton"] button {
-  border-radius: var(--r-sm)!important;
-  padding: 4px 12px!important;
-  font-size: .76rem!important;
-  height: auto!important;
-  min-height: 0!important;
-}
-div.mod-row div[data-testid="stButton"] button[kind="primary"] {
-  background: rgba(123,104,238,.12)!important;
-  border: 1px solid var(--purple)!important;
-  color: #a89af0!important;
-  box-shadow: none!important;
-}
-
-/* ── Radio toggle pill ── */
-div[data-testid="stRadio"] > div {
-  display: inline-flex!important;
-  flex-direction: row!important;
-  gap: 0!important;
-  background: var(--bg4)!important;
-  border: 1px solid var(--border2)!important;
-  border-radius: 999px!important;
-  padding: 3px!important;
-}
-div[data-testid="stRadio"] label { margin:0!important; cursor:pointer; }
-div[data-testid="stRadio"] label > div:first-child { display:none!important; }
-div[data-testid="stRadio"] label span {
-  display:block!important;
-  padding: 6px 20px!important;
-  border-radius: 999px!important;
-  font-size: .82rem!important;
-  font-weight: 500!important;
-  color: var(--text2)!important;
-  background: transparent!important;
-  border: none!important;
-  transition: all .15s!important;
-}
-div[data-testid="stRadio"] label:has(input:checked) span {
-  background: var(--purple)!important;
-  color: #fff!important;
-  font-weight: 600!important;
-  box-shadow: 0 2px 8px var(--purple-glow)!important;
-  min-width: 90px;
-  text-align: center;
-}
+[data-testid="stExpander"]>details[open]>summary{border-bottom:1px solid var(--line)!important;}
+[data-testid="stExpander"]>details>div{padding:16px 20px!important;}
+[data-testid="stCaptionContainer"]{color:var(--text2)!important;font-size:.76rem!important;}
+hr{border-color:var(--line)!important;}
 
 /* ── Alerts ── */
-hr { border-color: var(--border)!important; }
-.platform-found {
-  display:inline-flex; align-items:center; gap:4px;
-  background: rgba(62,207,142,.08); border: 1px solid rgba(62,207,142,.25);
-  color: var(--green); border-radius:6px; padding:3px 9px;
-  font-size:.74rem; margin:2px; font-weight:500;
-}
-.alert-success { background:rgba(62,207,142,.07); border:1px solid rgba(62,207,142,.2); border-radius:var(--r-sm); padding:12px 16px; color:var(--green); margin:6px 0; }
-.alert-danger  { background:rgba(255,79,79,.07); border:1px solid rgba(255,79,79,.2); border-radius:var(--r-sm); padding:12px 16px; color:var(--red); margin:6px 0; }
-.alert-warning { background:rgba(255,140,66,.07); border:1px solid rgba(255,140,66,.2); border-radius:var(--r-sm); padding:12px 16px; color:var(--orange); margin:6px 0; }
-.alert-info    { background:rgba(123,104,238,.07); border:1px solid rgba(123,104,238,.2); border-radius:var(--r-sm); padding:12px 16px; color:#a89af0; margin:6px 0; }
+.alert-success{background:rgba(46,213,115,.07);border:1px solid rgba(46,213,115,.2);border-radius:var(--r-sm);padding:12px 16px;color:#5fda96;margin:6px 0;}
+.alert-danger{background:rgba(255,71,87,.07);border:1px solid rgba(255,71,87,.2);border-radius:var(--r-sm);padding:12px 16px;color:#ff6b7a;margin:6px 0;}
+.alert-warning{background:rgba(255,165,2,.07);border:1px solid rgba(255,165,2,.2);border-radius:var(--r-sm);padding:12px 16px;color:#ffb52e;margin:6px 0;}
+.alert-info{background:rgba(124,106,255,.07);border:1px solid rgba(124,106,255,.2);border-radius:var(--r-sm);padding:12px 16px;color:#a89af0;margin:6px 0;}
 
-/* ── Case / history cards ── */
-.case-card {
-  background: var(--bg3); border: 1px solid var(--border);
-  border-radius: var(--r-sm); padding: 12px 14px; margin: 4px 0;
-  cursor: pointer; transition: all .15s;
+/* ── Platform badges ── */
+.platform-found {
+  display:inline-flex;align-items:center;gap:5px;
+  background:rgba(46,213,115,.07);border:1px solid rgba(46,213,115,.18);
+  color:#5fda96;border-radius:var(--r-xs);padding:3px 10px;
+  font-size:.74rem;font-weight:500;margin:2px;text-decoration:none;transition:background .15s;
 }
-.case-card:hover { border-color: var(--purple); background: var(--bg4); }
-.case-target { font-weight: 600; color: var(--text); font-size:.88rem; }
-.case-meta   { font-size: .7rem; color: var(--text3); margin-top: 3px; }
+.platform-found:hover{background:rgba(46,213,115,.14);}
+
+/* ── Case cards ── */
+.case-card{background:var(--card);border:1px solid var(--line);border-radius:var(--r-sm);padding:12px 16px;margin:4px 0;cursor:pointer;transition:all .15s;}
+.case-card:hover{border-color:var(--brand);background:var(--elevated);transform:translateY(-1px);}
+.case-target{font-weight:600;color:var(--text);font-size:.88rem;letter-spacing:-.01em;}
+.case-meta{font-size:.7rem;color:var(--text3);margin-top:3px;}
 
 /* ══════════════════════════════════════════════
-   HUB LAYOUT
+   HUB PAGE
 ══════════════════════════════════════════════ */
 .hub-page {
-  min-height: 100vh;
+  min-height:100vh;
   background:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(123,104,238,.18), transparent),
-    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(100,80,220,.08), transparent),
+    radial-gradient(ellipse 100% 60% at 50% -5%, rgba(124,106,255,.15) 0%,transparent 70%),
+    radial-gradient(ellipse 50% 30% at 90% 100%, rgba(95,79,232,.08) 0%,transparent 60%),
     var(--bg);
 }
-.hub-wrap {
-  max-width: 680px;
-  margin: 0 auto;
-  padding: 0 20px 60px;
+.hub-wrap{max-width:640px;margin:0 auto;padding:0 24px 80px;}
+.hub-hero{text-align:center;padding:38px 0 26px;}
+.hub-eyebrow {
+  display:inline-flex;align-items:center;gap:7px;
+  background:var(--brand-lo);border:1px solid rgba(124,106,255,.2);
+  border-radius:999px;padding:5px 14px;font-size:.7rem;font-weight:600;
+  color:#a89af0;letter-spacing:.06em;text-transform:uppercase;margin-bottom:16px;
 }
-.hub-logo {
-  text-align: center;
-  padding: 20px 0 16px;
+.hub-hero h1 {
+  font-size:2.2rem;font-weight:800;color:var(--text);
+  letter-spacing:-.04em;line-height:1.1;margin:0 0 10px;
 }
-.hub-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(123,104,238,.1);
-  border: 1px solid rgba(123,104,238,.25);
-  border-radius: 999px;
-  padding: 5px 14px;
-  font-size: .74rem;
-  font-weight: 600;
-  color: #a89af0;
-  letter-spacing: .04em;
-  margin-bottom: 18px;
+.hub-hero h1 em {
+  font-style:normal;
+  background:linear-gradient(135deg,#b4a6ff,#7c6aff);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
 }
-.hub-logo h1 {
-  font-size: 2rem;
-  font-weight: 800;
-  color: var(--text);
-  letter-spacing: -.03em;
-  margin: 0 0 6px;
-  line-height: 1.1;
-}
-.hub-logo p {
-  color: var(--text3);
-  font-size: .85rem;
-  margin: 0;
-  font-weight: 400;
-}
-
-/* Search card */
+.hub-hero p{color:var(--text3);font-size:.84rem;margin:0;letter-spacing:.01em;}
 .hub-card {
-  background: rgba(16,17,29,.7);
-  border: 1px solid var(--border2);
-  border-radius: 18px;
-  padding: 20px 24px;
-  backdrop-filter: blur(20px);
-  box-shadow:
-    0 0 0 1px rgba(255,255,255,.03) inset,
-    0 20px 60px rgba(0,0,0,.5),
-    0 0 80px rgba(123,104,238,.05);
-  margin-bottom: 20px;
+  background:var(--surface);border:1px solid var(--line2);
+  border-radius:var(--r-xl);padding:20px 22px;position:relative;overflow:hidden;
+  box-shadow:0 0 0 1px rgba(255,255,255,.02) inset,0 24px 80px rgba(0,0,0,.6),0 0 100px rgba(124,106,255,.04);
 }
+.hub-card::before {
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(124,106,255,.4),transparent);
+}
+.hub-divider{height:1px;background:var(--line);margin:14px -22px 14px;}
+.hub-section-label{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--text3);margin-bottom:8px;}
 
-/* Section dividers for results */
-.results-page { max-width: 900px; margin: 0 auto; padding: 0 20px 60px; }
+/* Category pills */
+div.cat-row div[data-testid="stButton"] button {
+  border-radius:999px!important;padding:5px 14px!important;font-size:.78rem!important;
+  height:auto!important;min-height:0!important;font-weight:500!important;
+}
+div.cat-row div[data-testid="stButton"] button[kind="primary"] {
+  background:var(--brand-lo)!important;border:1px solid var(--brand)!important;
+  color:#b0a0ff!important;font-weight:600!important;box-shadow:none!important;
+}
+/* Module chips */
+div.mod-row div[data-testid="stButton"] button {
+  border-radius:var(--r-xs)!important;padding:4px 11px!important;
+  font-size:.74rem!important;height:auto!important;min-height:0!important;
+}
+div.mod-row div[data-testid="stButton"] button[kind="primary"] {
+  background:var(--brand-lo)!important;border:1px solid var(--brand)!important;
+  color:#b0a0ff!important;box-shadow:none!important;
+}
+.history-label{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--text3);margin:28px 0 10px;}
 
-.report-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 20px 0 16px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 20px;
-}
-.report-title { font-size: 1.4rem; font-weight: 800; color: var(--text); letter-spacing: -.02em; }
-.report-sub   { color: var(--text2); font-size: .85rem; margin-top: 2px; }
-.risk-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 16px;
-  border-radius: 999px;
-  font-size: .82rem;
-  font-weight: 700;
-  letter-spacing: .02em;
-}
+/* ══════════════════════════════════════════════
+   RESULTS PAGE
+══════════════════════════════════════════════ */
+.results-wrap{max-width:860px;margin:0 auto;padding:0 24px 80px;}
 
-/* Section cards (breach, stealer, social) */
-.section-card {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  overflow: hidden;
-  margin: 8px 0;
-  transition: border-color .2s;
+/* Search complete bar */
+.search-bar {
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+  padding:16px 22px;margin:16px 0 20px;
 }
-.section-card:hover { border-color: var(--border2); }
-.section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 18px;
-  background: var(--bg3);
-  border-bottom: 1px solid var(--border);
-  cursor: pointer;
-}
-.section-title { font-weight: 600; font-size: .9rem; color: var(--text); }
-.section-count {
-  background: rgba(123,104,238,.12);
-  border: 1px solid rgba(123,104,238,.2);
-  color: #a89af0;
-  border-radius: 999px;
-  padding: 2px 10px;
-  font-size: .74rem;
-  font-weight: 700;
-}
+.search-bar-left{display:flex;flex-direction:column;gap:3px;}
+.search-bar-status{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--safe);display:flex;align-items:center;gap:6px;}
+.search-bar-target{font-size:1.05rem;font-weight:700;color:var(--text);letter-spacing:-.02em;}
+.search-bar-sub{font-size:.75rem;color:var(--text2);}
+.risk-pill{display:inline-flex;align-items:center;gap:8px;padding:7px 16px;border-radius:999px;font-size:.82rem;font-weight:700;letter-spacing:.01em;}
 
-/* Stat row inline */
-.stat-row {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 10px;
-  margin: 12px 0;
+/* Stat grid */
+.stat-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:0 0 20px;}
+.stat-box {
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r-sm);
+  padding:16px 14px 14px;text-align:center;transition:all .2s;position:relative;overflow:hidden;
 }
-.stat-cell {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  padding: 14px 16px;
-  text-align: center;
-}
-.stat-value { font-size: 1.6rem; font-weight: 700; color: var(--text); letter-spacing: -.02em; }
-.stat-label { font-size: .68rem; color: var(--text2); text-transform: uppercase; letter-spacing: .07em; font-weight: 600; margin-top: 3px; }
-.stat-delta { font-size: .7rem; margin-top: 4px; }
-
-/* History section */
-.history-title {
-  font-size: .7rem;
-  text-transform: uppercase;
-  letter-spacing: .1em;
-  color: var(--text3);
-  font-weight: 700;
-  margin: 28px 0 8px;
-}
-
-/* Export row */
-.export-btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.stat-box:hover{border-color:var(--line2);background:var(--elevated);}
+.stat-box-val{font-size:1.7rem;font-weight:800;color:var(--text);letter-spacing:-.04em;line-height:1;margin-bottom:5px;}
+.stat-box-lbl{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);}
+.stat-box-delta{font-size:.68rem;margin-top:5px;line-height:1.2;}
+.stat-box::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;border-radius:2px;}
+.stat-breach::after{background:var(--danger);}
+.stat-stealer::after{background:var(--warn);}
+.stat-social::after{background:var(--brand);}
+.stat-holehe::after{background:var(--info);}
 </style>
 """
+
 
 
 
@@ -609,24 +483,20 @@ def _render_hub() -> None:
         "SpiderFoot":         {"icon": "🕷️", "modules": {"spiderfoot": ("🕷️","SpiderFoot")}},
     }
 
-    # ── Logo ────────────────────────────────────────────────────────────────
     st.markdown(
         '<div class="hub-wrap">'
-        '<div class="hub-logo">'
-        '<div class="hub-badge">⬡ NEXUSOSINT</div>'
-        '<h1>Investigate any data,<br>instantly.</h1>'
-        '<p>Breaches · Social Profiles · Gaming · Email · Network</p>'
+        '<div class="hub-hero">'
+        '<div class="hub-eyebrow">⬡ &nbsp; N E X U S O S I N T</div>'
+        '<h1>Investigate any data,<br><em>instantly.</em></h1>'
+        '<p>Breaches &nbsp;·&nbsp; Social Profiles &nbsp;·&nbsp; Gaming &nbsp;·&nbsp; Email &nbsp;·&nbsp; Network</p>'
         '</div>',
         unsafe_allow_html=True,
     )
 
-    # ── Card único: quota + input + toggle + categorias ─────────────────────
     st.markdown('<div class="hub-card">', unsafe_allow_html=True)
 
-    # Quota widget
     QuotaGuardian.load().render_widget()
 
-    # Input + botão Search
     c1, c2 = st.columns([6, 1])
     with c1:
         raw_query = st.text_input(
@@ -639,42 +509,28 @@ def _render_hub() -> None:
         search_clicked = st.button("Search →", key="hub_search_btn",
                                    type="primary", use_container_width=True)
 
-    # Toggle Automated / Manual
-    mode = st.radio("", ["Automated", "Manual"],
+    mode = st.radio("Modo de busca", ["Automated", "Manual"],
                     horizontal=True, key="hub_mode", label_visibility="collapsed")
 
-    # ── Manual: categorias e módulos dentro do card ─────────────────────────
     active_cat  = st.session_state.get("hub_active_cat", "Data Leaks")
     active_mods = st.session_state.get("hub_active_mods", {"breaches", "stealer"})
 
     if mode == "Manual":
-        st.markdown(
-            '<div style="height:1px;background:rgba(255,255,255,.06);margin:12px 0 10px;"></div>'
-            '<div style="color:rgba(255,255,255,.3);font-size:.68rem;text-transform:uppercase;'
-            'letter-spacing:.12em;font-weight:700;margin-bottom:8px">Categoria</div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown('<div class="hub-divider"></div><div class="hub-section-label">Category</div>', unsafe_allow_html=True)
         st.markdown('<div class="cat-row">', unsafe_allow_html=True)
         cat_cols = st.columns(len(CATEGORIES))
         for i, (cat_name, cat_data) in enumerate(CATEGORIES.items()):
             with cat_cols[i]:
-                if st.button(
-                    f"{cat_data['icon']} {cat_name}",
-                    key=f"hub_cat_{cat_name}",
-                    type="primary" if cat_name == active_cat else "secondary",
-                    use_container_width=True,
-                ):
+                if st.button(f"{cat_data['icon']} {cat_name}", key=f"hub_cat_{cat_name}",
+                             type="primary" if cat_name == active_cat else "secondary",
+                             use_container_width=True):
                     st.session_state.hub_active_cat  = cat_name
                     st.session_state.hub_active_mods = set(cat_data["modules"].keys())
                     st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
         cat_modules = CATEGORIES[active_cat]["modules"]
-        st.markdown(
-            '<div style="color:rgba(255,255,255,.3);font-size:.68rem;text-transform:uppercase;'
-            'letter-spacing:.12em;font-weight:700;margin:10px 0 6px">Módulos</div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown('<div class="hub-section-label" style="margin-top:12px">Modules</div>', unsafe_allow_html=True)
         st.markdown('<div class="mod-row">', unsafe_allow_html=True)
         mod_cols = st.columns(min(len(cat_modules), 6))
         for i, (mk, (icon, lbl)) in enumerate(cat_modules.items()):
@@ -690,16 +546,14 @@ def _render_hub() -> None:
 
     st.markdown('</div>', unsafe_allow_html=True)  # hub-card
 
-    # ── Executar busca ──────────────────────────────────────────────────────
     if search_clicked and raw_query.strip():
         _execute_search(raw_query, active_cat, active_mods, mode)
 
-    # ── Histórico ───────────────────────────────────────────────────────────
     if st.session_state.cases:
-        st.markdown('<p class="history-title">Buscas Recentes</p>', unsafe_allow_html=True)
+        st.markdown('<div class="history-label">Recent Searches</div>', unsafe_allow_html=True)
         ch, cc = st.columns([5, 1])
         with cc:
-            if st.button("Limpar", key="clear_hist"):
+            if st.button("Clear", key="clear_hist"):
                 st.session_state.cases = []
                 CASES_FILE.unlink(missing_ok=True)
                 st.rerun()
@@ -710,7 +564,7 @@ def _render_hub() -> None:
                 st.markdown(
                     f'<div class="case-card">'
                     f'<div class="case-target">{case["target"]}</div>'
-                    f'<div class="case-meta" style="margin-top:4px">'
+                    f'<div class="case-meta">'
                     f'<span style="color:{color};font-weight:600">{lbl}</span>'
                     f' · {case["risk_score"]} · {case["timestamp"][:16]}'
                     f'</div></div>',
@@ -718,8 +572,6 @@ def _render_hub() -> None:
                 )
 
     st.markdown('</div>', unsafe_allow_html=True)  # hub-wrap
-
-
 
 def _execute_search(
     raw_query: str,
@@ -838,154 +690,131 @@ def _fallback_search(query: str, config: SearchConfig) -> SearchResults:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _render_results(results: SearchResults) -> None:
-    import pandas as pd
-    import re as _re
-
-    inv     = st.session_state.investigation or {}
-    query   = inv.get("target", results.query)
-    risk    = results.risk_score
-    rl, rc  = _risk_label(risk)
-    oath    = results.oath_result
-    sherl   = results.sherl_result
-    extra   = results.extras
-    summary = results.summary()
-    inv_ts  = inv.get("timestamp", "")
-    ts_safe = inv_ts[:10] if inv_ts else ""
-    q_safe  = _re.sub(r"[^a-zA-Z0-9_\-@.]", "_", query)
-
-    # ── Search Report header ───────────────────────────────────────────────
-    st.markdown(
-        f'<div class="results-page">'
-        f'<div class="report-header">'
-        f'<div>'
-        f'  <div class="report-title">Search Report</div>'
-        f'  <div class="report-sub">Information found for <b style="color:var(--text)">{query}</b>'
-        f'  · {results.elapsed_s}s</div>'
-        f'</div>'
-        f'<span class="risk-badge" style="background:{rc}18;border:1px solid {rc}55;color:{rc}">'
-        f'  {risk} — {rl}'
-        f'</span>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
-
-    # ── Stat row (OathNet style — sem expander, direto) ────────────────────
-    n_breach  = summary["breaches"]
-    n_stealer = summary["stealers"]
-    n_social  = summary["social"]
-    n_holehe  = summary["holehe"]
+    import pandas as pd, re as _re
+    inv    = st.session_state.investigation or {}
+    query  = inv.get('target', results.query)
+    risk   = results.risk_score
+    rl, rc = _risk_label(risk)
+    oath   = results.oath_result
+    sherl  = results.sherl_result
+    extra  = results.extras
+    summary= results.summary()
+    inv_ts = inv.get('timestamp', '')
+    ts_safe= inv_ts[:10] if inv_ts else ''
+    q_safe = _re.sub(r"[^a-zA-Z0-9_\-@.]", "_", query)
+    n_breach  = summary['breaches']
+    n_stealer = summary['stealers']
+    n_social  = summary['social']
+    n_holehe  = summary['holehe']
     n_total   = n_breach + n_stealer + n_social + n_holehe
+    elapsed_str = f"{results.elapsed_s}s" if results.elapsed_s else ''
 
-    def _delta_color(val: int, inverse: bool = False) -> str:
-        if val == 0: return "var(--green)"
-        return "var(--red)" if not inverse else "var(--orange)"
+    st.markdown('<div class="results-wrap">', unsafe_allow_html=True)
 
-    st.markdown(f"""
-    <div class="stat-row">
-      <div class="stat-cell">
-        <div class="stat-value">{n_total}</div>
-        <div class="stat-label">Total Found</div>
-      </div>
-      <div class="stat-cell">
-        <div class="stat-value" style="color:{'var(--red)' if n_breach>10 else 'var(--orange)' if n_breach>0 else 'var(--green)'}">{n_breach}</div>
-        <div class="stat-label">Security Breaches</div>
-        <div class="stat-delta" style="color:{'var(--red)' if n_breach>10 else 'var(--orange)' if n_breach>0 else 'var(--green)'}">
-          {'⚠ Alto risco' if n_breach>10 else '⚠ Atenção' if n_breach>0 else '✓ Limpo'}
-        </div>
-      </div>
-      <div class="stat-cell">
-        <div class="stat-value" style="color:{'var(--red)' if n_stealer>0 else 'var(--green)'}">{n_stealer}</div>
-        <div class="stat-label">Stolen Info</div>
-        <div class="stat-delta" style="color:{'var(--red)' if n_stealer>0 else 'var(--green)'}">
-          {'🚨 Comprometido' if n_stealer>0 else '✓ Limpo'}
-        </div>
-      </div>
-      <div class="stat-cell">
-        <div class="stat-value">{n_social}</div>
-        <div class="stat-label">Social Profiles</div>
-        <div class="stat-delta" style="color:var(--text2)">{sherl.total_checked if sherl else 0} checked</div>
-      </div>
-      <div class="stat-cell">
-        <div class="stat-value">{n_holehe}</div>
-        <div class="stat-label">Email Services</div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Search complete bar
+    bar_html = (
+        '<div class="search-bar">'
+        '<div class="search-bar-left">'
+        '<div class="search-bar-status">'
+        '<span style="width:6px;height:6px;border-radius:50%;background:var(--safe);display:inline-block"></span>'
+        'Search complete'
+        '</div>'
+        f'<div class="search-bar-target">{query}</div>'
+        f'<div class="search-bar-sub">Found {n_total} results &nbsp;·&nbsp; {elapsed_str}</div>'
+        '</div>'
+        '<div style="display:flex;align-items:center;gap:10px">'
+        f'<span class="risk-pill" style="background:{rc}15;border:1px solid {rc}44;color:{rc}">'
+        f'{risk} — {rl}'
+        '</span></div>'
+        '</div>'
+    )
+    st.markdown(bar_html, unsafe_allow_html=True)
 
-    # Quota info + erros inline (sem expander extra)
+    # Stat grid
+    def _sc(val, dt=10, wt=1):
+        if val==0: return 'var(--safe)'
+        return 'var(--danger)' if val>=dt else 'var(--warn)'
+    grid_html = (
+        '<div class="stat-grid">'
+        '<div class="stat-box">'
+        f'<div class="stat-box-val">{n_total}</div>'
+        '<div class="stat-box-lbl">Total Found</div>'
+        '</div>'
+        '<div class="stat-box stat-breach">'
+        f'<div class="stat-box-val" style="color:{_sc(n_breach)}">{n_breach}</div>'
+        '<div class="stat-box-lbl">Breaches</div>'
+        f'<div class="stat-box-delta" style="color:{_sc(n_breach)}">{"⚠ High" if n_breach>10 else "⚠ Attn" if n_breach>0 else "✓ OK"}</div>'
+        '</div>'
+        '<div class="stat-box stat-stealer">'
+        f'<div class="stat-box-val" style="color:{_sc(n_stealer,1,1)}">{n_stealer}</div>'
+        '<div class="stat-box-lbl">Stolen Info</div>'
+        f'<div class="stat-box-delta" style="color:{_sc(n_stealer,1,1)}">{"🚨 Compromised" if n_stealer>0 else "✓ Clean"}</div>'
+        '</div>'
+        '<div class="stat-box stat-social">'
+        f'<div class="stat-box-val">{n_social}</div>'
+        '<div class="stat-box-lbl">Social</div>'
+        f'<div class="stat-box-delta" style="color:var(--text3)">{sherl.total_checked if sherl else 0} checked</div>'
+        '</div>'
+        '<div class="stat-box stat-holehe">'
+        f'<div class="stat-box-val">{n_holehe}</div>'
+        '<div class="stat-box-lbl">Email Svcs</div>'
+        '</div>'
+        '</div>'
+    )
+    st.markdown(grid_html, unsafe_allow_html=True)
+
     if oath and oath.meta.plan:
-        st.caption(f"🔑 {oath.meta.plan.upper()} · {oath.meta.used_today}/{oath.meta.daily_limit} lookups usados · {oath.meta.left_today} restantes")
+        st.caption(f'🔑 {oath.meta.plan.upper()} · {oath.meta.used_today}/{oath.meta.daily_limit} lookups · {oath.meta.left_today} remaining')
     if results.errors:
-        errs = " · ".join(f"**{m}**: {e[:40]}" for m, e in results.errors.items())
-        st.markdown(f'<div class="alert-warning" style="font-size:.78rem">⚠ {errs}</div>', unsafe_allow_html=True)
+        errs = ' · '.join(f'{m}: {e[:40]}' for m,e in results.errors.items())
+        st.markdown(f'<div class="alert-warning" style="font-size:.78rem;margin:0 0 12px">⚠ {errs}</div>', unsafe_allow_html=True)
 
-    # ── Export inline (sem "gerar primeiro") ─────────────────────────────
-    with st.expander("📤 Export Report", expanded=False):
+    with st.expander('📤 Export Report'):
         col1, col2, col3 = st.columns(3)
         with col1:
-            if st.button("⚙️ Generate HTML", key="exp_html"):
-                with st.spinner("Generating…"):
+            if st.button('⚙ Generate HTML', key='exp_html'):
+                with st.spinner('Generating…'):
                     try:
-                        h = generate_html(query, inv.get("target_type",""), oath, sherl, risk, inv_ts or "").encode()
-                        st.session_state["_html_cache"] = h
-                    except Exception as e:
-                        st.error(str(e))
-            if st.session_state.get("_html_cache"):
-                st.download_button("⬇️ HTML", data=st.session_state["_html_cache"],
-                                   file_name=f"nexus_{q_safe}_{ts_safe}.html",
-                                   mime="text/html", use_container_width=True)
+                        h = generate_html(query, inv.get('target_type',''), oath, sherl, risk, inv_ts or '').encode()
+                        st.session_state['_html_cache'] = h
+                    except Exception as e: st.error(str(e))
+            if st.session_state.get('_html_cache'):
+                st.download_button('⬇ HTML', data=st.session_state['_html_cache'],
+                    file_name=f'nexus_{q_safe}_{ts_safe}.html', mime='text/html', use_container_width=True)
         with col2:
-            if st.button("⚙️ Generate PDF", key="exp_pdf"):
-                with st.spinner("Generating…"):
+            if st.button('⚙ Generate PDF', key='exp_pdf'):
+                with st.spinner('Generating…'):
                     try:
-                        p = generate_pdf(query, inv.get("target_type",""), oath, sherl, risk, inv_ts or "")
-                        st.session_state["_pdf_cache"] = p
-                    except Exception as e:
-                        st.error(str(e))
-            if st.session_state.get("_pdf_cache"):
-                st.download_button("⬇️ PDF", data=st.session_state["_pdf_cache"],
-                                   file_name=f"nexus_{q_safe}_{ts_safe}.pdf",
-                                   mime="application/pdf", use_container_width=True)
+                        p = generate_pdf(query, inv.get('target_type',''), oath, sherl, risk, inv_ts or '')
+                        st.session_state['_pdf_cache'] = p
+                    except Exception as e: st.error(str(e))
+            if st.session_state.get('_pdf_cache'):
+                st.download_button('⬇ PDF', data=st.session_state['_pdf_cache'],
+                    file_name=f'nexus_{q_safe}_{ts_safe}.pdf', mime='application/pdf', use_container_width=True)
         with col3:
-            st.download_button("⬇️ JSON", data=_build_json_export(results, inv),
-                               file_name=f"nexus_{q_safe}_{ts_safe}.json",
-                               mime="application/json", use_container_width=True)
+            st.download_button('⬇ JSON', data=_build_json_export(results, inv),
+                file_name=f'nexus_{q_safe}_{ts_safe}.json', mime='application/json', use_container_width=True)
 
-    # ── Data Breaches ──────────────────────────────────────────────────────
+    st.markdown('<div class="results-section">', unsafe_allow_html=True)
     if oath and oath.breaches:
         _render_breach_section(oath, inv_ts)
     elif oath and oath.success and not oath.breaches:
-        st.markdown('<div class="alert-success">✓ No breaches found for this target.</div>', unsafe_allow_html=True)
-
-    # ── Stealer Logs ───────────────────────────────────────────────────────
+        st.markdown('<div class="alert-success">✓ No breaches found.</div>', unsafe_allow_html=True)
     if oath and oath.stealers:
         _render_stealer_section(oath, inv_ts)
-
-    # ── Social (Sherlock) ──────────────────────────────────────────────────
     if sherl and sherl.found:
         _render_social_section(sherl, inv_ts)
-
-    # ── Email / Holehe ─────────────────────────────────────────────────────
     if oath and oath.holehe_domains:
         _render_holehe_section(oath, inv_ts)
-
-    # ── Extras (IP, Discord, Gaming, Subdomains) ───────────────────────────
     _render_extras(extra, query)
-
-    # ── SpiderFoot ────────────────────────────────────────────────────────
     sf = results.sf_result
     if sf is not None:
         from modules.spiderfoot_wrapper import render_spiderfoot_results
         render_spiderfoot_results(sf)
-
-    # ── Raw JSON ───────────────────────────────────────────────────────────
-    with st.expander("🔬 Raw API Response"):
-        st.json(oath.raw_response if oath and oath.raw_response else {"_note": "no raw data"})
-
-    st.markdown('</div>', unsafe_allow_html=True)  # results-page
-
-
-# ── Seções de resultado (cada uma separada para legibilidade) ─────────────────
+    with st.expander('🔬 Raw API Response'):
+        st.json(oath.raw_response if oath and oath.raw_response else {'_note': 'no data'})
+    st.markdown('</div>', unsafe_allow_html=True)  # results-section
+    st.markdown('</div>', unsafe_allow_html=True)  # results-wrap
 
 def _render_breach_section(oath: OathnetResult, inv_ts: str) -> None:
     import pandas as pd
