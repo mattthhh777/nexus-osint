@@ -128,6 +128,8 @@ footer                           { display:none!important; }
   --purple:  #7b68ee;
   --purple2: #6255d3;
   --purple-glow: rgba(123,104,238,.3);
+  --accent:  #7b68ee;
+  --bg4:     #1e2035;
   --text:    #f0f0f8;
   --text2:   #8a8aaa;
   --text3:   #555575;
@@ -291,6 +293,8 @@ div[data-testid="stRadio"] label:has(input:checked) span {
   color: #fff!important;
   font-weight: 600!important;
   box-shadow: 0 2px 8px var(--purple-glow)!important;
+  min-width: 90px;
+  text-align: center;
 }
 
 /* ── Alerts ── */
@@ -333,7 +337,7 @@ hr { border-color: var(--border)!important; }
 }
 .hub-logo {
   text-align: center;
-  padding: 56px 0 36px;
+  padding: 28px 0 20px;
 }
 .hub-badge {
   display: inline-flex;
@@ -350,12 +354,12 @@ hr { border-color: var(--border)!important; }
   margin-bottom: 18px;
 }
 .hub-logo h1 {
-  font-size: 2.4rem;
+  font-size: 2rem;
   font-weight: 800;
   color: var(--text);
   letter-spacing: -.03em;
-  margin: 0 0 10px;
-  line-height: 1;
+  margin: 0 0 8px;
+  line-height: 1.1;
 }
 .hub-logo p {
   color: var(--text2);
@@ -602,7 +606,7 @@ def _render_hub() -> None:
     st.markdown(
         '<div class="hub-wrap">'
         '<div class="hub-logo">'
-        '<div class="hub-badge">⬡ NEXUSOSINT · v2.0</div>'
+        '<div class="hub-badge">⬡ NEXUSOSINT</div>'
         '<h1>Investigate any data,<br>instantly.</h1>'
         '<p>Run targeted lookups across breaches, social profiles, gaming accounts,<br>'
         'emails and network infrastructure — all in one place.</p>'
@@ -610,7 +614,7 @@ def _render_hub() -> None:
         unsafe_allow_html=True,
     )
 
-    # ── Card de busca ───────────────────────────────────────────────────────
+    # ── Card único: quota + input + toggle + categorias ─────────────────────
     st.markdown('<div class="hub-card">', unsafe_allow_html=True)
 
     # Quota widget
@@ -629,68 +633,21 @@ def _render_hub() -> None:
         search_clicked = st.button("Search →", key="hub_search_btn",
                                    type="primary", use_container_width=True)
 
-    # ── Toggle Automated / Manual com visual claro ──────────────────────────
-    st.markdown("""
-    <style>
-    /* Toggle pill estilo OathNet */
-    div[data-testid="stRadio"] {
-        margin-top: 10px;
-    }
-    div[data-testid="stRadio"] > div {
-        display: inline-flex !important;
-        flex-direction: row !important;
-        gap: 0 !important;
-        background: var(--bg4) !important;
-        border: 1px solid var(--border2) !important;
-        border-radius: 999px !important;
-        padding: 3px !important;
-    }
-    div[data-testid="stRadio"] label {
-        margin: 0 !important;
-        cursor: pointer;
-    }
-    div[data-testid="stRadio"] label > div:first-child {
-        display: none !important;
-    }
-    div[data-testid="stRadio"] label span {
-        display: block !important;
-        padding: 6px 20px !important;
-        border-radius: 999px !important;
-        font-size: .82rem !important;
-        font-weight: 500 !important;
-        color: var(--text2) !important;
-        background: transparent !important;
-        border: none !important;
-        transition: all .15s !important;
-        cursor: pointer;
-    }
-    div[data-testid="stRadio"] label:has(input:checked) span {
-        background: var(--accent) !important;
-        color: #fff !important;
-        font-weight: 600 !important;
-        box-shadow: 0 2px 8px rgba(124,106,247,.4) !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
+    # Toggle Automated / Manual
     mode = st.radio("", ["Automated", "Manual"],
                     horizontal=True, key="hub_mode", label_visibility="collapsed")
 
-    st.markdown('</div>', unsafe_allow_html=True)  # hub-card
-
-    # ── Manual: mostra categorias e módulos ─────────────────────────────────
-    # Automated: não mostra nada — roda tudo automaticamente pelo tipo do query
+    # ── Manual: categorias e módulos dentro do card ─────────────────────────
     active_cat  = st.session_state.get("hub_active_cat", "Data Leaks")
     active_mods = st.session_state.get("hub_active_mods", {"breaches", "stealer"})
 
     if mode == "Manual":
         st.markdown(
-            '<div style="margin-top:8px;color:var(--text3);font-size:.74rem;'
-            'text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">'
-            'Selecione a categoria e os módulos</div>',
+            '<div style="height:1px;background:var(--border);margin:12px -24px;"></div>'
+            '<div style="color:var(--text3);font-size:.7rem;text-transform:uppercase;'
+            'letter-spacing:.1em;font-weight:700;margin-bottom:8px">Categoria</div>',
             unsafe_allow_html=True,
         )
-        # Categorias
         st.markdown('<div class="cat-row">', unsafe_allow_html=True)
         cat_cols = st.columns(len(CATEGORIES))
         for i, (cat_name, cat_data) in enumerate(CATEGORIES.items()):
@@ -706,9 +663,13 @@ def _render_hub() -> None:
                     st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # Módulos da categoria selecionada
         cat_modules = CATEGORIES[active_cat]["modules"]
-        st.markdown('<div class="mod-row" style="margin-top:8px">', unsafe_allow_html=True)
+        st.markdown(
+            '<div style="color:var(--text3);font-size:.7rem;text-transform:uppercase;'
+            'letter-spacing:.1em;font-weight:700;margin:10px 0 6px">Módulos</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown('<div class="mod-row">', unsafe_allow_html=True)
         mod_cols = st.columns(min(len(cat_modules), 6))
         for i, (mk, (icon, lbl)) in enumerate(cat_modules.items()):
             with mod_cols[i]:
@@ -720,6 +681,8 @@ def _render_hub() -> None:
                     st.session_state.hub_active_mods = mods
                     st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)  # hub-card
 
     # ── Executar busca ──────────────────────────────────────────────────────
     if search_clicked and raw_query.strip():
@@ -749,6 +712,7 @@ def _render_hub() -> None:
                 )
 
     st.markdown('</div>', unsafe_allow_html=True)  # hub-wrap
+
 
 
 def _execute_search(
