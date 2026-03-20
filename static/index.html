@@ -1,0 +1,1527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NexusOSINT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════════════════
+   DESIGN SYSTEM — Noir/Terminal aesthetic
+   Not purple gradients. Not generic SaaS.
+   Dark station, amber accents, monospace data.
+══════════════════════════════════════════════════════ */
+:root {
+  --bg:        #080a0f;
+  --bg2:       #0c0e15;
+  --bg3:       #11141e;
+  --bg4:       #171b28;
+  --bg5:       #1e2333;
+  --line:      rgba(255,255,255,.06);
+  --line2:     rgba(255,255,255,.1);
+  --line3:     rgba(255,255,255,.18);
+
+  /* Amber accent — the "active terminal" color */
+  --amber:     #f5a623;
+  --amber-lo:  rgba(245,166,35,.1);
+  --amber-glow:rgba(245,166,35,.25);
+
+  /* Semantic */
+  --red:       #e84040;
+  --red-lo:    rgba(232,64,64,.1);
+  --orange:    #e8822a;
+  --green:     #3ec78c;
+  --green-lo:  rgba(62,199,140,.1);
+  --blue:      #4a9eff;
+  --blue-lo:   rgba(74,158,255,.1);
+
+  --text:      #dde2f0;
+  --text2:     #7a8099;
+  --text3:     #3d4258;
+  --mono:      'JetBrains Mono', monospace;
+  --sans:      'Space Grotesk', sans-serif;
+  --r:         8px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { height: 100%; }
+
+body {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Subtle grid texture */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.015) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Glow at top center */
+body::after {
+  content: '';
+  position: fixed;
+  top: -200px; left: 50%; transform: translateX(-50%);
+  width: 600px; height: 400px;
+  background: radial-gradient(ellipse, rgba(245,166,35,.06) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+#app { position: relative; z-index: 1; min-height: 100vh; }
+
+/* ── Typography ── */
+h1, h2, h3 { font-family: var(--sans); letter-spacing: -.02em; }
+code, .mono { font-family: var(--mono); }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg5); border-radius: 4px; }
+
+/* ══════════════════════════════════════════════════════
+   LAYOUT
+══════════════════════════════════════════════════════ */
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 24px 80px;
+}
+
+/* ══════════════════════════════════════════════════════
+   TOP NAV
+══════════════════════════════════════════════════════ */
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  background: rgba(8,10,15,.92);
+  backdrop-filter: blur(20px);
+  z-index: 100;
+}
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: .88rem;
+  color: var(--text);
+  letter-spacing: .08em;
+}
+.nav-logo-mark {
+  width: 28px; height: 28px;
+  background: var(--amber);
+  border-radius: 6px;
+  display: grid; place-items: center;
+  font-size: .9rem;
+  color: var(--bg);
+}
+.nav-right { display: flex; align-items: center; gap: 12px; }
+.nav-badge {
+  font-family: var(--mono);
+  font-size: .7rem;
+  color: var(--text3);
+  background: var(--bg3);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 3px 8px;
+}
+.sf-indicator {
+  display: flex; align-items: center; gap: 6px;
+  font-size: .74rem; font-family: var(--mono); color: var(--text3);
+}
+.sf-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--text3); transition: background .3s;
+}
+.sf-dot.online { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+/* ══════════════════════════════════════════════════════
+   HERO + SEARCH
+══════════════════════════════════════════════════════ */
+.hero {
+  padding: 56px 0 40px;
+  text-align: center;
+}
+.hero-tag {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: .7rem;
+  font-weight: 500;
+  color: var(--amber);
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  border: 1px solid rgba(245,166,35,.25);
+  border-radius: 4px;
+  padding: 4px 12px;
+  margin-bottom: 20px;
+}
+.hero h1 {
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.1;
+  margin-bottom: 14px;
+}
+.hero h1 span { color: var(--amber); }
+.hero p {
+  color: var(--text2);
+  font-size: .9rem;
+  max-width: 440px;
+  margin: 0 auto 36px;
+}
+
+/* Search box */
+.search-container {
+  background: var(--bg2);
+  border: 1px solid var(--line2);
+  border-radius: 12px;
+  padding: 16px;
+  max-width: 680px;
+  margin: 0 auto;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.02) inset, 0 20px 60px rgba(0,0,0,.5);
+  position: relative;
+}
+.search-container::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 20%; right: 20%; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(245,166,35,.3), transparent);
+}
+
+.search-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.search-input {
+  flex: 1;
+  background: var(--bg4);
+  border: 1px solid var(--line2);
+  border-radius: var(--r);
+  padding: 12px 16px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: .9rem;
+  outline: none;
+  transition: all .2s;
+  caret-color: var(--amber);
+}
+.search-input:focus {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px var(--amber-lo);
+  background: var(--bg3);
+}
+.search-input::placeholder { color: var(--text3); font-family: var(--mono); }
+
+.btn {
+  padding: 12px 20px;
+  border-radius: var(--r);
+  border: none;
+  font-family: var(--sans);
+  font-size: .84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.btn-primary {
+  background: var(--amber);
+  color: var(--bg);
+  box-shadow: 0 4px 20px var(--amber-glow);
+}
+.btn-primary:hover { filter: brightness(1.1); box-shadow: 0 6px 28px var(--amber-glow); }
+.btn-secondary {
+  background: var(--bg4);
+  color: var(--text2);
+  border: 1px solid var(--line2);
+}
+.btn-secondary:hover { border-color: var(--line3); color: var(--text); }
+.btn-sm { padding: 6px 14px; font-size: .78rem; }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+
+/* Mode toggle */
+.mode-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.toggle {
+  display: flex;
+  background: var(--bg4);
+  border: 1px solid var(--line2);
+  border-radius: 6px;
+  padding: 3px;
+  gap: 2px;
+}
+.toggle-btn {
+  padding: 5px 16px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text2);
+  font-family: var(--sans);
+  font-size: .78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .15s;
+}
+.toggle-btn.active {
+  background: var(--amber);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+/* Manual: module categories */
+.manual-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  display: none;
+}
+.manual-section.visible { display: block; }
+.section-label {
+  font-family: var(--mono);
+  font-size: .66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  color: var(--text3);
+  margin-bottom: 8px;
+}
+.cat-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.chip {
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--line2);
+  background: var(--bg4);
+  color: var(--text2);
+  font-size: .76rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .15s;
+  user-select: none;
+}
+.chip:hover { border-color: var(--amber); color: var(--text); }
+.chip.active { background: var(--amber-lo); border-color: var(--amber); color: var(--amber); font-weight: 600; }
+.chip.cat-chip { border-radius: 999px; }
+
+/* SpiderFoot options */
+.sf-options {
+  margin-top: 10px;
+  display: none;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.sf-options.visible { display: flex; }
+.sf-mode-label { font-size: .74rem; color: var(--text2); font-family: var(--mono); }
+
+/* ══════════════════════════════════════════════════════
+   QUOTA BAR
+══════════════════════════════════════════════════════ */
+.quota-bar {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--bg3); border: 1px solid var(--line);
+  border-radius: var(--r); padding: 8px 14px; margin-bottom: 14px;
+  font-size: .74rem; font-family: var(--mono); color: var(--text2);
+}
+.quota-track {
+  flex: 1; height: 3px; background: var(--bg5); border-radius: 3px; overflow: hidden;
+}
+.quota-fill {
+  height: 100%; border-radius: 3px; transition: width .5s;
+  background: var(--green);
+}
+.quota-fill.warn  { background: var(--orange); }
+.quota-fill.crit  { background: var(--red); }
+.quota-text { color: var(--amber); font-weight: 700; }
+
+/* ══════════════════════════════════════════════════════
+   PROGRESS / SCAN STATUS
+══════════════════════════════════════════════════════ */
+.scan-status {
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 20px;
+  margin: 24px 0;
+  display: none;
+}
+.scan-status.visible { display: block; }
+.scan-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.scan-title { font-family: var(--mono); font-weight: 700; font-size: .88rem; color: var(--text); }
+.scan-pct { font-family: var(--mono); font-size: .84rem; font-weight: 700; color: var(--amber); }
+.scan-track { height: 2px; background: var(--bg5); border-radius: 2px; overflow: hidden; margin-bottom: 14px; }
+.scan-fill {
+  height: 100%; border-radius: 2px;
+  background: linear-gradient(90deg, var(--amber), rgba(245,166,35,.6));
+  transition: width .3s;
+  position: relative;
+}
+.scan-fill::after {
+  content: '';
+  position: absolute; right: 0; top: -1px;
+  width: 6px; height: 4px;
+  background: var(--amber);
+  border-radius: 2px;
+  box-shadow: 0 0 8px var(--amber);
+}
+.scan-modules { display: flex; flex-direction: column; gap: 6px; }
+.scan-module {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--mono); font-size: .76rem; color: var(--text3);
+  transition: color .2s;
+}
+.scan-module.active { color: var(--amber); }
+.scan-module.done   { color: var(--green); }
+.scan-module-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--text3); flex-shrink: 0;
+  transition: all .2s;
+}
+.scan-module.active .scan-module-dot {
+  background: var(--amber);
+  box-shadow: 0 0 6px var(--amber);
+  animation: pulse 1s infinite;
+}
+.scan-module.done .scan-module-dot { background: var(--green); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* ══════════════════════════════════════════════════════
+   RESULTS
+══════════════════════════════════════════════════════ */
+#results { display: none; }
+#results.visible { display: block; }
+
+/* Search complete bar */
+.result-header {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px;
+  background: var(--bg2); border: 1px solid var(--line);
+  border-radius: 10px; padding: 16px 20px; margin-bottom: 20px;
+}
+.result-header-left { display: flex; flex-direction: column; gap: 4px; }
+.result-status {
+  font-family: var(--mono); font-size: .68rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .1em; color: var(--green);
+  display: flex; align-items: center; gap: 6px;
+}
+.result-status::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green); box-shadow: 0 0 6px var(--green);
+  display: inline-block;
+}
+.result-target {
+  font-size: 1.1rem; font-weight: 700; color: var(--text);
+  font-family: var(--mono); letter-spacing: -.02em;
+}
+.result-sub { font-size: .74rem; color: var(--text2); font-family: var(--mono); }
+.risk-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 16px; border-radius: 6px;
+  font-family: var(--mono); font-size: .82rem; font-weight: 700;
+}
+
+/* Stat grid */
+.stat-grid {
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  gap: 8px; margin-bottom: 20px;
+}
+@media(max-width:600px){ .stat-grid{ grid-template-columns: repeat(2,1fr); } }
+.stat-card {
+  background: var(--bg2); border: 1px solid var(--line);
+  border-radius: 8px; padding: 16px 14px; text-align: center;
+  transition: all .2s; position: relative; overflow: hidden;
+  cursor: default;
+}
+.stat-card:hover { border-color: var(--line2); background: var(--bg3); }
+.stat-card-bar {
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+}
+.stat-card-val {
+  font-family: var(--mono); font-size: 1.8rem; font-weight: 700;
+  color: var(--text); letter-spacing: -.04em; line-height: 1;
+  margin-bottom: 6px;
+}
+.stat-card-lbl {
+  font-size: .62rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .1em; color: var(--text3);
+}
+.stat-card-note {
+  font-family: var(--mono); font-size: .66rem; margin-top: 5px; line-height: 1.3;
+}
+
+/* Section panels */
+.panel {
+  background: var(--bg2); border: 1px solid var(--line);
+  border-radius: 10px; margin-bottom: 10px; overflow: hidden;
+  transition: border-color .2s;
+}
+.panel:hover { border-color: var(--line2); }
+.panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px; cursor: pointer; user-select: none;
+  background: var(--bg3);
+  border-bottom: 1px solid transparent;
+  transition: all .15s;
+}
+.panel-header:hover { background: var(--bg4); }
+.panel.open .panel-header { border-bottom-color: var(--line); }
+.panel-title {
+  display: flex; align-items: center; gap: 10px;
+  font-weight: 600; font-size: .9rem; color: var(--text);
+}
+.panel-badge {
+  font-family: var(--mono); font-size: .7rem; font-weight: 700;
+  background: var(--bg5); border: 1px solid var(--line2);
+  border-radius: 4px; padding: 2px 8px; color: var(--text2);
+}
+.panel-chevron { font-size: .7rem; color: var(--text3); transition: transform .2s; }
+.panel.open .panel-chevron { transform: rotate(90deg); }
+.panel-body { display: none; padding: 16px 20px; }
+.panel.open .panel-body { display: block; }
+
+/* Data table */
+.data-table {
+  width: 100%; border-collapse: collapse; font-family: var(--mono);
+  font-size: .78rem;
+}
+.data-table th {
+  text-align: left; padding: 8px 12px;
+  font-size: .65rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--text3);
+  border-bottom: 1px solid var(--line);
+}
+.data-table td {
+  padding: 8px 12px; border-bottom: 1px solid var(--line);
+  color: var(--text2); vertical-align: top; max-width: 300px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: var(--bg3); color: var(--text); }
+.data-table .val-danger  { color: var(--red); }
+.data-table .val-warn    { color: var(--orange); }
+.data-table .val-safe    { color: var(--green); }
+.data-table .val-amber   { color: var(--amber); }
+.data-table .val-muted   { color: var(--text3); }
+
+/* Social badges */
+.social-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.social-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--green-lo); border: 1px solid rgba(62,199,140,.2);
+  color: var(--green); border-radius: 5px;
+  padding: 4px 10px; font-size: .74rem; font-weight: 500;
+  text-decoration: none; transition: all .15s;
+}
+.social-badge:hover { background: rgba(62,199,140,.18); }
+
+/* Pagination */
+.pagination {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 12px; font-family: var(--mono); font-size: .74rem; color: var(--text2);
+}
+.pagination-btns { display: flex; gap: 6px; }
+
+/* Copy text area */
+.copy-area {
+  width: 100%; background: var(--bg4); border: 1px solid var(--line);
+  border-radius: 6px; padding: 12px; color: var(--text2);
+  font-family: var(--mono); font-size: .76rem; resize: vertical;
+  min-height: 140px; margin-top: 12px; display: none;
+}
+.copy-area.visible { display: block; }
+
+/* Export row */
+.export-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* SpiderFoot results */
+.sf-finding {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 8px 0; border-bottom: 1px solid var(--line);
+}
+.sf-finding:last-child { border-bottom: none; }
+.sf-type {
+  font-family: var(--mono); font-size: .66rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em;
+  background: var(--bg5); border: 1px solid var(--line2);
+  border-radius: 3px; padding: 2px 7px; color: var(--amber);
+  flex-shrink: 0; margin-top: 2px;
+}
+.sf-data { font-family: var(--mono); font-size: .78rem; color: var(--text2); word-break: break-all; }
+.sf-source { font-family: var(--mono); font-size: .66rem; color: var(--text3); margin-top: 2px; }
+
+/* Error toast */
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--bg3); border: 1px solid var(--red);
+  border-radius: 8px; padding: 14px 18px;
+  font-size: .82rem; color: var(--text); max-width: 360px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5); z-index: 999;
+  display: none; animation: slideup .2s ease;
+}
+.toast.visible { display: block; }
+@keyframes slideup { from{transform:translateY(20px);opacity:0} to{transform:none;opacity:1} }
+
+/* Auth screen */
+.auth-screen {
+  position: fixed; inset: 0; background: var(--bg);
+  display: grid; place-items: center; z-index: 200;
+}
+.auth-card {
+  background: var(--bg2); border: 1px solid var(--line2);
+  border-radius: 12px; padding: 36px; width: 100%; max-width: 380px;
+  text-align: center;
+}
+.auth-logo { font-family: var(--mono); font-size: 2rem; color: var(--amber); margin-bottom: 8px; }
+.auth-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }
+.auth-sub { font-size: .82rem; color: var(--text2); margin-bottom: 24px; }
+.auth-input {
+  width: 100%; background: var(--bg4); border: 1px solid var(--line2);
+  border-radius: var(--r); padding: 12px 16px;
+  color: var(--text); font-family: var(--mono); font-size: .88rem;
+  outline: none; margin-bottom: 12px; text-align: center;
+  letter-spacing: .1em; caret-color: var(--amber);
+}
+.auth-input:focus { border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-lo); }
+.auth-btn { width: 100%; }
+.auth-error { color: var(--red); font-size: .78rem; margin-top: 8px; display: none; }
+
+/* History */
+.history-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px,1fr)); gap: 8px; }
+.history-card {
+  background: var(--bg3); border: 1px solid var(--line);
+  border-radius: 8px; padding: 12px 14px; cursor: pointer; transition: all .15s;
+}
+.history-card:hover { border-color: var(--amber); background: var(--bg4); }
+.history-target { font-family: var(--mono); font-weight: 600; font-size: .84rem; color: var(--text); }
+.history-meta { font-family: var(--mono); font-size: .68rem; color: var(--text3); margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<!-- Auth screen (hidden if no password set) -->
+<div class="auth-screen" id="authScreen" style="display:none">
+  <div class="auth-card">
+    <div class="auth-logo">⬡</div>
+    <div class="auth-title">NexusOSINT</div>
+    <div class="auth-sub">Enter access password to continue</div>
+    <input type="password" class="auth-input" id="authInput" placeholder="••••••••" autofocus>
+    <button class="btn btn-primary auth-btn" onclick="submitAuth()">Access</button>
+    <div class="auth-error" id="authError">Invalid password</div>
+  </div>
+</div>
+
+<div id="app">
+  <!-- Nav -->
+  <nav class="nav">
+    <div class="nav-logo">
+      <div class="nav-logo-mark">⬡</div>
+      NEXUSOSINT
+    </div>
+    <div class="nav-right">
+      <div class="sf-indicator">
+        <div class="sf-dot" id="sfDot"></div>
+        <span id="sfLabel">spiderfoot</span>
+      </div>
+      <div class="nav-badge" id="quotaBadge">─ lookups</div>
+    </div>
+  </nav>
+
+  <div class="page">
+    <!-- Hero -->
+    <div class="hero">
+      <div class="hero-tag">Intelligence Platform</div>
+      <h1>Find anything on<br><span>anyone, instantly.</span></h1>
+      <p>Breach databases · Social networks · Emails · IPs · Domains · SpiderFoot OSINT</p>
+
+      <!-- Search -->
+      <div class="search-container">
+        <!-- Quota bar -->
+        <div class="quota-bar" id="quotaBar" style="display:none">
+          <div class="quota-track">
+            <div class="quota-fill" id="quotaFill" style="width:0%"></div>
+          </div>
+          <span>OathNet <span class="quota-text" id="quotaText">─</span> left today</span>
+        </div>
+
+        <div class="search-row">
+          <input type="text" class="search-input" id="searchInput"
+            placeholder="username · email · IP · Discord ID · domain…"
+            onkeydown="if(event.key==='Enter') startSearch()">
+          <button class="btn btn-primary" id="searchBtn" onclick="startSearch()">
+            Search →
+          </button>
+        </div>
+
+        <div class="mode-row">
+          <div class="toggle">
+            <button class="toggle-btn active" id="btnAuto" onclick="setMode('auto')">Automated</button>
+            <button class="toggle-btn" id="btnManual" onclick="setMode('manual')">Manual</button>
+          </div>
+        </div>
+
+        <!-- Manual mode options -->
+        <div class="manual-section" id="manualSection">
+          <div class="section-label">Category</div>
+          <div class="cat-chips" id="catChips"></div>
+          <div class="section-label" style="margin-top:10px">Modules</div>
+          <div class="cat-chips" id="modChips"></div>
+
+          <!-- SpiderFoot scan mode -->
+          <div class="sf-options" id="sfOptions">
+            <span class="sf-mode-label">SpiderFoot scan mode:</span>
+            <button class="chip active" onclick="setSfMode('passive',this)">passive</button>
+            <button class="chip" onclick="setSfMode('footprint',this)">footprint</button>
+            <button class="chip" onclick="setSfMode('investigate',this)">investigate</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scan progress -->
+    <div class="scan-status" id="scanStatus">
+      <div class="scan-header">
+        <div class="scan-title" id="scanTitle">Scanning…</div>
+        <div class="scan-pct" id="scanPct">0%</div>
+      </div>
+      <div class="scan-track"><div class="scan-fill" id="scanFill" style="width:0%"></div></div>
+      <div class="scan-modules" id="scanModules"></div>
+    </div>
+
+    <!-- Results -->
+    <div id="results">
+      <!-- Header -->
+      <div class="result-header">
+        <div class="result-header-left">
+          <div class="result-status">Search complete</div>
+          <div class="result-target mono" id="resTarget">─</div>
+          <div class="result-sub" id="resSub">─</div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <div id="riskBadge" class="risk-badge">─</div>
+          <button class="btn btn-secondary btn-sm" onclick="newSearch()">New Search</button>
+        </div>
+      </div>
+
+      <!-- Stat grid -->
+      <div class="stat-grid" id="statGrid"></div>
+
+      <!-- Export panel -->
+      <div class="panel" id="panelExport">
+        <div class="panel-header" onclick="togglePanel('panelExport')">
+          <div class="panel-title">📤 Export Report</div>
+          <span class="panel-chevron">›</span>
+        </div>
+        <div class="panel-body">
+          <div class="export-row">
+            <button class="btn btn-secondary btn-sm" onclick="exportJSON()">⬇ JSON</button>
+            <button class="btn btn-secondary btn-sm" onclick="copyFormatted()">📋 Copy Formatted</button>
+          </div>
+          <textarea class="copy-area" id="copyArea" readonly
+            onclick="this.select()"></textarea>
+        </div>
+      </div>
+
+      <!-- Breach panel -->
+      <div class="panel open" id="panelBreach">
+        <div class="panel-header" onclick="togglePanel('panelBreach')">
+          <div class="panel-title">
+            🔓 Security Breaches
+            <span class="panel-badge" id="breachBadge">0</span>
+          </div>
+          <span class="panel-chevron">›</span>
+        </div>
+        <div class="panel-body" id="breachBody">
+          <div style="color:var(--text3);font-family:var(--mono);font-size:.8rem">No data yet</div>
+        </div>
+      </div>
+
+      <!-- Stealer panel -->
+      <div class="panel open" id="panelStealer">
+        <div class="panel-header" onclick="togglePanel('panelStealer')">
+          <div class="panel-title">
+            ⚠ Stolen Information
+            <span class="panel-badge" id="stealerBadge">0</span>
+          </div>
+          <span class="panel-chevron">›</span>
+        </div>
+        <div class="panel-body" id="stealerBody">
+          <div style="color:var(--text3);font-family:var(--mono);font-size:.8rem">No data yet</div>
+        </div>
+      </div>
+
+      <!-- Social panel -->
+      <div class="panel open" id="panelSocial">
+        <div class="panel-header" onclick="togglePanel('panelSocial')">
+          <div class="panel-title">
+            🌐 Social Profiles
+            <span class="panel-badge" id="socialBadge">0</span>
+          </div>
+          <span class="panel-chevron">›</span>
+        </div>
+        <div class="panel-body" id="socialBody">
+          <div style="color:var(--text3);font-family:var(--mono);font-size:.8rem">No data yet</div>
+        </div>
+      </div>
+
+      <!-- Email panel -->
+      <div class="panel" id="panelEmail">
+        <div class="panel-header" onclick="togglePanel('panelEmail')">
+          <div class="panel-title">
+            📧 Email Services
+            <span class="panel-badge" id="emailBadge">0</span>
+          </div>
+          <span class="panel-chevron">›</span>
+        </div>
+        <div class="panel-body" id="emailBody">
+          <div style="color:var(--text3);font-family:var(--mono);font-size:.8rem">No data yet</div>
+        </div>
+      </div>
+
+      <!-- SpiderFoot panel -->
+      <div class="panel" id="panelSf">
+        <div class="panel-header" onclick="togglePanel('panelSf')">
+          <div class="panel-title">
+            🕷 SpiderFoot OSINT
+            <span class="panel-badge" id="sfBadge">─</span>
+          </div>
+          <span class="panel-chevron">›</span>
+        </div>
+        <div class="panel-body" id="sfBody">
+          <div style="color:var(--text3);font-family:var(--mono);font-size:.8rem">
+            Enable SpiderFoot in Manual mode to scan.
+          </div>
+        </div>
+      </div>
+
+      <!-- Extras panel -->
+      <div class="panel" id="panelExtras">
+        <div class="panel-header" onclick="togglePanel('panelExtras')">
+          <div class="panel-title">🌐 Network & Extras</div>
+          <span class="panel-chevron">›</span>
+        </div>
+        <div class="panel-body" id="extrasBody">
+          <div style="color:var(--text3);font-family:var(--mono);font-size:.8rem">No data yet</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- History -->
+    <div id="historySection" style="margin-top:40px;display:none">
+      <div class="section-label" style="margin-bottom:10px">Recent Searches</div>
+      <div class="history-grid" id="historyGrid"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════
+let mode = 'auto';
+let sfMode = 'passive';
+let selectedMods = new Set();
+let activeCat = 'Data Leaks';
+let currentResult = {};
+let history = JSON.parse(localStorage.getItem('nx_history') || '[]');
+let quotaData = null;
+
+const CATEGORIES = {
+  'Data Leaks':        {icon:'🛡', mods:['breach','stealer']},
+  'Social & Gaming':   {icon:'🎮', mods:['sherlock','discord']},
+  'Email Intelligence':{icon:'📧', mods:['holehe']},
+  'Network':           {icon:'🌐', mods:['ip_info','subdomain']},
+  'SpiderFoot':        {icon:'🕷', mods:['spiderfoot']},
+};
+
+const MOD_LABELS = {
+  breach:'Breaches', stealer:'Stealer', sherlock:'Sherlock',
+  discord:'Discord', holehe:'Holehe', ip_info:'IP Info',
+  subdomain:'Subdomains', spiderfoot:'SpiderFoot',
+};
+
+// ══════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════
+async function init() {
+  await checkAuth();
+  buildCatChips();
+  buildModChips();
+  checkSpiderFoot();
+  renderHistory();
+  // Select default mods
+  selectedMods = new Set(['breach','stealer']);
+}
+
+// ══════════════════════════════════════════════════════
+//  AUTH
+// ══════════════════════════════════════════════════════
+async function checkAuth() {
+  try {
+    const r = await fetch('/api/auth', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({password:''})
+    });
+    if (r.ok) return; // no password required
+    document.getElementById('authScreen').style.display = 'grid';
+  } catch(e) {}
+}
+
+async function submitAuth() {
+  const pwd = document.getElementById('authInput').value;
+  const r = await fetch('/api/auth', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({password:pwd})
+  });
+  if (r.ok) {
+    document.getElementById('authScreen').style.display = 'none';
+  } else {
+    document.getElementById('authError').style.display = 'block';
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  SPIDERFOOT STATUS
+// ══════════════════════════════════════════════════════
+async function checkSpiderFoot() {
+  try {
+    const r = await fetch('/api/spiderfoot/status');
+    const data = await r.json();
+    const dot = document.getElementById('sfDot');
+    const lbl = document.getElementById('sfLabel');
+    if (data.available) {
+      dot.classList.add('online');
+      lbl.textContent = 'spiderfoot online';
+    } else {
+      lbl.textContent = 'spiderfoot offline';
+    }
+  } catch(e) {}
+}
+
+// ══════════════════════════════════════════════════════
+//  MODE & CHIPS
+// ══════════════════════════════════════════════════════
+function setMode(m) {
+  mode = m;
+  document.getElementById('btnAuto').classList.toggle('active', m === 'auto');
+  document.getElementById('btnManual').classList.toggle('active', m === 'manual');
+  document.getElementById('manualSection').classList.toggle('visible', m === 'manual');
+}
+
+function setSfMode(m, el) {
+  sfMode = m;
+  document.querySelectorAll('#sfOptions .chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function buildCatChips() {
+  const el = document.getElementById('catChips');
+  el.innerHTML = Object.entries(CATEGORIES).map(([name, cat]) =>
+    `<button class="chip cat-chip ${name===activeCat?'active':''}"
+      onclick="selectCat('${name}',this)">${cat.icon} ${name}</button>`
+  ).join('');
+}
+
+function selectCat(name, el) {
+  activeCat = name;
+  document.querySelectorAll('#catChips .chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  // Select all mods of this category
+  selectedMods = new Set(CATEGORIES[name].mods);
+  buildModChips();
+  // Show SpiderFoot options if SpiderFoot selected
+  document.getElementById('sfOptions').classList.toggle('visible', selectedMods.has('spiderfoot'));
+}
+
+function buildModChips() {
+  const mods = CATEGORIES[activeCat].mods;
+  const el = document.getElementById('modChips');
+  el.innerHTML = mods.map(m =>
+    `<button class="chip ${selectedMods.has(m)?'active':''}"
+      onclick="toggleMod('${m}',this)">${MOD_LABELS[m]||m}</button>`
+  ).join('');
+}
+
+function toggleMod(m, el) {
+  if (selectedMods.has(m)) selectedMods.delete(m);
+  else selectedMods.add(m);
+  el.classList.toggle('active', selectedMods.has(m));
+  document.getElementById('sfOptions').classList.toggle('visible', selectedMods.has('spiderfoot'));
+}
+
+// ══════════════════════════════════════════════════════
+//  SEARCH
+// ══════════════════════════════════════════════════════
+async function startSearch() {
+  const query = document.getElementById('searchInput').value.trim();
+  if (!query) return;
+
+  // Reset UI
+  document.getElementById('results').classList.remove('visible');
+  document.getElementById('scanStatus').classList.add('visible');
+  document.getElementById('scanModules').innerHTML = '';
+  document.getElementById('searchBtn').disabled = true;
+  setScanProgress(0, 'Initializing…');
+
+  currentResult = { query, oathnet: null, sherlock: null, extras: {} };
+
+  const body = {
+    query,
+    mode: mode === 'auto' ? 'automated' : 'manual',
+    modules: [...selectedMods],
+    spiderfoot_mode: sfMode,
+  };
+
+  try {
+    const resp = await fetch('/api/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const evt = JSON.parse(line.slice(6));
+            handleEvent(evt);
+          } catch(e) {}
+        }
+      }
+    }
+  } catch(e) {
+    showToast('Search failed: ' + e.message);
+    document.getElementById('scanStatus').classList.remove('visible');
+  }
+
+  document.getElementById('searchBtn').disabled = false;
+}
+
+function handleEvent(evt) {
+  switch(evt.type) {
+    case 'start':
+      addModuleRow(evt.query_type, 'active');
+      break;
+    case 'progress':
+      setScanProgress(evt.pct, evt.label);
+      addModuleRow(evt.label, 'active');
+      break;
+    case 'oathnet':
+      currentResult.oathnet = evt;
+      updateQuota(evt);
+      markModuleDone('Breach');
+      break;
+    case 'sherlock':
+      currentResult.sherlock = evt;
+      markModuleDone('Sherlock');
+      break;
+    case 'discord':
+      currentResult.extras.discord = evt;
+      break;
+    case 'ip_info':
+      currentResult.extras.ip = evt;
+      break;
+    case 'subdomains':
+      currentResult.extras.subdomains = evt;
+      break;
+    case 'spiderfoot':
+    case 'spiderfoot_started':
+    case 'spiderfoot_progress':
+      currentResult.extras.spiderfoot = (currentResult.extras.spiderfoot || []);
+      if (evt.type === 'spiderfoot') currentResult.extras.sf_final = evt;
+      break;
+    case 'module_error':
+      addModuleRow(`⚠ ${evt.module}: ${evt.error.slice(0,40)}`, 'error');
+      break;
+    case 'done':
+      currentResult.elapsed = evt.elapsed_s;
+      currentResult.timestamp = evt.timestamp;
+      setScanProgress(100, 'Complete');
+      setTimeout(() => {
+        document.getElementById('scanStatus').classList.remove('visible');
+        renderResults();
+        saveHistory();
+      }, 600);
+      break;
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  SCAN PROGRESS UI
+// ══════════════════════════════════════════════════════
+function setScanProgress(pct, label) {
+  document.getElementById('scanPct').textContent = pct + '%';
+  document.getElementById('scanFill').style.width = pct + '%';
+  document.getElementById('scanTitle').textContent = label;
+}
+
+let moduleRows = {};
+function addModuleRow(label, state) {
+  const el = document.getElementById('scanModules');
+  const id = 'mod_' + label.replace(/\W/g,'_');
+  if (moduleRows[id]) {
+    moduleRows[id].className = `scan-module ${state}`;
+    return;
+  }
+  const row = document.createElement('div');
+  row.id = id;
+  row.className = `scan-module ${state}`;
+  row.innerHTML = `<div class="scan-module-dot"></div><span>${label}</span>`;
+  el.appendChild(row);
+  moduleRows[id] = row;
+  // Mark previous as done
+  el.querySelectorAll('.scan-module.active').forEach(r => {
+    if (r !== row) r.className = 'scan-module done';
+  });
+}
+
+function markModuleDone(label) {
+  document.querySelectorAll('.scan-module').forEach(r => {
+    if (r.textContent.toLowerCase().includes(label.toLowerCase()))
+      r.className = 'scan-module done';
+  });
+}
+
+// ══════════════════════════════════════════════════════
+//  RENDER RESULTS
+// ══════════════════════════════════════════════════════
+function renderResults() {
+  const o = currentResult.oathnet;
+  const s = currentResult.sherlock;
+  const q = currentResult.query;
+
+  const nBreach  = o ? o.breach_count  : 0;
+  const nStealer = o ? o.stealer_count : 0;
+  const nSocial  = s ? s.found_count   : 0;
+  const nHolehe  = o ? o.holehe_count  : 0;
+  const nTotal   = nBreach + nStealer + nSocial + nHolehe;
+
+  const risk = Math.min(nBreach*15 + nStealer*20 + nHolehe*3, 100);
+  const [rl, rc] = riskLabel(risk);
+
+  // Header
+  document.getElementById('resTarget').textContent = q;
+  document.getElementById('resSub').textContent =
+    `${nTotal} results found · ${currentResult.elapsed || 0}s · ${currentResult.timestamp?.slice(0,16) || ''}`;
+  document.getElementById('riskBadge').textContent = `${risk} — ${rl}`;
+  document.getElementById('riskBadge').style.cssText =
+    `background:${rc}18;border:1px solid ${rc}44;color:${rc}`;
+
+  // Stat grid
+  const grid = document.getElementById('statGrid');
+  grid.innerHTML = [
+    {val:nTotal,   lbl:'Total Found',   bar:'#888',    note:''},
+    {val:nBreach,  lbl:'Breaches',      bar:'#e84040', note: nBreach>10?'⚠ High risk':nBreach>0?'⚠ Attention':'✓ Clean', nc: nBreach>10?'var(--red)':nBreach>0?'var(--orange)':'var(--green)'},
+    {val:nStealer, lbl:'Stolen Info',   bar:'#e8822a', note: nStealer>0?'🚨 Device compromised':'✓ Clean', nc: nStealer>0?'var(--red)':'var(--green)'},
+    {val:nSocial,  lbl:'Social',        bar:'#4a9eff', note: `${s?.total_checked||0} checked`},
+    {val:nHolehe,  lbl:'Email Svcs',    bar:'#9b59b6', note:''},
+  ].map(c => `
+    <div class="stat-card">
+      <div class="stat-card-bar" style="background:${c.bar}"></div>
+      <div class="stat-card-val">${c.val}</div>
+      <div class="stat-card-lbl">${c.lbl}</div>
+      ${c.note?`<div class="stat-card-note" style="color:${c.nc||'var(--text3)'};">${c.note}</div>`:''}
+    </div>`
+  ).join('');
+
+  // Breaches
+  renderBreaches(o);
+
+  // Stealers
+  renderStealers(o);
+
+  // Social
+  renderSocial(s);
+
+  // Email/Holehe
+  renderHolehe(o);
+
+  // Extras
+  renderExtras();
+
+  // SpiderFoot
+  renderSpiderFoot();
+
+  document.getElementById('results').classList.add('visible');
+  document.getElementById('results').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function renderBreaches(o) {
+  const el = document.getElementById('breachBody');
+  const badge = document.getElementById('breachBadge');
+  if (!o || !o.breaches || o.breaches.length === 0) {
+    badge.textContent = '0';
+    el.innerHTML = `<div style="color:var(--green);font-family:var(--mono);font-size:.8rem">✓ No breaches found.</div>`;
+    return;
+  }
+  badge.textContent = o.breach_count;
+  const rows = o.breaches.slice(0, 50);
+  el.innerHTML = `
+    <table class="data-table">
+      <thead><tr>
+        <th>Database</th><th>Email</th><th>Username</th>
+        <th>Password</th><th>Country</th><th>Date</th>
+      </tr></thead>
+      <tbody>${rows.map(b => `
+        <tr>
+          <td class="val-amber">${esc(b.dbname)}</td>
+          <td>${esc(b.email)}</td>
+          <td>${esc(b.username)}</td>
+          <td class="${b.password?'val-warn':''}">${esc(b.password||'─')}</td>
+          <td>${esc(b.country)}</td>
+          <td class="val-muted">${esc((b.date||'').slice(0,10))}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    ${o.breach_count > 50 ? `<div style="text-align:center;margin-top:10px;font-size:.74rem;color:var(--text3);font-family:var(--mono)">Showing 50 of ${o.breach_count} — export JSON for full data</div>` : ''}
+    <div style="margin-top:12px">
+      <button class="btn btn-secondary btn-sm" onclick="toggleCopy('copyBreach')">📋 Copy</button>
+      <textarea class="copy-area" id="copyBreach" readonly onclick="this.select()">${formatBreach(o.breaches)}</textarea>
+    </div>`;
+}
+
+function renderStealers(o) {
+  const el = document.getElementById('stealerBody');
+  const badge = document.getElementById('stealerBadge');
+  if (!o || !o.stealers || o.stealers.length === 0) {
+    badge.textContent = '0';
+    el.innerHTML = `<div style="color:var(--green);font-family:var(--mono);font-size:.8rem">✓ No stealer logs found.</div>`;
+    return;
+  }
+  badge.textContent = o.stealer_count;
+  el.innerHTML = `
+    <div style="color:var(--red);font-family:var(--mono);font-size:.78rem;margin-bottom:12px;padding:8px 12px;background:var(--red-lo);border:1px solid rgba(232,64,64,.2);border-radius:6px">
+      🚨 Credentials found in malware stealer logs. A device may be compromised.
+    </div>
+    <table class="data-table">
+      <thead><tr><th>URL</th><th>Username</th><th>Domain</th><th>Date</th></tr></thead>
+      <tbody>${o.stealers.slice(0,50).map(s => `
+        <tr>
+          <td style="max-width:200px">${esc((s.url||'').slice(0,60))}</td>
+          <td class="val-amber">${esc(s.username)}</td>
+          <td>${esc((s.domain||[]).slice(0,2).join(', '))}</td>
+          <td class="val-muted">${esc((s.pwned_at||'').slice(0,10))}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function renderSocial(s) {
+  const el = document.getElementById('socialBody');
+  const badge = document.getElementById('socialBadge');
+  if (!s || !s.found || s.found.length === 0) {
+    badge.textContent = '0';
+    el.innerHTML = `<div style="color:var(--text3);font-family:var(--mono);font-size:.8rem">No profiles found.</div>`;
+    return;
+  }
+  badge.textContent = s.found_count;
+  const badges = s.found.map(p =>
+    `<a href="${esc(p.url)}" target="_blank" class="social-badge">${p.icon||'🔗'} ${esc(p.platform)}</a>`
+  ).join('');
+  el.innerHTML = `
+    <div class="social-grid">${badges}</div>
+    <table class="data-table">
+      <thead><tr><th>Platform</th><th>URL</th><th>Category</th></tr></thead>
+      <tbody>${s.found.map(p => `
+        <tr>
+          <td class="val-amber">${esc(p.platform)}</td>
+          <td><a href="${esc(p.url)}" target="_blank" style="color:var(--blue);font-size:.76rem">${esc(p.url.slice(0,60))}</a></td>
+          <td class="val-muted">${esc(p.category)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function renderHolehe(o) {
+  const el = document.getElementById('emailBody');
+  const badge = document.getElementById('emailBadge');
+  if (!o || !o.holehe_domains || o.holehe_domains.length === 0) {
+    badge.textContent = '0';
+    el.innerHTML = `<div style="color:var(--text3);font-family:var(--mono);font-size:.8rem">No email registrations found.</div>`;
+    return;
+  }
+  badge.textContent = o.holehe_count;
+  el.innerHTML = `<div class="social-grid">
+    ${o.holehe_domains.map(d => `<span class="social-badge">📌 ${esc(d)}</span>`).join('')}
+  </div>`;
+}
+
+function renderExtras() {
+  const el = document.getElementById('extrasBody');
+  const parts = [];
+
+  const ip = currentResult.extras.ip;
+  if (ip?.ok && ip.data) {
+    const d = ip.data;
+    parts.push(`<div style="margin-bottom:16px">
+      <div class="section-label" style="margin-bottom:8px">IP Information</div>
+      <table class="data-table" style="max-width:500px">
+        <tr><th>Country</th><td>${esc(d.country)} (${esc(d.countryCode)})</td></tr>
+        <tr><th>City</th><td>${esc(d.city)}</td></tr>
+        <tr><th>ISP</th><td>${esc(d.isp)}</td></tr>
+        <tr><th>Org</th><td>${esc(d.org)}</td></tr>
+        <tr><th>Proxy/VPN</th><td class="${d.proxy?'val-warn':'val-safe'}">${d.proxy?'⚠ Yes':'✓ No'}</td></tr>
+        <tr><th>Hosting</th><td class="${d.hosting?'val-warn':'val-muted'}">${d.hosting?'Yes':'No'}</td></tr>
+      </table>
+    </div>`);
+  }
+
+  const subs = currentResult.extras.subdomains;
+  if (subs?.ok && subs.data?.length) {
+    parts.push(`<div>
+      <div class="section-label" style="margin-bottom:8px">Subdomains (${subs.count})</div>
+      <div style="font-family:var(--mono);font-size:.76rem;color:var(--text2);columns:3;column-gap:16px">
+        ${subs.data.slice(0,60).map(d=>`<div>${esc(d)}</div>`).join('')}
+      </div>
+    </div>`);
+  }
+
+  const disc = currentResult.extras.discord;
+  if (disc?.user) {
+    const u = disc.user;
+    parts.push(`<div>
+      <div class="section-label" style="margin-bottom:8px">Discord Profile</div>
+      <div style="font-family:var(--mono);font-size:.82rem;color:var(--text2)">
+        <b style="color:var(--amber)">${esc(u.global_name||u.username)}</b>
+        @${esc(u.username)} · ID: ${esc(u.id)}
+      </div>
+    </div>`);
+  }
+
+  el.innerHTML = parts.length ? parts.join('<hr style="border-color:var(--line);margin:14px 0">') :
+    `<div style="color:var(--text3);font-family:var(--mono);font-size:.8rem">No network data.</div>`;
+}
+
+function renderSpiderFoot() {
+  const el = document.getElementById('sfBody');
+  const badge = document.getElementById('sfBadge');
+  const sf = currentResult.extras.sf_final;
+
+  if (!sf) {
+    badge.textContent = '─';
+    return;
+  }
+  if (!sf.available) {
+    el.innerHTML = `<div style="color:var(--text3);font-family:var(--mono);font-size:.8rem">
+      ⚠ SpiderFoot unavailable: ${esc(sf.error||'')}
+    </div>`;
+    return;
+  }
+
+  const results = sf.results || [];
+  badge.textContent = results.length;
+
+  if (results.length === 0) {
+    el.innerHTML = `<div style="color:var(--green);font-family:var(--mono);font-size:.8rem">✓ No findings.</div>`;
+    return;
+  }
+
+  el.innerHTML = results.slice(0, 100).map(r => `
+    <div class="sf-finding">
+      <div class="sf-type">${esc(r.type)}</div>
+      <div>
+        <div class="sf-data">${esc(r.data?.slice(0,200)||'')}</div>
+        <div class="sf-source">${esc(r.source||'')}</div>
+      </div>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════════════
+//  QUOTA
+// ══════════════════════════════════════════════════════
+function updateQuota(data) {
+  if (!data.daily_limit) return;
+  quotaData = data;
+  const pct = (data.used_today / data.daily_limit) * 100;
+  const left = data.left_today;
+
+  document.getElementById('quotaBar').style.display = 'flex';
+  document.getElementById('quotaFill').style.width = pct + '%';
+  document.getElementById('quotaFill').className = 'quota-fill' +
+    (pct >= 90 ? ' crit' : pct >= 70 ? ' warn' : '');
+  document.getElementById('quotaText').textContent = left;
+  document.getElementById('quotaBadge').textContent = `${left}/${data.daily_limit} lookups`;
+}
+
+// ══════════════════════════════════════════════════════
+//  UTILITIES
+// ══════════════════════════════════════════════════════
+function riskLabel(score) {
+  if (score >= 75) return ['CRITICAL', '#e84040'];
+  if (score >= 50) return ['HIGH',     '#e8822a'];
+  if (score >= 25) return ['MEDIUM',   '#f5a623'];
+  return ['LOW', '#3ec78c'];
+}
+
+function esc(s) {
+  if (!s) return '─';
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function togglePanel(id) {
+  document.getElementById(id).classList.toggle('open');
+}
+
+function toggleCopy(id) {
+  document.getElementById(id).classList.toggle('visible');
+}
+
+function newSearch() {
+  document.getElementById('results').classList.remove('visible');
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchInput').focus();
+  window.scrollTo({top:0, behavior:'smooth'});
+  // Reset panels
+  ['Breach','Stealer','Social','Email'].forEach(p => {
+    document.getElementById('panel'+p).classList.add('open');
+  });
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('visible');
+  setTimeout(() => t.classList.remove('visible'), 4000);
+}
+
+// ══════════════════════════════════════════════════════
+//  EXPORT
+// ══════════════════════════════════════════════════════
+function exportJSON() {
+  const data = {
+    meta: { tool:'NexusOSINT v2', exported: new Date().toISOString() },
+    query: currentResult.query,
+    oathnet: currentResult.oathnet,
+    sherlock: currentResult.sherlock,
+    extras: currentResult.extras,
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `nexus_${currentResult.query}_${Date.now()}.json`;
+  a.click();
+}
+
+function copyFormatted() {
+  const o = currentResult.oathnet;
+  const s = currentResult.sherlock;
+  const ts = currentResult.timestamp || new Date().toISOString();
+  const lines = [`=== NEXUSOSINT REPORT ===`, `Target: ${currentResult.query}`, `Date: ${ts}`, ``];
+
+  if (o?.breaches) {
+    lines.push(`--- BREACHES (${o.breach_count}) ---`);
+    o.breaches.forEach(b => {
+      lines.push(`Database: ${b.dbname}`);
+      if (b.email)    lines.push(`Email:    ${b.email}`);
+      if (b.username) lines.push(`Username: ${b.username}`);
+      if (b.password) lines.push(`Password: ${b.password}`);
+      if (b.country)  lines.push(`Country:  ${b.country}`);
+      lines.push('');
+    });
+  }
+  if (s?.found) {
+    lines.push(`--- SOCIAL PROFILES (${s.found_count}) ---`);
+    s.found.forEach(p => lines.push(`${p.platform}: ${p.url}`));
+    lines.push('');
+  }
+  lines.push('=== END ===');
+
+  const area = document.getElementById('copyArea');
+  area.value = lines.join('\n');
+  area.classList.add('visible');
+  document.getElementById('panelExport').classList.add('open');
+  area.select();
+}
+
+function formatBreach(breaches) {
+  return breaches.map(b => [
+    `=== INTELLIGENCE ===`,
+    `Found via     NexusOSINT v2`,
+    `Database:     ${b.dbname}`,
+    b.email    ? `Email:        ${b.email}`    : null,
+    b.username ? `Username:     ${b.username}` : null,
+    b.password ? `Password:     ${b.password}` : null,
+    b.country  ? `Country:      ${b.country}`  : null,
+    `=== END ===`,
+    ``
+  ].filter(Boolean).join('\n')).join('\n');
+}
+
+// ══════════════════════════════════════════════════════
+//  HISTORY
+// ══════════════════════════════════════════════════════
+function saveHistory() {
+  const o = currentResult.oathnet;
+  const s = currentResult.sherlock;
+  const risk = Math.min((o?.breach_count||0)*15 + (o?.stealer_count||0)*20, 100);
+  const [rl] = riskLabel(risk);
+  history.unshift({
+    query: currentResult.query,
+    risk, rl,
+    timestamp: currentResult.timestamp?.slice(0,16)||'',
+  });
+  history = history.slice(0, 20);
+  localStorage.setItem('nx_history', JSON.stringify(history));
+  renderHistory();
+}
+
+function renderHistory() {
+  const el = document.getElementById('historyGrid');
+  const sec = document.getElementById('historySection');
+  if (!history.length) { sec.style.display = 'none'; return; }
+  sec.style.display = 'block';
+  el.innerHTML = history.map(h => {
+    const [, rc] = riskLabel(h.risk);
+    return `<div class="history-card" onclick="rerunSearch('${esc(h.query)}')">
+      <div class="history-target">${esc(h.query)}</div>
+      <div class="history-meta">
+        <span style="color:${rc}">${h.rl} ${h.risk}</span> · ${esc(h.timestamp)}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function rerunSearch(q) {
+  document.getElementById('searchInput').value = q;
+  window.scrollTo({top:0,behavior:'smooth'});
+  document.getElementById('searchInput').focus();
+}
+
+// ── Start ─────────────────────────────────────────────
+init();
+document.getElementById('authInput')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') submitAuth();
+});
+</script>
+</body>
+</html>

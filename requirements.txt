@@ -1,24 +1,11 @@
-# Core
-streamlit>=1.35.0
-requests>=2.31.0
-pandas>=2.2.0
-python-dotenv>=1.0.0
-
-# API clients
-aiohttp>=3.9.0
-
-# Export
-openpyxl>=3.1.0
-xlsxwriter>=3.2.0
-reportlab>=4.2.0
-
-# Robustez
-tenacity>=8.2.0        # retry automático com backoff exponencial
-
-# Visualização (novo)
-plotly>=5.18.0          # timeline e charts interativos
-
-# Dev/QA (não vai para produção)
-mypy>=1.8.0
-pytest>=8.0.0
-pytest-asyncio>=0.23.0
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+httpx==0.27.2
+aiohttp==3.10.5
+python-dotenv==1.0.1
+pydantic==2.8.2
+aiofiles==24.1.0
+requests==2.32.3
+reportlab==4.2.2
+openpyxl==3.1.5
+tenacity==8.5.0
