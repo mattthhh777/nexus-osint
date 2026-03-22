@@ -1,12 +1,12 @@
 """
-NexusOSINT v2.1 — FastAPI Backend
-Improvements over v2.0:
-  - Breach + Stealer run concurrently (asyncio.gather)
-  - Steam, Xbox, Roblox modules exposed
-  - Phone number support (breach + stealer)
-  - Input sanitization & length validation
-  - Query type sent in SSE start event
-  - Graceful module errors never crash the stream
+NexusOSINT v2.2 — FastAPI Backend
+Fixes over v2.1:
+  - modules_run communicated to frontend in 'done' event
+  - Discord runs on any query in manual mode (not just discord_id type)
+  - Discord username history correctly parsed (nested data.history[].name[0])
+  - Auto Discord lookup from breach discord_id fields in automated mode
+  - discord-to-roblox endpoint exposed
+  - Panel isolation: frontend hides panels for modules not run
 """
 from __future__ import annotations
 
@@ -30,7 +30,6 @@ from pydantic import BaseModel, field_validator
 
 load_dotenv()
 
-# ── Config ──────────────────────────────────────────────────────────────────
 OATHNET_API_KEY = os.getenv("OATHNET_API_KEY", "")
 SPIDERFOOT_URL  = os.getenv("SPIDERFOOT_URL", "http://spiderfoot:5001")
 APP_PASSWORD    = os.getenv("APP_PASSWORD", "")
@@ -39,7 +38,7 @@ LOG_LEVEL       = os.getenv("LOG_LEVEL", "WARNING")
 logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.WARNING))
 logger = logging.getLogger("nexusosint")
 
-app = FastAPI(title="NexusOSINT", version="2.1.0", docs_url=None, redoc_url=None)
+app = FastAPI(title="NexusOSINT", version="2.3.0", docs_url=None, redoc_url=None)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -51,8 +50,6 @@ static_path = Path(__file__).parent.parent / "static"
 if static_path.exists():
     app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
-
-# ── Models ───────────────────────────────────────────────────────────────────
 
 class SearchRequest(BaseModel):
     query: str
@@ -68,26 +65,19 @@ class SearchRequest(BaseModel):
             raise ValueError("Query cannot be empty")
         if len(v) > 256:
             raise ValueError("Query too long (max 256 chars)")
-        # Strip null bytes and control characters
         v = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", v)
         return v
 
     @field_validator("mode")
     @classmethod
     def validate_mode(cls, v: str) -> str:
-        if v not in ("automated", "manual"):
-            return "automated"
-        return v
+        return v if v in ("automated", "manual") else "automated"
 
     @field_validator("spiderfoot_mode")
     @classmethod
     def validate_sf_mode(cls, v: str) -> str:
-        if v not in ("passive", "footprint", "investigate"):
-            return "passive"
-        return v
+        return v if v in ("passive", "footprint", "investigate") else "passive"
 
-
-# ── Root ─────────────────────────────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
@@ -96,8 +86,6 @@ async def root():
         return HTMLResponse(html_file.read_text(encoding="utf-8"))
     return HTMLResponse("<h1>NexusOSINT v2</h1><p>static/index.html not found</p>")
 
-
-# ── Auth ─────────────────────────────────────────────────────────────────────
 
 @app.post("/api/auth")
 async def auth(request: Request):
@@ -112,8 +100,6 @@ async def auth(request: Request):
     raise HTTPException(status_code=401, detail="Invalid password")
 
 
-# ── Query detection ───────────────────────────────────────────────────────────
-
 def detect_type(q: str) -> str:
     q = q.strip()
     if re.match(r"^\d{14,19}$", q):
@@ -126,13 +112,10 @@ def detect_type(q: str) -> str:
         return "ip"
     if re.match(r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$", q):
         return "domain"
-    # Steam ID (7-digit+ numeric)
     if re.match(r"^\d{7,10}$", q):
         return "steam_id"
     return "username"
 
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _serialize_breaches(breaches) -> list[dict]:
     return [{
@@ -160,17 +143,12 @@ def _serialize_stealers(stealers) -> list[dict]:
     } for s in stealers]
 
 
-# ── Main search (SSE) ────────────────────────────────────────────────────────
-
 @app.post("/api/search")
 async def search(req: SearchRequest):
     return StreamingResponse(
         _stream_search(req),
         media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 
@@ -179,15 +157,14 @@ async def _stream_search(req: SearchRequest) -> AsyncGenerator[str, None]:
     def event(data: dict) -> str:
         return f"data: {json.dumps(data, default=str)}\n\n"
 
-    query   = req.query
-    q_type  = detect_type(query)
-    is_email  = q_type == "email"
-    is_user   = q_type == "username"
-    is_ip     = q_type == "ip"
-    is_disc   = q_type == "discord_id"
-    is_dom    = q_type == "domain"
-    is_phone  = q_type == "phone"
-    is_steam  = q_type == "steam_id"
+    query    = req.query
+    q_type   = detect_type(query)
+    is_email = q_type == "email"
+    is_user  = q_type == "username"
+    is_ip    = q_type == "ip"
+    is_disc  = q_type == "discord_id"
+    is_dom   = q_type == "domain"
+    is_steam = q_type == "steam_id"
 
     # ── Module selection ──────────────────────────────────────────────────
     if req.mode == "automated":
@@ -196,85 +173,102 @@ async def _stream_search(req: SearchRequest) -> AsyncGenerator[str, None]:
             "stealer":    True,
             "sherlock":   is_email or is_user,
             "holehe":     is_email,
+            # Discord: run if query IS a discord_id; also auto-run after breach if discord_ids found
             "discord":    is_disc,
             "ip_info":    is_ip,
             "subdomain":  is_dom,
             "steam":      is_steam or is_user,
             "roblox":     is_user,
+            "ghunt":      is_email,
+            "minecraft":  is_user,
             "spiderfoot": False,
         }
     else:
         mods = set(req.modules)
         run = {
-            "breach":     "breach"     in mods,
-            "stealer":    "stealer"    in mods,
-            "sherlock":   "sherlock"   in mods and (is_email or is_user),
-            "holehe":     "holehe"     in mods and is_email,
-            "discord":    "discord"    in mods and is_disc,
-            "ip_info":    "ip_info"    in mods and is_ip,
-            "subdomain":  "subdomain"  in mods and is_dom,
-            "steam":      "steam"      in mods,
-            "xbox":       "xbox"       in mods,
-            "roblox":     "roblox"     in mods,
-            "spiderfoot": "spiderfoot" in mods,
+            "breach":    "breach"    in mods,
+            "stealer":   "stealer"   in mods,
+            # ↓ FIX: Discord in manual mode runs regardless of query type
+            "sherlock":  "sherlock"  in mods and (is_email or is_user),
+            "holehe":    "holehe"    in mods and is_email,
+            "discord":   "discord"   in mods,   # no is_disc filter — always allow manual
+            "ip_info":   "ip_info"   in mods and is_ip,
+            "subdomain": "subdomain" in mods and is_dom,
+            "steam":     "steam"     in mods,
+            "xbox":      "xbox"      in mods,
+            "roblox":    "roblox"    in mods,
+            "spiderfoot":"spiderfoot" in mods,
         }
 
-    total = sum(run.values())
-    done  = [0]
+    total     = sum(run.values())
+    done_cnt  = [0]
+    # Track which modules actually ran (for frontend panel isolation)
+    ran: list[str] = []
 
     def progress(label: str, detail: str = "") -> str:
-        done[0] += 1
-        pct = int(done[0] / max(total, 1) * 100)
+        done_cnt[0] += 1
+        pct = int(done_cnt[0] / max(total, 1) * 100)
         return event({"type": "progress", "pct": pct, "label": label, "detail": detail})
 
     yield event({
-        "type": "start",
-        "query": query,
-        "query_type": q_type,
+        "type":          "start",
+        "query":         query,
+        "query_type":    q_type,
         "total_modules": total,
+        "modules_planned": [k for k, v in run.items() if v],
     })
 
     from modules.oathnet_client import OathnetClient
     from modules.sherlock_wrapper import search_username
 
     client = OathnetClient(api_key=OATHNET_API_KEY)
-    t0 = time.time()
+    t0     = time.time()
 
-    # ── OathNet: Breach + Stealer in PARALLEL ─────────────────────────────
-    if run["breach"] or run["stealer"] or run["holehe"]:
+    # ── OathNet: Breach + Stealer parallel ───────────────────────────────
+    if run.get("breach") or run.get("stealer") or run.get("holehe"):
         yield progress("Searching breach databases & stealer logs…")
+        ran.append("breach")
+        ran.append("stealer")
         try:
-            # Run breach and stealer concurrently
             tasks = [asyncio.to_thread(client.search_breach, query)]
-            if run["stealer"]:
+            if run.get("stealer"):
                 tasks.append(asyncio.to_thread(client.search_stealer_v2, query))
 
             results_gathered = await asyncio.gather(*tasks, return_exceptions=True)
             res = results_gathered[0] if not isinstance(results_gathered[0], Exception) else None
 
             if res is None:
-                yield event({"type": "module_error", "module": "oathnet", "error": str(results_gathered[0])})
+                yield event({"type": "module_error", "module": "breach", "error": str(results_gathered[0])})
             else:
-                # Merge stealer results
-                if run["stealer"] and len(results_gathered) > 1:
+                if run.get("stealer") and len(results_gathered) > 1:
                     sts = results_gathered[1]
                     if not isinstance(sts, Exception):
                         res.stealers = sts.stealers
                         res.stealers_found = sts.stealers_found
 
-                # Holehe (email only)
-                if run["holehe"] and is_email:
+                if run.get("holehe") and is_email:
+                    ran.append("holehe")
                     h = await asyncio.to_thread(client.holehe, query)
                     res.holehe_domains = h.holehe_domains
+
+                breaches_data = _serialize_breaches(res.breaches)
+
+                # AUTO-EXTRACT Discord IDs from breach results (automated mode)
+                discord_ids_from_breach = []
+                if req.mode == "automated" and not is_disc:
+                    discord_ids_from_breach = list({
+                        b["discord_id"] for b in breaches_data
+                        if b.get("discord_id") and re.match(r"^\d{14,19}$", str(b["discord_id"]))
+                    })
 
                 yield event({
                     "type":           "oathnet",
                     "success":        res.success,
-                    "breach_count":   len(res.breaches),
+                    "breach_count":   len(breaches_data),
                     "stealer_count":  len(res.stealers),
                     "holehe_count":   len(res.holehe_domains),
                     "results_found":  res.results_found,
-                    "breaches":       _serialize_breaches(res.breaches),
+                    "breaches":       breaches_data,
                     "stealers":       _serialize_stealers(res.stealers),
                     "holehe_domains": res.holehe_domains,
                     "plan":           res.meta.plan,
@@ -282,14 +276,34 @@ async def _stream_search(req: SearchRequest) -> AsyncGenerator[str, None]:
                     "left_today":     res.meta.left_today,
                     "daily_limit":    res.meta.daily_limit,
                     "error":          res.error,
+                    "discord_ids_found": discord_ids_from_breach,
                 })
+
+                # Auto-run Discord lookup if IDs were found in breach data
+                if discord_ids_from_breach and req.mode == "automated":
+                    for disc_id in discord_ids_from_breach[:3]:  # max 3 to save quota
+                        yield progress(f"Discord lookup: {disc_id}")
+                        ran.append("discord")
+                        try:
+                            ok_u, user = await asyncio.to_thread(client.discord_userinfo, disc_id)
+                            ok_h, hist = await asyncio.to_thread(client.discord_username_history, disc_id)
+                            yield event({
+                                "type":       "discord",
+                                "query_id":   disc_id,
+                                "user":       user if ok_u else None,
+                                "history":    _parse_discord_history(hist) if ok_h else None,
+                            })
+                        except Exception as exc:
+                            logger.warning("Auto Discord lookup failed for %s: %s", disc_id, exc)
+
         except Exception as exc:
             logger.error("OathNet failed: %s", exc)
             yield event({"type": "module_error", "module": "oathnet", "error": str(exc)})
 
     # ── Sherlock ──────────────────────────────────────────────────────────
-    if run["sherlock"]:
+    if run.get("sherlock"):
         yield progress("Scanning social platforms (Sherlock)…")
+        ran.append("sherlock")
         try:
             uname = query if is_user else query.split("@")[0]
             sherl = await asyncio.to_thread(search_username, uname, False)
@@ -309,23 +323,37 @@ async def _stream_search(req: SearchRequest) -> AsyncGenerator[str, None]:
             logger.error("Sherlock failed: %s", exc)
             yield event({"type": "module_error", "module": "sherlock", "error": str(exc)})
 
-    # ── Discord ──────────────────────────────────────────────────────────
-    if run["discord"]:
+    # ── Discord ───────────────────────────────────────────────────────────
+    if run.get("discord"):
         yield progress("Looking up Discord profile…")
-        try:
-            ok_u, user = await asyncio.to_thread(client.discord_userinfo, query)
-            ok_h, hist = await asyncio.to_thread(client.discord_username_history, query)
+        ran.append("discord")
+
+        # FIX: if query is not a discord_id, tell the frontend clearly
+        if not is_disc:
             yield event({
-                "type":    "discord",
-                "user":    user if ok_u else None,
-                "history": hist if ok_h else None,
+                "type":  "discord",
+                "error": "Discord lookup requires a Discord ID (numeric snowflake, e.g. 123456789012345678). "
+                         "Username lookup is not supported by the Discord API.",
+                "hint":  "Try searching by Discord ID, or use Automated mode — it will auto-detect Discord IDs found in breach data.",
+                "user":  None,
+                "history": None,
             })
-        except Exception as exc:
-            yield event({"type": "module_error", "module": "discord", "error": str(exc)})
+        else:
+            try:
+                ok_u, user = await asyncio.to_thread(client.discord_userinfo, query)
+                ok_h, raw_hist = await asyncio.to_thread(client.discord_username_history, query)
+                yield event({
+                    "type":    "discord",
+                    "user":    user if ok_u else None,
+                    "history": _parse_discord_history(raw_hist) if ok_h else None,
+                })
+            except Exception as exc:
+                yield event({"type": "module_error", "module": "discord", "error": str(exc)})
 
     # ── IP Info ──────────────────────────────────────────────────────────
-    if run["ip_info"]:
-        yield progress("Fetching IP geolocation & ASN info…")
+    if run.get("ip_info"):
+        yield progress("Fetching IP geolocation…")
+        ran.append("ip_info")
         try:
             ok, data = await asyncio.to_thread(client.ip_info, query)
             yield event({"type": "ip_info", "ok": ok, "data": data if ok else None})
@@ -333,8 +361,9 @@ async def _stream_search(req: SearchRequest) -> AsyncGenerator[str, None]:
             yield event({"type": "module_error", "module": "ip_info", "error": str(exc)})
 
     # ── Subdomains ───────────────────────────────────────────────────────
-    if run["subdomain"]:
+    if run.get("subdomain"):
         yield progress("Enumerating subdomains…")
+        ran.append("subdomain")
         try:
             ok, data = await asyncio.to_thread(client.extract_subdomains, query)
             subs = data.get("subdomains", []) if ok else []
@@ -342,51 +371,97 @@ async def _stream_search(req: SearchRequest) -> AsyncGenerator[str, None]:
         except Exception as exc:
             yield event({"type": "module_error", "module": "subdomains", "error": str(exc)})
 
-    # ── Steam ────────────────────────────────────────────────────────────
+    # ── Steam ─────────────────────────────────────────────────────────────
     if run.get("steam"):
         yield progress("Looking up Steam profile…")
+        ran.append("steam")
         try:
             ok, data = await asyncio.to_thread(client.steam_lookup, query)
             if ok:
                 yield event({"type": "steam", "ok": True, "data": data})
+            else:
+                yield event({"type": "steam", "ok": False, "error": data.get("error", "Not found")})
         except Exception as exc:
             yield event({"type": "module_error", "module": "steam", "error": str(exc)})
 
-    # ── Xbox ─────────────────────────────────────────────────────────────
+    # ── Xbox ──────────────────────────────────────────────────────────────
     if run.get("xbox"):
         yield progress("Looking up Xbox profile…")
+        ran.append("xbox")
         try:
             ok, data = await asyncio.to_thread(client.xbox_lookup, query)
-            if ok:
-                yield event({"type": "xbox", "ok": True, "data": data})
+            yield event({"type": "xbox", "ok": ok, "data": data if ok else None})
         except Exception as exc:
             yield event({"type": "module_error", "module": "xbox", "error": str(exc)})
 
-    # ── Roblox ───────────────────────────────────────────────────────────
+    # ── Roblox ────────────────────────────────────────────────────────────
     if run.get("roblox"):
         yield progress("Looking up Roblox profile…")
+        ran.append("roblox")
         try:
             ok, data = await asyncio.to_thread(client.roblox_lookup, username=query)
-            if ok:
-                yield event({"type": "roblox", "ok": True, "data": data})
+            yield event({"type": "roblox", "ok": ok, "data": data if ok else None})
         except Exception as exc:
             yield event({"type": "module_error", "module": "roblox", "error": str(exc)})
 
-    # ── SpiderFoot ───────────────────────────────────────────────────────
+    # ── GHunt ─────────────────────────────────────────────────────────────
+    if run.get("ghunt"):
+        yield progress("Looking up Google account (GHunt)…")
+        ran.append("ghunt")
+        try:
+            ok, data = await asyncio.to_thread(client.ghunt, query)
+            yield event({"type": "ghunt", "ok": ok, "data": data if ok else None,
+                         "error": data.get("error") if not ok else None})
+        except Exception as exc:
+            yield event({"type": "module_error", "module": "ghunt", "error": str(exc)})
+
+    # ── Minecraft ─────────────────────────────────────────────────────────
+    if run.get("minecraft"):
+        yield progress("Looking up Minecraft account…")
+        ran.append("minecraft")
+        try:
+            ok, data = await asyncio.to_thread(client.minecraft_history, query)
+            yield event({"type": "minecraft", "ok": ok, "data": data if ok else None,
+                         "error": data.get("error") if not ok else None})
+        except Exception as exc:
+            yield event({"type": "module_error", "module": "minecraft", "error": str(exc)})
+
+    # ── SpiderFoot ────────────────────────────────────────────────────────
     if run.get("spiderfoot"):
         yield progress("Starting SpiderFoot scan…")
+        ran.append("spiderfoot")
         async for sf_event in _run_spiderfoot(query, req.spiderfoot_mode):
             yield sf_event
 
     # ── Done ─────────────────────────────────────────────────────────────
     yield event({
-        "type":      "done",
-        "elapsed_s": round(time.time() - t0, 1),
-        "timestamp": datetime.now().isoformat(),
+        "type":        "done",
+        "elapsed_s":   round(time.time() - t0, 1),
+        "timestamp":   datetime.now().isoformat(),
+        "modules_run": list(set(ran)),   # ← NEW: frontend uses this to show/hide panels
     })
 
 
-# ── SpiderFoot ───────────────────────────────────────────────────────────────
+def _parse_discord_history(raw: dict) -> dict | None:
+    """Parse the nested discord-username-history response correctly.
+    API returns: data.history[].name[0] and data.history[].time[0]
+    """
+    if not raw:
+        return None
+    # raw is already data.data from oathnet_client
+    history_raw = raw.get("history", [])
+    if not history_raw:
+        return None
+    parsed = []
+    for entry in history_raw:
+        name = entry.get("name", [])
+        time_ = entry.get("time", [])
+        parsed.append({
+            "username": name[0] if isinstance(name, list) and name else name,
+            "timestamp": time_[0] if isinstance(time_, list) and time_ else time_,
+        })
+    return {"usernames": parsed}
+
 
 async def _run_spiderfoot(target: str, scan_mode: str) -> AsyncGenerator[str, None]:
     def event(data: dict) -> str:
@@ -459,8 +534,6 @@ async def _run_spiderfoot(target: str, scan_mode: str) -> AsyncGenerator[str, No
         yield event({"type": "spiderfoot", "available": False, "error": str(exc)})
 
 
-# ── SpiderFoot proxy ─────────────────────────────────────────────────────────
-
 @app.get("/api/spiderfoot/status")
 async def sf_status():
     try:
@@ -491,12 +564,6 @@ async def sf_scan_results(scan_id: str):
         return {"error": str(exc)}
 
 
-# ── Health ───────────────────────────────────────────────────────────────────
-
 @app.get("/health")
 async def health():
-    return {
-        "status":    "ok",
-        "version":   "2.1.0",
-        "timestamp": datetime.now().isoformat(),
-    }
+    return {"status": "ok", "version": "2.3.0", "timestamp": datetime.now().isoformat()}

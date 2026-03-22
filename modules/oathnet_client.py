@@ -413,3 +413,36 @@ class OathnetClient:
         if "401" in err or "invalid" in err.lower():
             return False, f"Chave inválida: {err}"
         return False, err
+    # ── GHunt (Google Account OSINT) ─────────────────────────────────────
+
+    def ghunt(self, email: str, session_id: str = "") -> tuple[bool, dict]:
+        """
+        Google account OSINT via GHunt.
+        Returns profile info: name, picture, Gaia ID, Maps reviews, last seen, etc.
+        Note: May fail if upstream OSID detection fails — handle gracefully.
+        """
+        params: dict = {"email": email}
+        if session_id:
+            params["search_id"] = session_id
+        ok, data = self._get("service/ghunt", params=params)
+        if not ok:
+            return False, {"error": data.get("error", "GHunt lookup failed.")}
+        payload = data.get("data", data)
+        return True, payload
+
+    # ── Minecraft Username History ────────────────────────────────────────
+
+    def minecraft_history(self, username: str, session_id: str = "") -> tuple[bool, dict]:
+        """
+        Minecraft username history via Mojang API proxy.
+        Returns: uuid, current username, history list [{username, changed_at}].
+        Note: Endpoint may be temporarily unavailable (503).
+        """
+        params: dict = {"username": username}
+        if session_id:
+            params["search_id"] = session_id
+        ok, data = self._get("service/mc-history", params=params)
+        if not ok:
+            return False, {"error": data.get("error", "Minecraft lookup failed.")}
+        payload = data.get("data", data)
+        return True, payload
