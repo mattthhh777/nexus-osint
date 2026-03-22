@@ -646,6 +646,63 @@ code, .mono { font-family: var(--mono); }
   display: flex; align-items: center; gap: 8px;
 }
 
+/* Query type badge in search */
+.query-type-badge {
+  position: absolute; right: 120px; top: 50%; transform: translateY(-50%);
+  font-family: var(--mono); font-size: .62rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .1em;
+  background: var(--bg5); border: 1px solid var(--line2);
+  color: var(--text3); border-radius: 4px; padding: 2px 8px;
+  pointer-events: none; transition: all .2s;
+  display: none;
+}
+.query-type-badge.visible { display: block; }
+.query-type-badge.type-email   { color: var(--blue);  border-color: rgba(74,158,255,.3); }
+.query-type-badge.type-ip      { color: var(--green); border-color: rgba(62,199,140,.3); }
+.query-type-badge.type-domain  { color: var(--amber); border-color: rgba(245,166,35,.3); }
+.query-type-badge.type-discord { color: #7289da;      border-color: rgba(114,137,218,.3); }
+.query-type-badge.type-phone   { color: var(--green); border-color: rgba(62,199,140,.3); }
+
+/* Load more */
+.load-more-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 10px; margin-top: 10px;
+  background: var(--bg3); border: 1px dashed var(--line2);
+  border-radius: 6px; color: var(--text3); font-family: var(--mono);
+  font-size: .74rem; cursor: pointer; transition: all .15s;
+}
+.load-more-btn:hover { border-color: var(--amber); color: var(--amber); background: var(--amber-lo); }
+
+/* Gaming card */
+.gaming-card {
+  background: var(--bg3); border: 1px solid var(--line);
+  border-radius: 8px; padding: 14px 16px; margin-bottom: 10px;
+}
+.gaming-card-header {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+}
+.gaming-card-icon { font-size: 1.2rem; }
+.gaming-card-title { font-weight: 700; font-size: .88rem; color: var(--text); }
+.gaming-card-sub { font-family: var(--mono); font-size: .72rem; color: var(--text3); }
+.gaming-kv { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.gaming-kv-item { display: flex; flex-direction: column; gap: 2px; }
+.gaming-kv-key {
+  font-family: var(--mono); font-size: .58rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .08em; color: var(--text3);
+}
+.gaming-kv-val { font-family: var(--mono); font-size: .8rem; color: var(--amber); }
+
+/* Keyboard hint */
+.search-hint {
+  font-family: var(--mono); font-size: .64rem; color: var(--text3);
+  margin-left: auto; padding-right: 4px;
+}
+kbd {
+  background: var(--bg5); border: 1px solid var(--line2);
+  border-radius: 3px; padding: 1px 5px;
+  font-family: var(--mono); font-size: .64rem; color: var(--text2);
+}
+
 /* ── Print / PDF ── */
 @media print {
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -699,10 +756,12 @@ code, .mono { font-family: var(--mono); }
           <span>OathNet <span class="quota-text" id="quotaText">─</span> left today</span>
         </div>
 
-        <div class="search-row">
+        <div class="search-row" style="position:relative">
           <input type="text" class="search-input" id="searchInput"
             placeholder="username · email · IP · Discord ID · domain…"
+            oninput="onQueryInput(this.value)"
             onkeydown="if(event.key==='Enter') startSearch()">
+          <span class="query-type-badge" id="queryTypeBadge"></span>
           <button class="btn btn-primary" id="searchBtn" onclick="startSearch()">
             Search →
           </button>
@@ -713,6 +772,7 @@ code, .mono { font-family: var(--mono); }
             <button class="toggle-btn active" id="btnAuto" onclick="setMode('auto')">Automated</button>
             <button class="toggle-btn" id="btnManual" onclick="setMode('manual')">Manual</button>
           </div>
+          <span class="search-hint"><kbd>Enter</kbd> to search</span>
         </div>
 
         <!-- Manual mode options -->
@@ -903,6 +963,7 @@ const CATEGORIES = {
   'Social & Gaming':   {icon:'🎮', mods:['sherlock','discord']},
   'Email Intelligence':{icon:'📧', mods:['holehe']},
   'Network':           {icon:'🌐', mods:['ip_info','subdomain']},
+  'Gaming Platforms':  {icon:'🕹', mods:['steam','xbox','roblox']},
   'SpiderFoot':        {icon:'🕷', mods:['spiderfoot']},
 };
 
@@ -910,6 +971,7 @@ const MOD_LABELS = {
   breach:'Breaches', stealer:'Stealer', sherlock:'Sherlock',
   discord:'Discord', holehe:'Holehe', ip_info:'IP Info',
   subdomain:'Subdomains', spiderfoot:'SpiderFoot',
+  steam:'Steam', xbox:'Xbox', roblox:'Roblox',
 };
 
 // ══════════════════════════════════════════════════════
@@ -921,8 +983,44 @@ async function init() {
   buildModChips();
   checkSpiderFoot();
   renderHistory();
-  // Select default mods
   selectedMods = new Set(['breach','stealer']);
+  // Keyboard shortcut
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      document.getElementById('searchInput').focus();
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════
+//  QUERY TYPE DETECTION (realtime)
+// ══════════════════════════════════════════════════════
+function detectType(q) {
+  q = q.trim();
+  if (!q) return null;
+  if (/^\d{14,19}$/.test(q))                                          return 'discord_id';
+  if (/^\+\d{7,15}$/.test(q))                                         return 'phone';
+  if (/^[\w.+\-]+@[\w\-]+\.[\w.]{2,}$/.test(q))                       return 'email';
+  if (/^(\d{1,3}\.){3}\d{1,3}$/.test(q))                              return 'ip';
+  if (/^(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/.test(q)) return 'domain';
+  return 'username';
+}
+
+const TYPE_LABELS = {
+  email:'EMAIL', ip:'IP ADDR', domain:'DOMAIN', discord_id:'DISCORD ID',
+  phone:'PHONE', username:'USERNAME', steam_id:'STEAM ID'
+};
+
+function onQueryInput(val) {
+  const badge = document.getElementById('queryTypeBadge');
+  const type = detectType(val);
+  if (!val.trim() || !type) {
+    badge.className = 'query-type-badge';
+    return;
+  }
+  badge.textContent = TYPE_LABELS[type] || type.toUpperCase();
+  badge.className = `query-type-badge visible type-${type}`;
 }
 
 // ══════════════════════════════════════════════════════
@@ -1111,6 +1209,15 @@ function handleEvent(evt) {
       currentResult.extras.spiderfoot = (currentResult.extras.spiderfoot || []);
       if (evt.type === 'spiderfoot') currentResult.extras.sf_final = evt;
       break;
+    case 'steam':
+      currentResult.extras.steam = evt;
+      break;
+    case 'xbox':
+      currentResult.extras.xbox = evt;
+      break;
+    case 'roblox':
+      currentResult.extras.roblox = evt;
+      break;
     case 'module_error':
       addModuleRow(`⚠ ${evt.module}: ${evt.error.slice(0,40)}`, 'error');
       break;
@@ -1227,7 +1334,11 @@ function renderResults() {
   document.getElementById('results').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
+let breachPage = 0;
+const BREACH_PAGE_SIZE = 25;
+
 function renderBreaches(o) {
+  breachPage = 0;
   const el = document.getElementById('breachBody');
   const badge = document.getElementById('breachBadge');
   if (!o || !o.breaches || o.breaches.length === 0) {
@@ -1236,29 +1347,58 @@ function renderBreaches(o) {
     return;
   }
   badge.textContent = o.breach_count;
-  const rows = o.breaches.slice(0, 50);
+  _renderBreachPage(o, el);
+}
+
+function _renderBreachPage(o, el) {
+  const start = 0;
+  const end   = (breachPage + 1) * BREACH_PAGE_SIZE;
+  const rows  = o.breaches.slice(start, end);
+  const hasMore = o.breaches.length > end;
+  const total   = o.breach_count;
+
+  // Detect if we have extra notable fields
+  const hasIP    = rows.some(b => b.ip && b.ip !== '─');
+  const hasPhone = rows.some(b => b.phone && b.phone !== '─');
+  const hasDisc  = rows.some(b => b.discord_id && b.discord_id !== '─');
+
   el.innerHTML = `
     <table class="data-table">
       <thead><tr>
         <th>Database</th><th>Email</th><th>Username</th>
-        <th>Password</th><th>Country</th><th>Date</th>
+        <th>Password</th>
+        ${hasIP    ? '<th>IP</th>' : ''}
+        ${hasPhone ? '<th>Phone</th>' : ''}
+        ${hasDisc  ? '<th>Discord</th>' : ''}
+        <th>Country</th><th>Date</th>
       </tr></thead>
       <tbody>${rows.map(b => `
         <tr>
           <td class="val-amber">${esc(b.dbname)}</td>
           <td>${esc(b.email)}</td>
           <td>${esc(b.username)}</td>
-          <td class="${b.password?'val-warn':''}">${esc(b.password||'─')}</td>
+          <td class="${b.password && b.password !== '─' ? 'val-warn' : ''}">${esc(b.password||'─')}</td>
+          ${hasIP    ? `<td class="val-muted">${esc(b.ip)}</td>` : ''}
+          ${hasPhone ? `<td class="val-muted">${esc(b.phone)}</td>` : ''}
+          ${hasDisc  ? `<td class="val-muted">${esc(b.discord_id)}</td>` : ''}
           <td>${esc(b.country)}</td>
           <td class="val-muted">${esc((b.date||'').slice(0,10))}</td>
         </tr>`).join('')}
       </tbody>
     </table>
-    ${o.breach_count > 50 ? `<div style="text-align:center;margin-top:10px;font-size:.74rem;color:var(--text3);font-family:var(--mono)">Showing 50 of ${o.breach_count} — export JSON for full data</div>` : ''}
-    <div style="margin-top:12px">
-      <button class="btn btn-secondary btn-sm" onclick="toggleCopy('copyBreach')">📋 Copy</button>
-      <textarea class="copy-area" id="copyBreach" readonly onclick="this.select()">${formatBreach(o.breaches)}</textarea>
-    </div>`;
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-family:var(--mono);font-size:.7rem;color:var(--text3)">
+      <span>Showing ${rows.length} of ${total} records</span>
+    </div>
+    ${hasMore ? `<button class="load-more-btn" onclick="loadMoreBreaches()">
+      ↓ Load more (${Math.min(BREACH_PAGE_SIZE, total - end)} more · ${total - end} remaining)
+    </button>` : ''}`;
+}
+
+function loadMoreBreaches() {
+  breachPage++;
+  const o = currentResult.oathnet;
+  const el = document.getElementById('breachBody');
+  _renderBreachPage(o, el);
 }
 
 function renderStealers(o) {
@@ -1331,6 +1471,7 @@ function renderExtras() {
   const el = document.getElementById('extrasBody');
   const parts = [];
 
+  // IP Info
   const ip = currentResult.extras.ip;
   if (ip?.ok && ip.data) {
     const d = ip.data;
@@ -1341,36 +1482,151 @@ function renderExtras() {
         <tr><th>City</th><td>${esc(d.city)}</td></tr>
         <tr><th>ISP</th><td>${esc(d.isp)}</td></tr>
         <tr><th>Org</th><td>${esc(d.org)}</td></tr>
+        <tr><th>ASN</th><td class="val-muted">${esc(d.as||d.asn||'─')}</td></tr>
         <tr><th>Proxy/VPN</th><td class="${d.proxy?'val-warn':'val-safe'}">${d.proxy?'⚠ Yes':'✓ No'}</td></tr>
-        <tr><th>Hosting</th><td class="${d.hosting?'val-warn':'val-muted'}">${d.hosting?'Yes':'No'}</td></tr>
+        <tr><th>Hosting</th><td class="${d.hosting?'val-warn':'val-muted'}">${d.hosting?'⚠ Yes':'No'}</td></tr>
       </table>
     </div>`);
   }
 
+  // Subdomains
   const subs = currentResult.extras.subdomains;
   if (subs?.ok && subs.data?.length) {
     parts.push(`<div>
       <div class="section-label" style="margin-bottom:8px">Subdomains (${subs.count})</div>
       <div style="font-family:var(--mono);font-size:.76rem;color:var(--text2);columns:3;column-gap:16px">
-        ${subs.data.slice(0,60).map(d=>`<div>${esc(d)}</div>`).join('')}
+        ${subs.data.slice(0,90).map(d=>`<div>${esc(d)}</div>`).join('')}
       </div>
     </div>`);
   }
 
+  // Discord
   const disc = currentResult.extras.discord;
   if (disc?.user) {
     const u = disc.user;
     parts.push(`<div>
       <div class="section-label" style="margin-bottom:8px">Discord Profile</div>
-      <div style="font-family:var(--mono);font-size:.82rem;color:var(--text2)">
-        <b style="color:var(--amber)">${esc(u.global_name||u.username)}</b>
-        @${esc(u.username)} · ID: ${esc(u.id)}
+      <div class="gaming-card">
+        <div class="gaming-card-header">
+          <span class="gaming-card-icon">🎮</span>
+          <div>
+            <div class="gaming-card-title">${esc(u.global_name||u.username||'Unknown')}</div>
+            <div class="gaming-card-sub">@${esc(u.username)} · ID: ${esc(u.id)}</div>
+          </div>
+        </div>
+        ${disc.history?.usernames?.length ? `
+        <div class="section-label" style="margin-bottom:6px">Username History</div>
+        <div style="font-family:var(--mono);font-size:.74rem;color:var(--text2)">
+          ${disc.history.usernames.map(h => esc(h)).join(' → ')}
+        </div>` : ''}
       </div>
     </div>`);
   }
 
-  el.innerHTML = parts.length ? parts.join('<hr style="border-color:var(--line);margin:14px 0">') :
-    `<div style="color:var(--text3);font-family:var(--mono);font-size:.8rem">No network data.</div>`;
+  // Steam
+  const steam = currentResult.extras.steam;
+  if (steam?.ok && steam.data) {
+    const d = steam.data;
+    const profile = d.response?.players?.[0] || d;
+    if (profile.personaname) {
+      parts.push(`<div>
+        <div class="section-label" style="margin-bottom:8px">Steam Profile</div>
+        <div class="gaming-card">
+          <div class="gaming-card-header">
+            <span class="gaming-card-icon">🎮</span>
+            <div>
+              <div class="gaming-card-title">${esc(profile.personaname)}</div>
+              <div class="gaming-card-sub">SteamID: ${esc(profile.steamid||'─')}</div>
+            </div>
+          </div>
+          <div class="gaming-kv">
+            <div class="gaming-kv-item">
+              <span class="gaming-kv-key">Real Name</span>
+              <span class="gaming-kv-val">${esc(profile.realname||'─')}</span>
+            </div>
+            <div class="gaming-kv-item">
+              <span class="gaming-kv-key">Country</span>
+              <span class="gaming-kv-val">${esc(profile.loccountrycode||'─')}</span>
+            </div>
+            <div class="gaming-kv-item">
+              <span class="gaming-kv-key">Profile URL</span>
+              <span class="gaming-kv-val" style="font-size:.7rem">
+                ${profile.profileurl ? `<a href="${esc(profile.profileurl)}" target="_blank" style="color:var(--blue)">${esc(profile.profileurl.slice(0,40))}</a>` : '─'}
+              </span>
+            </div>
+            <div class="gaming-kv-item">
+              <span class="gaming-kv-key">Visibility</span>
+              <span class="gaming-kv-val">${profile.communityvisibilitystate===3?'Public':'Private'}</span>
+            </div>
+          </div>
+        </div>
+      </div>`);
+    }
+  }
+
+  // Xbox
+  const xbox = currentResult.extras.xbox;
+  if (xbox?.ok && xbox.data) {
+    const d = xbox.data;
+    parts.push(`<div>
+      <div class="section-label" style="margin-bottom:8px">Xbox Profile</div>
+      <div class="gaming-card">
+        <div class="gaming-card-header">
+          <span class="gaming-card-icon">🎯</span>
+          <div>
+            <div class="gaming-card-title">${esc(d.gamertag||d.Gamertag||'Unknown')}</div>
+            <div class="gaming-card-sub">Xbox · ${esc(d.xuid||d.XUID||'─')}</div>
+          </div>
+        </div>
+        <div class="gaming-kv">
+          <div class="gaming-kv-item">
+            <span class="gaming-kv-key">Gamerscore</span>
+            <span class="gaming-kv-val">${esc(String(d.gamerscore||d.Gamerscore||'─'))}</span>
+          </div>
+          <div class="gaming-kv-item">
+            <span class="gaming-kv-key">Account Tier</span>
+            <span class="gaming-kv-val">${esc(d.accountTier||d.AccountTier||'─')}</span>
+          </div>
+        </div>
+      </div>
+    </div>`);
+  }
+
+  // Roblox
+  const roblox = currentResult.extras.roblox;
+  if (roblox?.ok && roblox.data) {
+    const d = roblox.data;
+    parts.push(`<div>
+      <div class="section-label" style="margin-bottom:8px">Roblox Profile</div>
+      <div class="gaming-card">
+        <div class="gaming-card-header">
+          <span class="gaming-card-icon">🟥</span>
+          <div>
+            <div class="gaming-card-title">${esc(d.name||d.username||'Unknown')}</div>
+            <div class="gaming-card-sub">ID: ${esc(String(d.id||d.userId||'─'))}</div>
+          </div>
+        </div>
+        <div class="gaming-kv">
+          <div class="gaming-kv-item">
+            <span class="gaming-kv-key">Display Name</span>
+            <span class="gaming-kv-val">${esc(d.displayName||'─')}</span>
+          </div>
+          <div class="gaming-kv-item">
+            <span class="gaming-kv-key">Created</span>
+            <span class="gaming-kv-val">${esc((d.created||'─').slice(0,10))}</span>
+          </div>
+          <div class="gaming-kv-item" style="grid-column:span 2">
+            <span class="gaming-kv-key">Description</span>
+            <span class="gaming-kv-val" style="font-size:.7rem;color:var(--text2)">${esc((d.description||'─').slice(0,120))}</span>
+          </div>
+        </div>
+      </div>
+    </div>`);
+  }
+
+  el.innerHTML = parts.length
+    ? parts.join('<hr style="border-color:var(--line);margin:14px 0">')
+    : `<div style="color:var(--text3);font-family:var(--mono);font-size:.8rem">No network or gaming data.</div>`;
 }
 
 function renderSpiderFoot() {
@@ -2074,11 +2330,15 @@ function formatBreach(breaches) {
 function saveHistory() {
   const o = currentResult.oathnet;
   const s = currentResult.sherlock;
-  const risk = Math.min((o?.breach_count||0)*15 + (o?.stealer_count||0)*20, 100);
+  const nBreach  = o?.breach_count  || 0;
+  const nStealer = o?.stealer_count || 0;
+  const nSocial  = s?.found_count   || 0;
+  const risk = Math.min(nBreach*15 + nStealer*20, 100);
   const [rl] = riskLabel(risk);
   history.unshift({
     query: currentResult.query,
     risk, rl,
+    total: nBreach + nStealer + nSocial,
     timestamp: currentResult.timestamp?.slice(0,16)||'',
   });
   history = history.slice(0, 20);
@@ -2096,7 +2356,7 @@ function renderHistory() {
     return `<div class="history-card" onclick="rerunSearch('${esc(h.query)}')">
       <div class="history-target">${esc(h.query)}</div>
       <div class="history-meta">
-        <span style="color:${rc}">${h.rl} ${h.risk}</span> · ${esc(h.timestamp)}
+        <span style="color:${rc}">${h.rl} ${h.risk}</span>${h.total?' · '+h.total+' found':''} · ${esc(h.timestamp)}
       </div>
     </div>`;
   }).join('');
