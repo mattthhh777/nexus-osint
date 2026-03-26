@@ -48,7 +48,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Meridian CSS Token Migration | 2/7 | In Progress|  |
+| 1. Meridian CSS Token Migration | 3/7 | In Progress|  |
 | 2. XSS Sanitization | 0/? | Not started | - |
 
 ---
