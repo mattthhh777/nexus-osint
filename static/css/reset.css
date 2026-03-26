@@ -1,0 +1,70 @@
+/* ══════════════════════════════════════════════════════
+   RESET & BASE
+══════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { height: 100%; }
+
+/* ── Smooth scroll (enhanced v3.1) ── */
+html { scroll-behavior: smooth; }
+
+body {
+  min-height: 100vh;
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-display);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Subtle grid texture — enhanced v3.1 (tighter grid) */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,.013) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.013) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Dual ambient glow (amber + blue hint) — enhanced v3.1 */
+body::after {
+  content: '';
+  position: fixed;
+  top: -200px; left: 50%; transform: translateX(-50%);
+  width: 900px; height: 600px;
+  background: radial-gradient(ellipse at 50% 0%,
+    var(--color-accent-muted) 0%,
+    var(--color-info-muted) 40%,
+    transparent 65%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+#app { position: relative; z-index: 1; min-height: 100vh; }
+
+/* ── Typography ── */
+h1, h2, h3 { font-family: var(--font-display); letter-spacing: -.02em; }
+code, .mono { font-family: var(--font-data); }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-surface-3); border-radius: 4px; }
+
+/* ── Focus ring (enhanced v3.1) ── */
+:focus-visible {
+  outline: 2px solid var(--color-accent-border);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Consistent cursor (enhanced v3.1) ── */
+.chip, .toggle-btn, .nav-cases-btn, .nav-user-badge,
+.panel-header, .history-card, .case-card, .social-badge,
+.tree-dir, .tree-file, .nav-admin-link, .nav-back,
+.load-more-btn, .victim-card-header { cursor: pointer; }
