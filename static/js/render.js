@@ -782,7 +782,7 @@ function buildVictimCard(v, idx) {
           ${emails? `<span class="victim-meta-chip">📧 ${emails}</span>` : ''}
           ${discs ? `<span class="victim-meta-chip">💬 ${discs}</span>` : ''}
           ${hwids ? `<span class="victim-meta-chip">🔑 ${hwids}</span>` : ''}
-          ${pwned ? `<span class="victim-meta-chip">📅 ${pwned}</span>` : ''}
+          ${pwned ? `<span class="victim-meta-chip">📅 ${esc(pwned)}</span>` : ''}
         </div>
       </div>
       <div class="victim-docs-count">
