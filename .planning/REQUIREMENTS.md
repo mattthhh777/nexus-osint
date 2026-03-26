@@ -18,9 +18,9 @@ Requirements for this milestone. Each maps to roadmap phases.
 - [ ] **CSS-07**: All box-shadow values use --shadow-* tokens
 - [ ] **CSS-08**: All transition durations use --duration-* and --ease-* tokens
 - [ ] **CSS-09**: All z-index values use --z-* tokens
-- [ ] **CSS-10**: tokens.css contains the complete Meridian design system as single :root declaration
+- [x] **CSS-10**: tokens.css contains the complete Meridian design system as single :root declaration
 - [ ] **CSS-11**: Visual output is identical to pre-migration (zero visual regression)
-- [ ] **CSS-12**: Changing --color-accent to a different color causes ALL accent elements to update (token propagation verified)
+- [x] **CSS-12**: Changing --color-accent to a different color causes ALL accent elements to update (token propagation verified)
 
 ### XSS Sanitization
 
@@ -76,9 +76,9 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | CSS-07 | Phase 1 | Pending |
 | CSS-08 | Phase 1 | Pending |
 | CSS-09 | Phase 1 | Pending |
-| CSS-10 | Phase 1 | Pending |
+| CSS-10 | Phase 1 | Complete |
 | CSS-11 | Phase 1 | Pending |
-| CSS-12 | Phase 1 | Pending |
+| CSS-12 | Phase 1 | Complete |
 | XSS-01 | Phase 2 | Pending |
 | XSS-02 | Phase 2 | Pending |
 | XSS-03 | Phase 2 | Pending |
