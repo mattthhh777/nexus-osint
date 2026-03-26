@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0.0
 milestone_name: milestone
-status: Ready to execute
-stopped_at: Completed 01-meridian-css-token-migration/01-06-PLAN.md
-last_updated: "2026-03-26T06:35:48.998Z"
+status: Phase complete — ready for verification
+stopped_at: Completed 01-meridian-css-token-migration/01-07-PLAN.md
+last_updated: "2026-03-26T06:40:06.151Z"
 progress:
   total_phases: 2
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
@@ -53,6 +53,7 @@ Plan: 7 of 7
 | Phase 01-meridian-css-token-migration P04 | 1 | 1 tasks | 1 files |
 | Phase 01-meridian-css-token-migration P05 | 3 | 1 tasks | 1 files |
 | Phase 01-meridian-css-token-migration P06 | 2 | 1 tasks | 1 files |
+| Phase 01-meridian-css-token-migration P07 | 8 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,8 @@ Recent decisions affecting current work:
 - [Phase 01-meridian-css-token-migration]: modulePulse 50% keyframe rgba(245,166,35,.3) maps to var(--color-accent-muted) — closest semantic token for faded amber glow
 - [Phase 01-meridian-css-token-migration]: rgba(23,27,40,.9) gaming-card hover and rgba(11,13,20,.92) victim-card hover map to surface tokens — minor color shift within visual regression tolerance
 - [Phase 01-meridian-css-token-migration]: border-radius 4px on discord-id-val and discord-badge kept as literal — not in violations list, equals --radius-md, plan did not require tokenizing
+- [Phase 01-meridian-css-token-migration]: file-viewer-overlay z-index 500 replaced with var(--z-modal): file viewer is a modal dialog, z-toast (999) reserved for transient notifications only
+- [Phase 01-meridian-css-token-migration]: responsive.css border-radius overrides kept as var(--radius-lg) to explicitly reinforce 6px on mobile rather than removing them
 
 ### Pending Todos
 
@@ -87,6 +90,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-26T06:35:48.988Z
-Stopped at: Completed 01-meridian-css-token-migration/01-06-PLAN.md
+Last session: 2026-03-26T06:40:06.144Z
+Stopped at: Completed 01-meridian-css-token-migration/01-07-PLAN.md
 Resume file: None
