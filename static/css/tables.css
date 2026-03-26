@@ -1,0 +1,104 @@
+/* ══════════════════════════════════════════════════════
+   TABLES — Data tables, severity, social, pagination,
+            passwords, load more
+══════════════════════════════════════════════════════ */
+
+/* Data table: smoother row feedback (enhanced v3.1) */
+.data-table {
+  width: 100%; border-collapse: collapse; font-family: var(--font-data);
+  font-size: .78rem;
+}
+.data-table th {
+  text-align: left; padding: 8px 12px;
+  font-size: .65rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--color-text-tertiary);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.data-table td {
+  padding: 8px 12px; border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--color-text-secondary); vertical-align: top; max-width: 300px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr { transition: background var(--duration-fast) var(--ease-in-out); }
+.data-table tr:hover td { background: var(--color-border-subtle); color: var(--color-text-primary); }
+.data-table .val-danger  { color: var(--color-critical); }
+.data-table .val-warn    { color: var(--color-high); }
+.data-table .val-safe    { color: var(--color-success); }
+.data-table .val-amber   { color: var(--color-accent); }
+.data-table .val-muted   { color: var(--color-text-tertiary); }
+
+/* ── Severity rows ── */
+.sev-critical td { background: rgba(239,68,68,.04) !important; }
+.sev-high    td { background: rgba(249,115,22,.03) !important; }
+
+/* Sev indicator: left border (enhanced v3.1) */
+.sev-critical td:first-child { border-left: 2px solid var(--color-critical); }
+.sev-high td:first-child     { border-left: 2px solid var(--color-high); }
+.sev-medium td:first-child   { border-left: 2px solid var(--color-accent); }
+
+.sev-breach-badge {
+  font-family: var(--font-data); font-size: .58rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em;
+  padding: 1px 5px; border-radius: var(--radius-sm); white-space: nowrap;
+}
+.sev-critical .sev-breach-badge { background: var(--color-critical-muted); color: var(--color-critical); border: 1px solid var(--color-critical-muted); }
+.sev-high    .sev-breach-badge { background: var(--color-high-muted); color: var(--color-high); border: 1px solid var(--color-high-muted); }
+.sev-medium  .sev-breach-badge { background: var(--color-accent-muted); color: var(--color-accent); border: 1px solid var(--color-accent-muted); }
+.sev-low     .sev-breach-badge { background: var(--color-surface-2); color: var(--color-text-tertiary); border: 1px solid var(--color-border-subtle); }
+
+/* ── Social badges ── */
+.social-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+/* Social badges: lift on hover (enhanced v3.1) */
+.social-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--color-success-muted); border: 1px solid var(--color-success-muted);
+  color: var(--color-success); border-radius: var(--radius-md);
+  padding: 4px 10px; font-size: .74rem; font-weight: 500;
+  text-decoration: none;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+.social-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px var(--color-success-muted);
+  background: var(--color-success-muted);
+}
+
+/* Social row (used in some layouts) */
+.social-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* ── Pagination ── */
+.pagination {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 12px; font-family: var(--font-data); font-size: .74rem; color: var(--color-text-secondary);
+}
+.pagination-btns { display: flex; gap: 6px; }
+
+/* ── Password masking ── */
+.pwd-cell { display: flex; align-items: center; gap: 5px; }
+.pwd-text { font-family: var(--font-data); font-size: .76rem; }
+.pwd-text.masked { letter-spacing: .18em; color: var(--color-text-tertiary); }
+.pwd-toggle {
+  background: none; border: 1px solid var(--color-border-subtle); cursor: pointer;
+  color: var(--color-text-tertiary); font-size: .62rem; padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  transition: all var(--duration-fast) var(--ease-in-out);
+}
+.pwd-toggle:hover { color: var(--color-accent); border-color: var(--color-accent); background: var(--color-accent-muted); }
+
+/* ── Load more ── */
+/* Load more btn (enhanced v3.1) */
+.load-more-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 10px; margin-top: 10px;
+  background: var(--color-surface-1); border: 1px dashed var(--color-border-default);
+  border-radius: var(--radius-lg); color: var(--color-text-tertiary); font-family: var(--font-data);
+  font-size: .74rem; cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+.load-more-btn:hover {
+  background: var(--color-accent-muted);
+  border-color: var(--color-accent-border);
+  border-style: solid;
+  color: var(--color-accent);
+}
