@@ -13,7 +13,7 @@ Requirements for this milestone. Each maps to roadmap phases.
 - [x] **CSS-02**: Zero hardcoded rgba() color values in CSS files — all replaced by token references (--color-accent-muted, --color-border-subtle, etc.)
 - [x] **CSS-03**: All border-radius values constrained to design system scale: 2px (badges), 4px (buttons/inputs), 6px (cards/panels), 999px (category chips only)
 - [x] **CSS-04**: All spacing values use --space-* tokens instead of arbitrary px values (14px, 18px, 36px, 56px, 68px)
-- [ ] **CSS-05**: All font-size values use --text-* tokens instead of hardcoded px/rem values
+- [x] **CSS-05**: All font-size values use --text-* tokens instead of hardcoded px/rem values
 - [x] **CSS-06**: All font-family declarations use --font-display, --font-data, or --font-body tokens
 - [x] **CSS-07**: All box-shadow values use --shadow-* tokens
 - [x] **CSS-08**: All transition durations use --duration-* and --ease-* tokens
@@ -71,7 +71,7 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | CSS-02 | Phase 1 | Complete |
 | CSS-03 | Phase 1 | Complete |
 | CSS-04 | Phase 1 | Complete |
-| CSS-05 | Phase 1 | Pending |
+| CSS-05 | Phase 1 | Complete |
 | CSS-06 | Phase 1 | Complete |
 | CSS-07 | Phase 1 | Complete |
 | CSS-08 | Phase 1 | Complete |
