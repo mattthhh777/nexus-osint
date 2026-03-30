@@ -1,30 +1,32 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.0.0
-milestone_name: milestone
-status: Milestone complete — both phases done
-stopped_at: Phase 2 complete (XSS sanitization)
-last_updated: "2026-03-26T13:40:00.000Z"
+milestone: v4.0.0
+milestone_name: Low-Resource Agent Architecture & Hardening
+status: Defining requirements
+stopped_at: Milestone v4.0 started — requirements phase
+last_updated: "2026-03-30T13:57:00.000Z"
 progress:
-  total_phases: 2
-  completed_phases: 1
-  total_plans: 7
-  completed_plans: 7
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-25)
+See: .planning/PROJECT.md (updated 2026-03-30)
 
 **Core value:** A single search query returns comprehensive intelligence from 13+ OSINT modules with professional-grade data presentation — density without chaos.
-**Current focus:** Phase 01 — meridian-css-token-migration
+**Current focus:** Milestone v4.0 — Defining requirements
 
 ## Current Position
 
-Phase: 01 (meridian-css-token-migration) — EXECUTING
-Plan: 7 of 7
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-30 — Milestone v4.0 started
 
 ## Performance Metrics
 
@@ -34,26 +36,14 @@ Plan: 7 of 7
 - Average duration: — min
 - Total execution time: 0.0 hours
 
-**By Phase:**
+**Previous Milestone (v3.0.0):**
 
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 1. Meridian CSS Token Migration | 0 | — | — |
-| 2. XSS Sanitization | 0 | — | — |
+| Phase | Plans | Status |
+|-------|-------|--------|
+| 1. Meridian CSS Token Migration | 7/7 | Complete |
+| 2. XSS Sanitization | 2/2 | Complete |
 
-**Recent Trend:**
-
-- Last 5 plans: —
-- Trend: —
-
-*Updated after each plan completion*
-| Phase 01-meridian-css-token-migration P01 | 1 | 1 tasks | 1 files |
-| Phase 01-meridian-css-token-migration P02 | 2 | 2 tasks | 2 files |
-| Phase 01-meridian-css-token-migration P03 | 1 | 1 tasks | 1 files |
-| Phase 01-meridian-css-token-migration P04 | 1 | 1 tasks | 1 files |
-| Phase 01-meridian-css-token-migration P05 | 3 | 1 tasks | 1 files |
-| Phase 01-meridian-css-token-migration P06 | 2 | 1 tasks | 1 files |
-| Phase 01-meridian-css-token-migration P07 | 8 | 2 tasks | 2 files |
+*9 plans total, 16/16 requirements met*
 
 ## Accumulated Context
 
@@ -62,21 +52,13 @@ Plan: 7 of 7
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- Brownfield context: Phases 1 and 3 of the original plan are already complete (monolith split, backend security). This milestone covers original Phase 2 (CSS tokens) and Phase 4 (XSS).
-- Roadmap phases renumbered as Phase 1 and Phase 2 for this milestone (continuing from completed prior work).
-- Phase 1 must produce zero visual regression — identical pixel output is a hard constraint.
-- Phase 2 depends on Phase 1 (sequential, not parallel).
-- [Phase 01-meridian-css-token-migration]: Remove legacy aliases immediately; other 8 CSS files will have temporarily unresolved var() references during migration window (plans 02-07 resolve each file)
-- [Phase 01-meridian-css-token-migration]: Keep rgba(255,255,255,.013) grid texture literal in reset.css — decorative value at extreme low opacity with no semantic token equivalent
-- [Phase 01-meridian-css-token-migration]: nav background uses var(--color-surface-glass) instead of rgba(8,10,15,.95) — closest glassmorphism token, minor color shift within acceptable visual regression
-- [Phase 01-meridian-css-token-migration]: Keep .sev-critical/.sev-high row tints as rgba literals at .04/.03 opacity — below token threshold, replacing with tokens would darken row backgrounds violating zero-visual-regression
-- [Phase 01-meridian-css-token-migration]: Keep rgba(0,0,0,.55) as literal in .search-container box-shadow — 0 28px 72px decorative spread has no token equivalent
-- [Phase 01-meridian-css-token-migration]: Track bar border-radius (3px) kept as literal in panels.css: functional cylindrical bar ends have no named token equivalent at 3px scale
-- [Phase 01-meridian-css-token-migration]: modulePulse 50% keyframe rgba(245,166,35,.3) maps to var(--color-accent-muted) — closest semantic token for faded amber glow
-- [Phase 01-meridian-css-token-migration]: rgba(23,27,40,.9) gaming-card hover and rgba(11,13,20,.92) victim-card hover map to surface tokens — minor color shift within visual regression tolerance
-- [Phase 01-meridian-css-token-migration]: border-radius 4px on discord-id-val and discord-badge kept as literal — not in violations list, equals --radius-md, plan did not require tokenizing
-- [Phase 01-meridian-css-token-migration]: file-viewer-overlay z-index 500 replaced with var(--z-modal): file viewer is a modal dialog, z-toast (999) reserved for transient notifications only
-- [Phase 01-meridian-css-token-migration]: responsive.css border-radius overrides kept as var(--radius-lg) to explicitly reinforce 6px on mobile rather than removing them
+- Hardware constraint: 1 vCPU / 1GB RAM / 25GB SSD — all architecture must respect this
+- SQLite with WAL + asyncio.Queue for write serialization (not connection pooling)
+- TaskGroup + Semaphore(5) for agent orchestration (not fire-and-forget create_task)
+- F1 (Codebase Audit) must complete before any implementation begins
+- Docker image target <250MB (realistic with Python 3.12-slim)
+- Memory resting footprint target <200MB
+- 2GB swap mandatory on VPS
 
 ### Pending Todos
 
@@ -84,12 +66,13 @@ None yet.
 
 ### Blockers/Concerns
 
-- cards.css has 111 legacy token occurrences — largest file, highest effort in Phase 1
-- render.js inline onclick handlers (11+) are out of scope for this milestone but complicate XSS audit in Phase 2
-- Sync risk: local files may differ from VPS — verify before deploying any phase output
+- No test suite exists — Python 3.12 upgrade (F6) is blocked until tests are in place
+- Local files may differ from VPS production — verify before deploying
+- OathNet Starter plan: 100 lookups/day is hard operational constraint
+- _stream_search is ~400 lines — known complexity issue, potential memory concern for F4
 
 ## Session Continuity
 
-Last session: 2026-03-26T12:06:51.783Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-xss-sanitization/02-CONTEXT.md
+Last session: 2026-03-30
+Stopped at: Milestone v4.0 initialization — defining requirements
+Resume file: —
