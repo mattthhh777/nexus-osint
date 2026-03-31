@@ -183,15 +183,16 @@ Phase 03 (F1 Audit) ──► Phase 04 (F2 SQLite) ──► Phase 05 (F3 Async)
 | Phase | Feature | Sessions | Risk | Key Metric |
 |-------|---------|----------|------|------------|
 | 03 | F1: Audit | 1 | NONE | 17 findings documented |
-| 04 | F2: SQLite | 1-2 | LOW | Zero "database is locked" |
+| 04 | F2: SQLite | 1/1 | Complete   | 2026-03-31 |
 | 05 | F3: Async | 2-3 | **MED** | Semaphore(5), zero task leaks |
 | 06 | F4: Memory | 2 | LOW | < 200MB resting RSS |
 | 07 | F6: Stack | 2 | **HIGH** | Python 3.12 + PyJWT + httpx |
 | 08 | F5: Docker | 1 | LOW | < 250MB image |
 | 09 | F7: Security | 2-3 | MED | CSP strict, no unsafe-inline |
 | 10 | F8: Health | 1-2 | LOW | Graceful degradation |
+| 11 | Cost Optimization | 1-2 | LOW | httpx only, TTL cache, zero fetchall |
 
-**Total estimated effort:** 12-17 sessions
+**Total estimated effort:** 13-19 sessions
 **Highest risk:** Phase 05 (F3, _stream_search refactor), Phase 07 (F6, triple library swap)
 
 ---
@@ -211,6 +212,29 @@ Phase 03 (F1 Audit) ──► Phase 04 (F2 SQLite) ──► Phase 05 (F3 Async)
 
 **v4.0 requirements mapped:** 8/8
 **Findings mapped:** 15/17 (FIND-15, FIND-17 not prioritized — acceptable patterns)
+
+### Phase 11 — Cost Optimization
+
+| Field | Value |
+|-------|-------|
+| **Status** | Planned |
+| **Depends on** | Phase 04 |
+| **Effort** | 1-2 sessions |
+| **Risk** | LOW |
+
+**Sub-tasks:** TTL response caching for external APIs, singleton OathnetClient with connection reuse, HTTP client consolidation (httpx only — remove requests+aiohttp), replace .fetchall() with streaming in db.py, migrate OathnetClient to httpx.AsyncClient, exponential backoff for SpiderFoot polling, cache _load_users() with mtime invalidation.
+
+**Key files:** `api/main.py`, `api/db.py`, `modules/oathnet_client.py`, `modules/sherlock_wrapper.py`, `requirements.txt`
+
+**Verification:** Identical search results before/after; only httpx in requirements; zero .fetchall() in hot paths; OathnetClient instantiated once.
+
+**Plans:** 4 plans
+
+Plans:
+- [ ] 11-01-PLAN.md — OathnetClient async httpx migration + singleton pattern
+- [ ] 11-02-PLAN.md — HTTP library consolidation (remove aiohttp + requests)
+- [ ] 11-03-PLAN.md — DB streaming reads + _load_users cache
+- [ ] 11-04-PLAN.md — TTL response cache + SpiderFoot exponential backoff
 
 ---
 
