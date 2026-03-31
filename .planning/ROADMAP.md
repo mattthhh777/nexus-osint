@@ -1,82 +1,217 @@
-# NexusOSINT — Refactoring Milestone Roadmap
+# NexusOSINT — v4.0 Roadmap
 
-**Milestone:** CSS Token Migration + XSS Sanitization
-**Project:** NexusOSINT v3.0.0 (Production at nexusosint.uk)
-**Granularity:** Coarse
-**Phases:** 2
-**Created:** 2026-03-25
+**Milestone:** Low-Resource Agent Architecture & Hardening
+**Target:** 1vCPU / 1GB RAM VPS — maximum capability from minimum hardware
+**Phases:** 8 (sequential with one parallel opportunity)
+**Created:** 2026-03-30
+
+---
+
+## Dependency Chain
+
+```
+Phase 03 (F1 Audit) ──► Phase 04 (F2 SQLite) ──► Phase 05 (F3 Async) ──► Phase 06 (F4 Memory)
+                                                                                    │
+                                                                          ┌─────────┼─────────┐
+                                                                          ▼                   ▼
+                                                                Phase 07 (F6 Stack)    Phase 08 (F5 Docker)
+                                                                          │                   │
+                                                                          └─────────┬─────────┘
+                                                                                    ▼
+                                                                          Phase 09 (F7 Security)
+                                                                                    │
+                                                                                    ▼
+                                                                          Phase 10 (F8 Health)
+```
+
+**Recommended serial order:** 03 → 04 → 05 → 06 → 07 → 08 → 09 → 10
+
+---
+
+## Previous Milestone (v3.0.0 — Complete)
+
+| Phase | Plans | Status | Completed |
+|-------|-------|--------|-----------|
+| 1. Meridian CSS Token Migration | 7/7 | Complete | 2026-03-26 |
+| 2. XSS Sanitization | 2/2 | Complete | 2026-03-26 |
+
+*9 plans total, 16/16 requirements met*
 
 ---
 
 ## Phases
 
-- [x] **Phase 1: Meridian CSS Token Migration** - All 9 CSS files fully adopt Meridian design system tokens, eliminating every legacy token, hardcoded rgba(), out-of-spec border-radius, and arbitrary spacing/font/shadow value (completed 2026-03-26)
-- [x] **Phase 2: XSS Sanitization** - All API data inserted into the DOM passes through esc() or sanitizeImageUrl(), with zero unescaped template literal interpolations confirmed by grep (completed 2026-03-26)
+### Phase 03 — F1: Codebase Audit (GATE)
+
+| Field | Value |
+|-------|-------|
+| **Status** | In Progress |
+| **Effort** | 1 session |
+| **Risk** | NONE (documentation only) |
+| **Deliverable** | AUDIT-REPORT.md (17 findings: 3 CRIT, 4 HIGH, 6 MED, 4 LOW) |
+| **Gate** | User approves findings → unlocks all subsequent phases |
 
 ---
 
-## Phase Details
+### Phase 04 — F2: SQLite Hardening
 
-### Phase 1: Meridian CSS Token Migration
-**Goal**: Every CSS file uses only Meridian design system tokens — token propagation works correctly, zero legacy tokens remain, and the live site looks identical to before
-**Depends on**: Nothing (first phase)
-**Requirements**: CSS-01, CSS-02, CSS-03, CSS-04, CSS-05, CSS-06, CSS-07, CSS-08, CSS-09, CSS-10, CSS-11, CSS-12
-**Success Criteria** (what must be TRUE):
-  1. Changing --color-accent in tokens.css causes ALL amber accent elements on the live site to update simultaneously (token propagation verified end-to-end)
-  2. Zero hardcoded rgba() color values remain in any of the 9 CSS files — all replaced by named token references
-  3. Zero occurrences of legacy tokens (--bg, --text, --amber, --line, --mono, --sans, --r, --dur-*, --bg2 through --bg5, --red, --green, --blue) remain outside tokens.css
-  4. Every border-radius value in the codebase is one of the four design system values: 2px, 4px, 6px, or 999px — no 8px, 10px, 12px, or 14px values remain
-  5. A side-by-side visual comparison of the live site before and after migration shows no difference in layout, color, spacing, typography, or shadows
-**Plans**: TBD
-**UI hint**: yes
+| Field | Value |
+|-------|-------|
+| **Status** | Pending |
+| **Depends on** | Phase 03 |
+| **Effort** | 1-2 sessions |
+| **Risk** | LOW |
+| **Findings** | FIND-01 (WAL), FIND-11 (quota_log) |
 
-### Phase 2: XSS Sanitization
-**Goal**: No unescaped API data can reach the DOM — esc() is applied to every template literal interpolation in render.js and sanitizeImageUrl() guards all URL insertions
-**Depends on**: Phase 1
-**Requirements**: XSS-01, XSS-02, XSS-03, XSS-04
-**Success Criteria** (what must be TRUE):
-  1. sanitizeImageUrl() rejects javascript: and data: URIs and any non-https URL before they can reach a src= attribute or background-image value — verified by unit test or manual proof
-  2. Discord avatar and banner URLs from the OathNet API are visually rendered only when they pass sanitizeImageUrl() — a crafted javascript: avatar_url produces no script execution and falls back to the placeholder
-  3. Every template literal interpolation in render.js that inserts API-controlled data is wrapped in esc() — no raw variable interpolations exist for string values from search results
-  4. grep across all static/js/ files returns zero instances of unescaped API data interpolated directly into innerHTML template literals
-**Plans**: TBD
-**UI hint**: yes
+**Sub-tasks:** WAL mode + PRAGMAs, single persistent connection, asyncio.Queue write serializer (new `api/db.py`), schema consolidation, bootstrap test suite.
+
+**Key files:** `api/main.py`, new `api/db.py`, new `tests/`
+
+**Verification:** `PRAGMA journal_mode` returns `wal`; 50 concurrent writes without lock errors; all tests pass.
 
 ---
 
-## Progress
+### Phase 05 — F3: Async Agent Orchestration
 
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. Meridian CSS Token Migration | 7/7 | Complete   | 2026-03-26 |
-| 2. XSS Sanitization | 2/2 | Complete   | 2026-03-26 |
+| Field | Value |
+|-------|-------|
+| **Status** | Pending |
+| **Depends on** | Phase 04 |
+| **Effort** | 2-3 sessions |
+| **Risk** | **MEDIUM** (highest risk — _stream_search refactor) |
+| **Findings** | FIND-02 (fire-forget), FIND-08 (subprocess cleanup) |
 
----
+**Sub-tasks:** TaskOrchestrator with TaskGroup + Semaphore(5) + task registry (new `api/orchestrator.py`), parallelize _stream_search independent modules, fix audit log via DatabaseWriter queue, subprocess hardening in spiderfoot_wrapper.
 
-## Coverage
+**Key files:** new `api/orchestrator.py`, `api/main.py` (~400 lines restructured), `modules/spiderfoot_wrapper.py`
 
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| CSS-01 | Phase 1 | Pending |
-| CSS-02 | Phase 1 | Pending |
-| CSS-03 | Phase 1 | Pending |
-| CSS-04 | Phase 1 | Pending |
-| CSS-05 | Phase 1 | Pending |
-| CSS-06 | Phase 1 | Pending |
-| CSS-07 | Phase 1 | Pending |
-| CSS-08 | Phase 1 | Pending |
-| CSS-09 | Phase 1 | Pending |
-| CSS-10 | Phase 1 | Pending |
-| CSS-11 | Phase 1 | Pending |
-| CSS-12 | Phase 1 | Pending |
-| XSS-01 | Phase 2 | Pending |
-| XSS-02 | Phase 2 | Pending |
-| XSS-03 | Phase 2 | Pending |
-| XSS-04 | Phase 2 | Pending |
-
-**v1 requirements mapped:** 16/16
-**Unmapped:** 0
+**Verification:** Semaphore ceiling enforced; zero task leaks; 100 searches = 100 audit entries; SSE sequence matches golden file.
 
 ---
 
-*Roadmap created: 2026-03-25*
+### Phase 06 — F4: Memory-Disciplined Architecture
+
+| Field | Value |
+|-------|-------|
+| **Status** | Pending |
+| **Depends on** | Phase 05 |
+| **Effort** | 2 sessions |
+| **Risk** | LOW |
+| **Findings** | FIND-05 (unbound buffer), FIND-10 (session pool, partial) |
+
+**Sub-tasks:** Generator pipelines for serializers, bound Sherlock response to 512KB, OathnetClient singleton, tracemalloc instrumentation + `/health/memory` endpoint, admin query optimization.
+
+**Key files:** `api/main.py`, `modules/sherlock_wrapper.py`, `modules/oathnet_client.py`
+
+**Verification:** RSS < 200MB after startup + 10 searches; Sherlock truncates > 512KB; single OathnetClient instance.
+
+---
+
+### Phase 07 — F6: Stack Modernization
+
+| Field | Value |
+|-------|-------|
+| **Status** | Pending |
+| **Depends on** | Phase 06 |
+| **Effort** | 2 sessions |
+| **Risk** | **HIGH** (3 library changes — strict sub-task order) |
+| **Findings** | FIND-10 (complete), FIND-16 (duplicate 429) |
+
+**Sub-tasks (strict order):** Python 3.12 compatibility, python-jose → PyJWT, OathnetClient async rewrite (requests → httpx.AsyncClient), dependency cleanup + fix duplicate 429.
+
+**Key files:** `requirements.txt`, `api/main.py`, `modules/oathnet_client.py`, `Dockerfile` (protected)
+
+**Verification:** All tests pass on 3.12; JWT roundtrip with PyJWT; OathNet identical results; fewer pip packages.
+
+---
+
+### Phase 08 — F5: Docker Optimization
+
+| Field | Value |
+|-------|-------|
+| **Status** | Pending |
+| **Depends on** | Phase 06 |
+| **Effort** | 1 session |
+| **Risk** | LOW |
+| **Parallel with** | Phase 07 (different files) |
+
+**Sub-tasks:** Multi-stage Dockerfile (builder + runtime, pinned digest), resource limits in compose (800m RAM, 2800m swap), health check upgrade, deploy runbook.
+
+**Key files:** `Dockerfile` (protected), `docker-compose.yml` (protected), new `DEPLOY.md`
+
+**Verification:** `docker images` < 250MB; survives 50 concurrent requests; health check detects pressure.
+
+---
+
+### Phase 09 — F7: Security Hardening
+
+| Field | Value |
+|-------|-------|
+| **Status** | Pending |
+| **Depends on** | Phase 07 |
+| **Effort** | 2-3 sessions |
+| **Risk** | MEDIUM |
+| **Findings** | FIND-03, FIND-04, FIND-06, FIND-07, FIND-09, FIND-12, FIND-13, FIND-14 |
+
+**Sub-tasks:** Eliminate inline onclick handlers (11+ sites), CSP strict (remove unsafe-inline), JWT httpOnly completion, slowapi per-endpoint rate limiting, JWT_SECRET fail-hard, SpiderFoot target validation, user count limit (50), blacklist fail-closed, localStorage hardening, rate limit comment fix.
+
+**Key files:** `static/js/render.js`, `static/js/auth.js`, `static/js/cases.js`, `static/index.html`, `nginx.conf` (protected), `api/main.py`
+
+**Verification:** Zero CSP violations; no nx_token in localStorage; 11th search/min returns 429; malformed SpiderFoot target returns 400; blacklist fail-closed.
+
+---
+
+### Phase 10 — F8: Health Monitoring
+
+| Field | Value |
+|-------|-------|
+| **Status** | Pending |
+| **Depends on** | Phase 08, Phase 09 |
+| **Effort** | 1-2 sessions |
+| **Risk** | LOW |
+
+**Sub-tasks:** Real `/health` endpoint (RSS, CPU%, active tasks, semaphore slots, WAL size, uptime), memory watchdog (>80% warn, >85% reduce semaphore, <75% restore), graceful shutdown (drain orchestrator → flush DB → close), degradation modes (NORMAL/REDUCED/CRITICAL).
+
+**Key files:** `api/main.py`, new `api/watchdog.py`, `api/orchestrator.py`
+
+**Verification:** `/health` returns all fields; memory pressure triggers degradation; `docker stop` completes < 35s; all queued logs written before shutdown.
+
+---
+
+## Summary
+
+| Phase | Feature | Sessions | Risk | Key Metric |
+|-------|---------|----------|------|------------|
+| 03 | F1: Audit | 1 | NONE | 17 findings documented |
+| 04 | F2: SQLite | 1-2 | LOW | Zero "database is locked" |
+| 05 | F3: Async | 2-3 | **MED** | Semaphore(5), zero task leaks |
+| 06 | F4: Memory | 2 | LOW | < 200MB resting RSS |
+| 07 | F6: Stack | 2 | **HIGH** | Python 3.12 + PyJWT + httpx |
+| 08 | F5: Docker | 1 | LOW | < 250MB image |
+| 09 | F7: Security | 2-3 | MED | CSP strict, no unsafe-inline |
+| 10 | F8: Health | 1-2 | LOW | Graceful degradation |
+
+**Total estimated effort:** 12-17 sessions
+**Highest risk:** Phase 05 (F3, _stream_search refactor), Phase 07 (F6, triple library swap)
+
+---
+
+## Requirements Coverage
+
+| Requirement | Phase | Findings Addressed |
+|-------------|-------|--------------------|
+| F1: Codebase audit with severity report | 03 | All 17 findings |
+| F2: SQLite WAL + write serialization | 04 | FIND-01, FIND-11 |
+| F3: Async orchestration TaskGroup + Semaphore(5) | 05 | FIND-02, FIND-08 |
+| F4: Memory-disciplined architecture < 200MB | 06 | FIND-05, FIND-10 |
+| F5: Docker multi-stage < 250MB + OOM protection | 08 | — |
+| F6: Python 3.12+ + dependency modernization | 07 | FIND-10, FIND-16 |
+| F7: CSP + JWT httpOnly + rate limiting + validation | 09 | FIND-03, FIND-04, FIND-06, FIND-07, FIND-09, FIND-12, FIND-13, FIND-14 |
+| F8: Health monitoring + graceful degradation | 10 | — |
+
+**v4.0 requirements mapped:** 8/8
+**Findings mapped:** 15/17 (FIND-15, FIND-17 not prioritized — acceptable patterns)
+
+---
+
+*Roadmap created: 2026-03-30*
