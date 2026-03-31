@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.0.0
-milestone_name: Low-Resource Agent Architecture & Hardening
-status: Phase 03 — F1 Codebase Audit (in progress)
-stopped_at: AUDIT-REPORT.md and ROADMAP.md written — awaiting gate approval
-last_updated: "2026-03-30T17:45:00.000Z"
+milestone: v3.0.0
+milestone_name: — Complete)
+status: Phase complete — ready for verification
+stopped_at: Completed 04-01-PLAN.md — SQLite hardening done, all 5 tests pass
+last_updated: "2026-03-31T09:36:21.926Z"
 progress:
-  total_phases: 8
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 4
+  completed_phases: 3
+  total_plans: 10
+  completed_plans: 10
 ---
 
 # Project State
@@ -19,14 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-30)
 
 **Core value:** A single search query returns comprehensive intelligence from 13+ OSINT modules with professional-grade data presentation — density without chaos.
-**Current focus:** Milestone v4.0 — Phase 03 (F1 Codebase Audit)
+**Current focus:** Phase 04 — sqlite-hardening
 
 ## Current Position
 
-Phase: 03 — F1: Codebase Audit (GATE)
-Plan: AUDIT-REPORT.md complete, ROADMAP.md complete
-Status: Awaiting gate approval (user reviews audit findings)
-Last activity: 2026-03-30 — AUDIT-REPORT.md + ROADMAP.md written
+Phase: 04 (sqlite-hardening) — EXECUTING
+Plan: 1 of 1
 
 ## Performance Metrics
 
@@ -44,6 +42,7 @@ Last activity: 2026-03-30 — AUDIT-REPORT.md + ROADMAP.md written
 | 2. XSS Sanitization | 2/2 | Complete |
 
 *9 plans total, 16/16 requirements met*
+| Phase 04 P01 | 12 | 4 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -59,6 +58,8 @@ Recent decisions affecting current work:
 - Docker image target <250MB (realistic with Python 3.12-slim)
 - Memory resting footprint target <200MB
 - 2GB swap mandatory on VPS
+- [Phase 04]: Single persistent aiosqlite connection with WAL + asyncio.Queue (no connection pooling — anti-pattern for SQLite)
+- [Phase 04]: asyncio.create_task(_log_search) replaced with direct await — db.write() is already non-blocking via queue
 
 ### Pending Todos
 
@@ -73,7 +74,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-30
-Stopped at: Phase 03 F1 Audit — AUDIT-REPORT.md + ROADMAP.md written, awaiting approval
-Resume file: .planning/phases/03-codebase-audit/AUDIT-REPORT.md
-Next action: User reviews audit → approve gate → Phase 04 (F2 SQLite Hardening)
+Last session: 2026-03-31T09:36:21.921Z
+Stopped at: Completed 04-01-PLAN.md — SQLite hardening done, all 5 tests pass
+Resume file: None
+Next action: Switch to Sonnet → /gsd:execute-phase → implement db.py + migrate main.py
