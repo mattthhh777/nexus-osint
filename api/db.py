@@ -171,6 +171,9 @@ class DatabaseManager:
         await self._conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_rate_key ON rate_limits(key)"
         )
+        await self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_rate_key_ts ON rate_limits(key, ts)"
+        )
 
         # quota_log — OathNet API quota tracking for admin dashboard
         await self._conn.execute("""
@@ -231,6 +234,9 @@ class DatabaseManager:
             return
         try:
             self._write_queue.put_nowait((sql, params, None))
+            qsize = self._write_queue.qsize()
+            if qsize > 800:  # >80% of maxsize=1000
+                logger.warning("DB write queue at %d/1000 — approaching capacity", qsize)
         except asyncio.QueueFull:
             logger.error("DB write queue full (maxsize=1000) — dropping write: sql=%r", sql)
 

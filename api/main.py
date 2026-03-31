@@ -34,6 +34,7 @@ from pydantic import BaseModel, field_validator
 from starlette.middleware.base import BaseHTTPMiddleware
 import ipaddress
 
+import aiosqlite
 from api.db import db as _db  # single-connection DatabaseManager (WAL + write queue)
 
 load_dotenv()
@@ -145,7 +146,7 @@ async def _check_rate(key: str, max_calls: int, window_s: int) -> bool:
             "INSERT INTO rate_limits (key, ts) VALUES (?, ?)", (key, now)
         )
         return True
-    except Exception as exc:
+    except aiosqlite.OperationalError as exc:
         logger.warning("Rate limit DB error (fail-closed): %s", exc)
         return False  # fail closed — prevent abuse if DB unavailable
 
@@ -1090,7 +1091,7 @@ async def admin_stats(_: dict = Depends(get_admin_user)):
             "quota_used":        quota_used,
             "quota_limit":       quota_limit,
         }
-    except Exception as exc:
+    except aiosqlite.OperationalError as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
 
@@ -1114,7 +1115,7 @@ async def admin_logs(
                 (limit, offset),
             )
         return {"logs": rows, "limit": limit, "offset": offset}
-    except Exception as exc:
+    except aiosqlite.OperationalError as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
 
