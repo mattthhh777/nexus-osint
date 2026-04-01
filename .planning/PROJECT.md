@@ -47,7 +47,7 @@ A single search query returns comprehensive intelligence from 13+ OSINT modules 
 
 - [ ] Codebase audit with severity report (F1)
 - [ ] SQLite WAL mode + write serialization via asyncio.Queue (F2)
-- [ ] Async agent orchestration with TaskGroup + Semaphore(5) (F3)
+- [x] Async agent orchestration with TaskGroup + Semaphore(5) (F3) — Validated in Phase 05: TaskOrchestrator with dual semaphore (Global=5, OathNet=3), queue bridge, task registry
 - [ ] Memory-disciplined architecture <200MB resting (F4)
 - [ ] Docker multi-stage build <250MB with OOM protection (F5)
 - [ ] Python 3.12+ migration with dependency validation (F6)
@@ -127,4 +127,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-30 after milestone v4.0 initialization*
+*Last updated: 2026-04-01 after Phase 05 completion*
