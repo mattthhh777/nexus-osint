@@ -36,6 +36,7 @@ import ipaddress
 
 import aiosqlite
 from api.db import db as _db  # single-connection DatabaseManager (WAL + write queue)
+from modules.oathnet_client import oathnet_client  # async singleton — one TCP/TLS pool
 
 load_dotenv()
 
@@ -404,6 +405,8 @@ async def startup() -> None:
 @app.on_event("shutdown")
 async def shutdown() -> None:
     await _db.shutdown()
+    if oathnet_client:
+        await oathnet_client.close()
     logger.info("NexusOSINT v3.0 shutdown complete")
 
 
@@ -706,10 +709,12 @@ async def _stream_search(
         "user": username,
     })
 
-    from modules.oathnet_client import OathnetClient
     from modules.sherlock_wrapper import search_username
 
-    client = OathnetClient(api_key=OATHNET_API_KEY)
+    if oathnet_client is None:
+        yield event({"type": "error", "message": "OATHNET_API_KEY not configured"})
+        return
+
     t0 = time.time()
 
     # ── Breach + Stealer parallel ─────────────────────────────────────────
@@ -717,9 +722,9 @@ async def _stream_search(
         yield progress("Searching breach databases & stealer logs…")
         ran += ["breach", "stealer"]
         try:
-            tasks = [asyncio.to_thread(client.search_breach, query)]
+            tasks = [oathnet_client.search_breach(query)]
             if run.get("stealer"):
-                tasks.append(asyncio.to_thread(client.search_stealer_v2, query))
+                tasks.append(oathnet_client.search_stealer_v2(query))
             results_gathered = await asyncio.gather(*tasks, return_exceptions=True)
             res = results_gathered[0] if not isinstance(results_gathered[0], Exception) else None
 
@@ -736,7 +741,7 @@ async def _stream_search(
                 if run.get("holehe") and is_email:
                     ran.append("holehe")
                     h, timed_out = await with_timeout(
-                        asyncio.to_thread(client.holehe, query), "holehe"
+                        oathnet_client.holehe(query), "holehe"
                     )
                     if timed_out:
                         logger.warning("Holehe timed out")
@@ -777,10 +782,10 @@ async def _stream_search(
                         ran.append("discord")
                         try:
                             (ok_u, user_data), td1 = await with_timeout(
-                                asyncio.to_thread(client.discord_userinfo, disc_id), "discord_auto"
+                                oathnet_client.discord_userinfo(disc_id), "discord_auto"
                             )
                             (ok_h, raw_hist), td2 = await with_timeout(
-                                asyncio.to_thread(client.discord_username_history, disc_id), "discord_auto"
+                                oathnet_client.discord_username_history(disc_id), "discord_auto"
                             )
                             if td1: ok_u = False; user_data = None
                             if td2: ok_h = False; raw_hist = None
@@ -837,10 +842,10 @@ async def _stream_search(
         else:
             try:
                 (ok_u, user_data), td1 = await with_timeout(
-                    asyncio.to_thread(client.discord_userinfo, query), "discord"
+                    oathnet_client.discord_userinfo(query), "discord"
                 )
                 (ok_h, raw_hist), td2 = await with_timeout(
-                    asyncio.to_thread(client.discord_username_history, query), "discord"
+                    oathnet_client.discord_username_history(query), "discord"
                 )
                 if td1: ok_u = False; user_data = None
                 if td2: ok_h = False; raw_hist = None
@@ -859,7 +864,7 @@ async def _stream_search(
         ran.append("ip_info")
         try:
             (ok, data), timed_out = await with_timeout(
-                asyncio.to_thread(client.ip_info, query), "ip_info"
+                oathnet_client.ip_info(query), "ip_info"
             )
             if timed_out:
                 yield event({"type": "module_error", "module": "ip_info", "error": "IP lookup timed out"})
@@ -874,7 +879,7 @@ async def _stream_search(
         ran.append("subdomain")
         try:
             (ok, data), timed_out = await with_timeout(
-                asyncio.to_thread(client.extract_subdomains, query), "subdomain"
+                oathnet_client.extract_subdomains(query), "subdomain"
             )
             if timed_out:
                 yield event({"type": "module_error", "module": "subdomains", "error": "Subdomain lookup timed out"})
@@ -890,7 +895,7 @@ async def _stream_search(
         ran.append("steam")
         try:
             (ok, data), timed_out = await with_timeout(
-                asyncio.to_thread(client.steam_lookup, query), "steam"
+                oathnet_client.steam_lookup(query), "steam"
             )
             if timed_out:
                 yield event({"type": "module_error", "module": "steam", "error": "Steam lookup timed out"})
@@ -907,7 +912,7 @@ async def _stream_search(
         ran.append("xbox")
         try:
             (ok, data), timed_out = await with_timeout(
-                asyncio.to_thread(client.xbox_lookup, query), "xbox"
+                oathnet_client.xbox_lookup(query), "xbox"
             )
             if timed_out:
                 yield event({"type": "module_error", "module": "xbox", "error": "Xbox lookup timed out"})
@@ -922,7 +927,7 @@ async def _stream_search(
         ran.append("roblox")
         try:
             (ok, data), timed_out = await with_timeout(
-                asyncio.to_thread(client.roblox_lookup, username=query), "roblox"
+                oathnet_client.roblox_lookup(username=query), "roblox"
             )
             if timed_out:
                 yield event({"type": "module_error", "module": "roblox", "error": "Roblox lookup timed out"})
@@ -937,7 +942,7 @@ async def _stream_search(
         ran.append("ghunt")
         try:
             (ok, data), timed_out = await with_timeout(
-                asyncio.to_thread(client.ghunt, query), "ghunt"
+                oathnet_client.ghunt(query), "ghunt"
             )
             if timed_out:
                 yield event({"type": "module_error", "module": "ghunt", "error": "GHunt timed out"})
@@ -954,7 +959,7 @@ async def _stream_search(
         ran.append("minecraft")
         try:
             (ok, data), timed_out = await with_timeout(
-                asyncio.to_thread(client.minecraft_history, query), "minecraft"
+                oathnet_client.minecraft_history(query), "minecraft"
             )
             if timed_out:
                 yield event({"type": "module_error", "module": "minecraft", "error": "Minecraft lookup timed out"})
@@ -970,8 +975,6 @@ async def _stream_search(
         yield progress("Searching compromised machine logs (Victims)…")
         ran.append("victims")
         try:
-            from modules.oathnet_client import OathnetClient as _OC
-            _client = _OC(api_key=OATHNET_API_KEY)
             # Build filters from query type
             v_filters: dict = {}
             if is_email:     v_filters["email"]      = query
@@ -980,8 +983,8 @@ async def _stream_search(
             elif is_user:    v_filters["username"]   = query
             else:            pass  # generic query
 
-            ok, data = await asyncio.to_thread(
-                _client.victims_search, query if not v_filters else "",
+            ok, data = await oathnet_client.victims_search(
+                query if not v_filters else "",
                 10, "", "", **v_filters
             )
             if ok:
@@ -1006,9 +1009,7 @@ async def _stream_search(
         yield progress("Looking up linked Roblox account…")
         ran.append("discord_roblox")
         try:
-            from modules.oathnet_client import OathnetClient as _OC2
-            _cl2 = _OC2(api_key=OATHNET_API_KEY)
-            ok, data = await asyncio.to_thread(_cl2.discord_to_roblox, query)
+            ok, data = await oathnet_client.discord_to_roblox(query)
             yield event({"type": "discord_roblox", "ok": ok,
                          "data": data if ok else None,
                          "error": data.get("error") if not ok else None})
@@ -1271,10 +1272,12 @@ async def more_breaches(
         raise HTTPException(status_code=400, detail="query and cursor required")
     if len(query) > 256:
         raise HTTPException(status_code=400, detail="Query too long")
-    from modules.oathnet_client import OathnetClient
-    client = OathnetClient(api_key=OATHNET_API_KEY)
+    if oathnet_client is None:
+        raise HTTPException(status_code=503, detail="OATHNET_API_KEY not configured")
     try:
-        result = await asyncio.to_thread(client.search_breach, query, cursor)
+        result = await oathnet_client.search_breach(query, cursor)
+        if not result.success:
+            raise HTTPException(status_code=502, detail=result.error or "Breach search failed")
         breaches_data = _serialize_breaches(result.breaches)
         return {
             "breaches":      breaches_data,
@@ -1283,8 +1286,12 @@ async def more_breaches(
             "next_cursor":   result.next_cursor,
             "has_more":      bool(result.next_cursor),
         }
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+    except HTTPException:
+        raise
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="OathNet API unreachable")
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="OathNet API timed out")
 
 
 # ── Victims API endpoints ────────────────────────────────────────────────────
@@ -1302,16 +1309,14 @@ async def victims_search_endpoint(
     user: dict = Depends(get_current_user),
 ):
     """Search victim profiles (compromised machines)."""
-    from modules.oathnet_client import OathnetClient
-    client = OathnetClient(api_key=OATHNET_API_KEY)
+    if oathnet_client is None:
+        raise HTTPException(status_code=503, detail="OATHNET_API_KEY not configured")
     filters = {}
     if email:      filters["email"]      = email
     if ip:         filters["ip"]         = ip
     if discord_id: filters["discord_id"] = discord_id
     if username:   filters["username"]   = username
-    ok, data = await asyncio.to_thread(
-        client.victims_search, q, page_size, cursor, "", **filters
-    )
+    ok, data = await oathnet_client.victims_search(q, page_size, cursor, "", **filters)
     if not ok:
         raise HTTPException(status_code=400, detail=data.get("error", "Search failed"))
     return data
@@ -1334,9 +1339,9 @@ async def victims_manifest_endpoint(
 ):
     """Get file tree for a victim log."""
     _validate_id(log_id)
-    from modules.oathnet_client import OathnetClient
-    client = OathnetClient(api_key=OATHNET_API_KEY)
-    ok, data = await asyncio.to_thread(client.victims_manifest, log_id)
+    if oathnet_client is None:
+        raise HTTPException(status_code=503, detail="OATHNET_API_KEY not configured")
+    ok, data = await oathnet_client.victims_manifest(log_id)
     if not ok:
         raise HTTPException(status_code=404, detail=data.get("error", "Not found"))
     return data
@@ -1351,9 +1356,9 @@ async def victims_file_endpoint(
     """Get raw file content from a victim log."""
     _validate_id(log_id)
     _validate_id(file_id)
-    from modules.oathnet_client import OathnetClient
-    client = OathnetClient(api_key=OATHNET_API_KEY)
-    ok, content_text = await asyncio.to_thread(client.victims_file, log_id, file_id)
+    if oathnet_client is None:
+        raise HTTPException(status_code=503, detail="OATHNET_API_KEY not configured")
+    ok, content_text = await oathnet_client.victims_file(log_id, file_id)
     if not ok:
         raise HTTPException(status_code=404, detail=content_text)
     return PlainTextResponse(content_text)
