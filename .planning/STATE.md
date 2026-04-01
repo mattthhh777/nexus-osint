@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0.0
 milestone_name: — Complete)
 status: Phase complete — ready for verification
-stopped_at: Phase 05 context gathered
-last_updated: "2026-04-01T04:16:26.358Z"
+stopped_at: Completed 05-01-PLAN.md — TaskOrchestrator implemented and tested
+last_updated: "2026-04-01T12:15:45.102Z"
 progress:
   total_phases: 6
-  completed_phases: 3
-  total_plans: 14
-  completed_plans: 10
+  completed_phases: 4
+  total_plans: 15
+  completed_plans: 11
 ---
 
 # Project State
@@ -19,11 +19,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-30)
 
 **Core value:** A single search query returns comprehensive intelligence from 13+ OSINT modules with professional-grade data presentation — density without chaos.
-**Current focus:** Phase 04 — sqlite-hardening
+**Current focus:** Phase 05 — async-agent-orchestration
 
 ## Current Position
 
-Phase: 04 (sqlite-hardening) — EXECUTING
+Phase: 05 (async-agent-orchestration) — EXECUTING
 Plan: 1 of 1
 
 ## Performance Metrics
@@ -43,6 +43,7 @@ Plan: 1 of 1
 
 *9 plans total, 16/16 requirements met*
 | Phase 04 P01 | 12 | 4 tasks | 6 files |
+| Phase 05 P01 | 2 | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -60,6 +61,8 @@ Recent decisions affecting current work:
 - 2GB swap mandatory on VPS
 - [Phase 04]: Single persistent aiosqlite connection with WAL + asyncio.Queue (no connection pooling — anti-pattern for SQLite)
 - [Phase 04]: asyncio.create_task(_log_search) replaced with direct await — db.write() is already non-blocking via queue
+- [Phase 05]: D-02/D-03: tracked create_task + registry instead of TaskGroup — yield inside TaskGroup is impossible for SSE async generators
+- [Phase 05]: Semaphore acquisition order: _oathnet_sem first then _global_sem — consistent ordering prevents deadlock
 
 ### Pending Todos
 
@@ -78,7 +81,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-01T04:16:26.353Z
-Stopped at: Phase 05 context gathered
-Resume file: .planning/phases/05-async-agent-orchestration/05-CONTEXT.md
+Last session: 2026-04-01T12:15:45.097Z
+Stopped at: Completed 05-01-PLAN.md — TaskOrchestrator implemented and tested
+Resume file: None
 Next action: Switch to Sonnet → /gsd:execute-phase → implement db.py + migrate main.py
