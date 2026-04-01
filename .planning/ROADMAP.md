@@ -184,7 +184,7 @@ Phase 03 (F1 Audit) ──► Phase 04 (F2 SQLite) ──► Phase 05 (F3 Async)
 |-------|---------|----------|------|------------|
 | 03 | F1: Audit | 1 | NONE | 17 findings documented |
 | 04 | F2: SQLite | 1/1 | Complete   | 2026-03-31 |
-| 05 | F3: Async | 2-3 | **MED** | Semaphore(5), zero task leaks |
+| 05 | F3: Async | 2-3 | Complete    | 2026-04-01 |
 | 06 | F4: Memory | 2 | LOW | < 200MB resting RSS |
 | 07 | F6: Stack | 2 | **HIGH** | Python 3.12 + PyJWT + httpx |
 | 08 | F5: Docker | 1 | LOW | < 250MB image |
@@ -228,7 +228,7 @@ Phase 03 (F1 Audit) ──► Phase 04 (F2 SQLite) ──► Phase 05 (F3 Async)
 
 **Verification:** Identical search results before/after; only httpx in requirements; zero .fetchall() in hot paths; OathnetClient instantiated once.
 
-**Plans:** 4 plans
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 11-01-PLAN.md — OathnetClient async httpx migration + singleton pattern
