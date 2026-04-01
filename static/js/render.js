@@ -255,7 +255,7 @@ function renderSocial(s) {
   }
   badge.textContent = s.found_count;
   const badges = s.found.map(p =>
-    `<a href="${esc(p.url)}" target="_blank" class="social-badge">${p.icon||'🔗'} ${esc(p.platform)}</a>`
+    `<a href="${sanitizeUrl(p.url)}" target="_blank" rel="noopener noreferrer" class="social-badge">${p.icon||'🔗'} ${esc(p.platform)}</a>`
   ).join('');
   el.innerHTML = `
     <div class="social-grid">${badges}</div>
@@ -264,7 +264,7 @@ function renderSocial(s) {
       <tbody>${s.found.map(p => `
         <tr>
           <td class="val-amber">${esc(p.platform)}</td>
-          <td><a href="${esc(p.url)}" target="_blank" style="color:var(--blue);font-size:.76rem">${esc(p.url.slice(0,60))}</a></td>
+          <td><a href="${sanitizeUrl(p.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--blue);font-size:.76rem">${esc(p.url.slice(0,60))}</a></td>
           <td class="val-muted">${esc(p.category)}</td>
         </tr>`).join('')}
       </tbody>

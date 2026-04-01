@@ -62,6 +62,21 @@ function sanitizeImageUrl(url) {
   }
 }
 
+// ── Link URL sanitization — blocks javascript:, data:, vbscript: in hrefs ──
+function sanitizeUrl(url) {
+  if (!url || typeof url !== 'string') return '#';
+  try {
+    const parsed = new URL(url);
+    if (!['https:', 'http:'].includes(parsed.protocol)) {
+      console.warn('[NexusOSINT] URL bloqueada (protocolo inválido):', url.slice(0, 80));
+      return '#';
+    }
+    return url;
+  } catch (e) {
+    return '#';
+  }
+}
+
 // ── Toast notification ──
 function showToast(msg, type) {
   const t = document.getElementById('toast');
