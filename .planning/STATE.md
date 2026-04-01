@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0.0
 milestone_name: — Complete)
-status: Executing Phase 11
-stopped_at: Completed 05-01-PLAN.md — TaskOrchestrator implemented and tested
-last_updated: "2026-04-01T19:37:10.523Z"
+status: Ready to execute
+stopped_at: Plan 11-02 complete — HTTP library consolidation to httpx only
+last_updated: "2026-04-01T19:56:42.497Z"
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 15
-  completed_plans: 11
+  completed_plans: 13
 ---
 
 # Project State
@@ -44,6 +44,7 @@ Plan: 2 of 4
 *9 plans total, 16/16 requirements met*
 | Phase 04 P01 | 12 | 4 tasks | 6 files |
 | Phase 05 P01 | 2 | 1 tasks | 2 files |
+| Phase 11 P02 | 2 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -63,6 +64,8 @@ Recent decisions affecting current work:
 - [Phase 04]: asyncio.create_task(_log_search) replaced with direct await — db.write() is already non-blocking via queue
 - [Phase 05]: D-02/D-03: tracked create_task + registry instead of TaskGroup — yield inside TaskGroup is impossible for SSE async generators
 - [Phase 05]: Semaphore acquisition order: _oathnet_sem first then _global_sem — consistent ordering prevents deadlock
+- [Phase 11]: httpx.AsyncClient with verify=False in sherlock_wrapper mirrors original aiohttp ssl=False — intentional for OSINT reachability
+- [Phase 11]: httpx is now sole HTTP client (aiohttp + requests removed) — ~15MB container size reduction, eliminates dual-client surface
 
 ### Pending Todos
 
@@ -81,7 +84,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-01T19:55:00.000Z
-Stopped at: Plan 11-01 complete — OathnetClient async singleton migration done
+Last session: 2026-04-01T19:56:42.492Z
+Stopped at: Plan 11-02 complete — HTTP library consolidation to httpx only
 Resume file: None
 Next action: /gsd:execute-phase 11 → Plan 11-02 HTTP library consolidation
