@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0.0
 milestone_name: — Complete)
 status: Ready to execute
-stopped_at: Completed 11-03-PLAN.md — streaming read + user cache
-last_updated: "2026-04-02T02:03:04.547Z"
+stopped_at: Completed 11-04-PLAN.md — TTL cache + SpiderFoot backoff
+last_updated: "2026-04-02T02:08:41.825Z"
 progress:
   total_phases: 6
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 15
-  completed_plans: 14
+  completed_plans: 15
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-30)
 ## Current Position
 
 Phase: 11 (cost-optimization) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 
 ## Performance Metrics
 
@@ -46,6 +46,7 @@ Plan: 3 of 4
 | Phase 05 P01 | 2 | 1 tasks | 2 files |
 | Phase 11 P02 | 2 | 2 tasks | 2 files |
 | Phase 11 P03 | 3 | 2 tasks | 3 files |
+| Phase 11 P04 | 4 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -69,6 +70,8 @@ Recent decisions affecting current work:
 - [Phase 11]: httpx is now sole HTTP client (aiohttp + requests removed) — ~15MB container size reduction, eliminates dual-client surface
 - [Phase 11]: read_stream uses fetchmany(batch_size=50) — balances memory savings vs DB round-trips on 1GB VPS
 - [Phase 11]: _save_users immediately updates cache to prevent stale reads after write
+- [Phase 11]: TTLCache maxsize=200/ttl=300s wraps all OathNet calls — ~2MB max memory, preserves 100 lookups/day quota
+- [Phase 11]: SpiderFoot polling: exponential backoff 5s->30s cap, ~20 polls vs ~120, total timeout unchanged at 600s
 
 ### Pending Todos
 
@@ -87,7 +90,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-02T02:03:04.541Z
-Stopped at: Completed 11-03-PLAN.md — streaming read + user cache
+Last session: 2026-04-02T02:08:41.816Z
+Stopped at: Completed 11-04-PLAN.md — TTL cache + SpiderFoot backoff
 Resume file: None
 Next action: /gsd:execute-phase 11 → Plan 11-02 HTTP library consolidation
