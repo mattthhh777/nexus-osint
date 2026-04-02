@@ -24,7 +24,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, AsyncGenerator, Optional
 
 import aiosqlite
 
@@ -294,6 +294,32 @@ class DatabaseManager:
         async with self._conn.execute(sql, params) as cur:
             row = await cur.fetchone()
             return dict(row) if row is not None else None
+
+    async def read_stream(
+        self,
+        sql: str,
+        params: tuple[Any, ...] = (),
+        batch_size: int = 50,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        """
+        Execute a read query and yield rows one at a time as dicts.
+
+        Uses fetchmany(batch_size) internally to balance memory vs round-trips.
+        Preferred over read_all() for large result sets (> 100 rows) to avoid
+        loading the full result into memory on the 1GB VPS.
+
+        Direct access — WAL mode allows concurrent reads without blocking writes.
+        """
+        if not self._started:
+            raise RuntimeError("DatabaseManager not started — call startup() first")
+        assert self._conn is not None
+        async with self._conn.execute(sql, params) as cur:
+            while True:
+                rows = await cur.fetchmany(batch_size)
+                if not rows:
+                    break
+                for row in rows:
+                    yield dict(row)
 
 
 # ── Module-level singleton ────────────────────────────────────────────────────
