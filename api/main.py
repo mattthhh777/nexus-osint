@@ -1222,15 +1222,19 @@ async def admin_logs(
     """Recent audit logs with optional user filter."""
     try:
         if username:
-            rows = await _db.read_all(
-                "SELECT * FROM searches WHERE username=? ORDER BY ts DESC LIMIT ? OFFSET ?",
-                (username, limit, offset),
-            )
+            rows = [
+                row async for row in _db.read_stream(
+                    "SELECT * FROM searches WHERE username=? ORDER BY ts DESC LIMIT ? OFFSET ?",
+                    (username, limit, offset),
+                )
+            ]
         else:
-            rows = await _db.read_all(
-                "SELECT * FROM searches ORDER BY ts DESC LIMIT ? OFFSET ?",
-                (limit, offset),
-            )
+            rows = [
+                row async for row in _db.read_stream(
+                    "SELECT * FROM searches ORDER BY ts DESC LIMIT ? OFFSET ?",
+                    (limit, offset),
+                )
+            ]
         return {"logs": rows, "limit": limit, "offset": offset}
     except aiosqlite.OperationalError as exc:
         raise HTTPException(status_code=500, detail=str(exc))
