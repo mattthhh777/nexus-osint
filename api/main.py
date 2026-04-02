@@ -35,6 +35,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 import ipaddress
 
 import aiosqlite
+import psutil
 from cachetools import TTLCache
 from api.db import db as _db  # single-connection DatabaseManager (WAL + write queue)
 from modules.oathnet_client import oathnet_client  # async singleton — one TCP/TLS pool
@@ -70,6 +71,11 @@ _users_cache_mtime: float = 0.0
 
 logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.WARNING))
 logger = logging.getLogger("nexusosint")
+
+# ── Memory watchdog thresholds ───────────────────────────────────────────────
+MEMORY_ALERT_MB: int = 400       # log warning, investigate
+MEMORY_CRITICAL_PCT: int = 85    # pause new agent tasks, return degraded status
+_agents_paused: bool = False     # set True by /health when memory is critical
 
 # ── TTL cache for external API responses ─────────────────────────────────────
 # 5-min TTL, max 200 entries — 200 * ~10KB avg = ~2MB max, acceptable for 1GB VPS
@@ -671,6 +677,12 @@ async def search(
     user: dict = Depends(get_current_user),
 ):
     """Protected SSE search endpoint."""
+    if _agents_paused:
+        raise HTTPException(
+            status_code=503,
+            detail="Service degraded — memory pressure. Retry in a few minutes.",
+            headers={"Retry-After": "120"},
+        )
     client_ip = get_client_ip(request)
     if not await _check_rate(f"search:{client_ip}", 10, 60):
         raise HTTPException(status_code=429, detail="Rate limit exceeded. Max 20 searches/minute.")
@@ -1507,5 +1519,30 @@ async def sf_status(_: dict = Depends(get_current_user)):
 @app.get("/health")
 @app.head("/health")
 async def health():
-    return {"status": "ok", "version": "3.0.0",
-            "timestamp": datetime.now(timezone.utc).isoformat()}
+    global _agents_paused
+    mem = psutil.virtual_memory()
+    swap = psutil.swap_memory()
+    cpu = psutil.cpu_percent(interval=0.1)
+    mem_mb = mem.used / 1024 / 1024
+
+    if mem.percent > MEMORY_CRITICAL_PCT:
+        _agents_paused = True
+        logger.warning("Memory critical %.0f%% — new agents paused", mem.percent)
+    elif _agents_paused and mem.percent <= MEMORY_CRITICAL_PCT - 10:
+        # Auto-resume once memory drops 10% below critical threshold
+        _agents_paused = False
+        logger.info("Memory recovered %.0f%% — agents resumed", mem.percent)
+
+    if mem_mb > MEMORY_ALERT_MB and not _agents_paused:
+        logger.warning("Memory alert %.0fMB — investigate", mem_mb)
+
+    return {
+        "status": "degraded" if _agents_paused else "healthy",
+        "version": "3.0.0",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "memory_used_mb": round(mem_mb, 1),
+        "memory_pct": mem.percent,
+        "cpu_pct": cpu,
+        "swap_used_mb": round(swap.used / 1024 / 1024, 1),
+        "agents_paused": _agents_paused,
+    }
