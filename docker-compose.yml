@@ -1,0 +1,87 @@
+services:
+
+  # ── NexusOSINT FastAPI backend ──────────────────────────────────────────
+  nexus:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nexus-osint
+    restart: unless-stopped
+    working_dir: /app
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000
+    environment:
+      - OATHNET_API_KEY=${OATHNET_API_KEY}
+      - SPIDERFOOT_URL=http://spiderfoot:5001
+      - APP_PASSWORD=${APP_PASSWORD:-}
+      - JWT_SECRET=${JWT_SECRET}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://nexusosint.uk}
+      - LOG_LEVEL=WARNING
+      - PYTHONPATH=/app
+      - ENV=prod
+    volumes:
+      - nexus_data:/app/data
+      - /root/nexus-osint/api:/app/api:ro
+      - /root/nexus-osint/static:/app/static:ro
+      - /root/nexus-osint/modules:/app/modules:ro
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 800m
+        reservations:
+          memory: 200m
+    mem_swappiness: 10
+    networks:
+      - internal
+
+  # ── Nginx reverse proxy + SSL ──────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: nexus-nginx
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /root/nexus-osint/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /root/nexus-osint/static:/etc/nginx/static:ro
+      - certbot_www:/var/www/certbot:ro
+      - /root/nexus-osint/certbot_certs:/etc/letsencrypt:ro
+    depends_on:
+      - nexus
+    networks:
+      - internal
+      - external
+
+  # ── Certbot (Let's Encrypt auto-renewal) ──────────────────────────────
+  certbot:
+    image: certbot/certbot:latest
+    container_name: nexus-certbot
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - certbot_www:/var/www/certbot
+      - /root/nexus-osint/certbot_certs:/etc/letsencrypt
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done;'"
+    restart: unless-stopped
+
+volumes:
+  nexus_data:
+    driver: local
+  certbot_www:
+    driver: local
+
+networks:
+  internal:
+    driver: bridge
+  external:
+    driver: bridge
