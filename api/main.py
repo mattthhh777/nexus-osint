@@ -63,6 +63,10 @@ DATA_DIR   = Path("/app/data")
 USERS_FILE = DATA_DIR / "users.json"
 AUDIT_DB   = DATA_DIR / "audit.db"
 
+# ── User cache — avoids redundant disk reads on every admin request ────────────
+_users_cache: dict | None = None
+_users_cache_mtime: float = 0.0
+
 logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.WARNING))
 logger = logging.getLogger("nexusosint")
 
@@ -202,17 +206,28 @@ security = HTTPBearer(auto_error=False)
 # ── Users management ──────────────────────────────────────────────────────────
 
 def _load_users() -> dict:
+    global _users_cache, _users_cache_mtime
     if not USERS_FILE.exists():
+        _users_cache = {}
+        _users_cache_mtime = 0.0
         return {}
     try:
-        return json.loads(USERS_FILE.read_text())
-    except Exception as _e:
-        logger.error("_load_users failed: %s", _e)
-        return {}
+        current_mtime = USERS_FILE.stat().st_mtime
+        if _users_cache is not None and current_mtime == _users_cache_mtime:
+            return _users_cache
+        _users_cache = json.loads(USERS_FILE.read_text())
+        _users_cache_mtime = current_mtime
+        return _users_cache
+    except (OSError, json.JSONDecodeError) as e:
+        logger.error("_load_users failed: %s", e)
+        return _users_cache if _users_cache is not None else {}
 
 def _save_users(users: dict) -> None:
+    global _users_cache, _users_cache_mtime
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     USERS_FILE.write_text(json.dumps(users, indent=2))
+    _users_cache = users
+    _users_cache_mtime = USERS_FILE.stat().st_mtime
 
 def _safe_hash(password: str) -> str:
     """Hash password safely using bcrypt directly (bypasses passlib bugs)."""
