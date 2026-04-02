@@ -35,6 +35,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 import ipaddress
 
 import aiosqlite
+from cachetools import TTLCache
 from api.db import db as _db  # single-connection DatabaseManager (WAL + write queue)
 from modules.oathnet_client import oathnet_client  # async singleton — one TCP/TLS pool
 
@@ -69,6 +70,28 @@ _users_cache_mtime: float = 0.0
 
 logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.WARNING))
 logger = logging.getLogger("nexusosint")
+
+# ── TTL cache for external API responses ─────────────────────────────────────
+# 5-min TTL, max 200 entries — 200 * ~10KB avg = ~2MB max, acceptable for 1GB VPS
+# Preserves OathNet 100 lookups/day quota: repeat queries within 5 min skip the API
+_api_cache: TTLCache = TTLCache(maxsize=200, ttl=300)
+
+
+def _cache_key(endpoint: str, query: str) -> str:
+    """Generate normalised cache key for external API responses."""
+    return f"{endpoint}:{query.lower().strip()}"
+
+
+def _get_cached(endpoint: str, query: str):
+    """Return cached API response or None if absent / expired."""
+    return _api_cache.get(_cache_key(endpoint, query))
+
+
+def _set_cached(endpoint: str, query: str, data) -> None:
+    """Store a successful API response in cache. Never cache None / errors."""
+    if data is not None:
+        _api_cache[_cache_key(endpoint, query)] = data
+
 
 # ── Models ────────────────────────────────────────────────────────────────────
 
@@ -737,31 +760,70 @@ async def _stream_search(
         yield progress("Searching breach databases & stealer logs…")
         ran += ["breach", "stealer"]
         try:
-            tasks = [oathnet_client.search_breach(query)]
+            # Check breach cache first — avoids OathNet API call within 5-min TTL
+            cached_breach = _get_cached("breach", query)
+            if cached_breach is not None:
+                tasks = []
+                breach_future = cached_breach
+            else:
+                tasks = [oathnet_client.search_breach(query)]
+                breach_future = None
+
+            stealer_future = None
             if run.get("stealer"):
-                tasks.append(oathnet_client.search_stealer_v2(query))
-            results_gathered = await asyncio.gather(*tasks, return_exceptions=True)
-            res = results_gathered[0] if not isinstance(results_gathered[0], Exception) else None
+                cached_stealer = _get_cached("stealer", query)
+                if cached_stealer is not None:
+                    stealer_future = cached_stealer
+                else:
+                    tasks.append(oathnet_client.search_stealer_v2(query))
+
+            results_gathered = await asyncio.gather(*tasks, return_exceptions=True) if tasks else []
+
+            # Reconstruct results: cache hits are already resolved, API results from gather
+            gather_idx = 0
+            if breach_future is not None:
+                res = breach_future
+            else:
+                raw = results_gathered[gather_idx] if gather_idx < len(results_gathered) else None
+                res = raw if not isinstance(raw, Exception) else None
+                if res is not None:
+                    _set_cached("breach", query, res)
+                gather_idx += 1
+
+            if run.get("stealer"):
+                if stealer_future is not None:
+                    sts_result = stealer_future
+                else:
+                    raw_sts = results_gathered[gather_idx] if gather_idx < len(results_gathered) else None
+                    sts_result = raw_sts if not isinstance(raw_sts, Exception) else None
+                    if sts_result is not None:
+                        _set_cached("stealer", query, sts_result)
+                    gather_idx += 1
+            else:
+                sts_result = None
 
             if res is None:
-                yield event({"type": "module_error", "module": "breach",
-                             "error": str(results_gathered[0])})
+                err_detail = str(results_gathered[0]) if results_gathered else "Breach search failed"
+                yield event({"type": "module_error", "module": "breach", "error": err_detail})
             else:
-                if run.get("stealer") and len(results_gathered) > 1:
-                    sts = results_gathered[1]
-                    if not isinstance(sts, Exception):
-                        res.stealers      = sts.stealers
-                        res.stealers_found = sts.stealers_found
+                if run.get("stealer") and sts_result is not None:
+                    res.stealers       = sts_result.stealers
+                    res.stealers_found = sts_result.stealers_found
 
                 if run.get("holehe") and is_email:
                     ran.append("holehe")
-                    h, timed_out = await with_timeout(
-                        oathnet_client.holehe(query), "holehe"
-                    )
-                    if timed_out:
-                        logger.warning("Holehe timed out")
-                    elif h:
-                        res.holehe_domains = h.holehe_domains
+                    cached_holehe = _get_cached("holehe", query)
+                    if cached_holehe is not None:
+                        res.holehe_domains = cached_holehe
+                    else:
+                        h, timed_out = await with_timeout(
+                            oathnet_client.holehe(query), "holehe"
+                        )
+                        if timed_out:
+                            logger.warning("Holehe timed out")
+                        elif h:
+                            res.holehe_domains = h.holehe_domains
+                            _set_cached("holehe", query, h.holehe_domains)
 
                 breaches_data = _serialize_breaches(res.breaches)
                 breach_count  = len(breaches_data)
@@ -856,20 +918,35 @@ async def _stream_search(
             })
         else:
             try:
-                (ok_u, user_data), td1 = await with_timeout(
-                    oathnet_client.discord_userinfo(query), "discord"
-                )
-                (ok_h, raw_hist), td2 = await with_timeout(
-                    oathnet_client.discord_username_history(query), "discord"
-                )
-                if td1: ok_u = False; user_data = None
-                if td2: ok_h = False; raw_hist = None
-                yield event({
-                    "type": "discord",
-                    "user": user_data if ok_u else None,
-                    "history": _parse_discord_history(raw_hist) if ok_h else None,
-                    "timeout": td1,
-                })
+                cached_disc_user = _get_cached("discord_user", query)
+                cached_disc_hist = _get_cached("discord_hist", query)
+
+                if cached_disc_user is not None and cached_disc_hist is not None:
+                    yield event({
+                        "type": "discord",
+                        "user": cached_disc_user,
+                        "history": _parse_discord_history(cached_disc_hist),
+                        "timeout": False,
+                    })
+                else:
+                    (ok_u, user_data), td1 = await with_timeout(
+                        oathnet_client.discord_userinfo(query), "discord"
+                    )
+                    (ok_h, raw_hist), td2 = await with_timeout(
+                        oathnet_client.discord_username_history(query), "discord"
+                    )
+                    if td1: ok_u = False; user_data = None
+                    if td2: ok_h = False; raw_hist = None
+                    if ok_u and user_data is not None:
+                        _set_cached("discord_user", query, user_data)
+                    if ok_h and raw_hist is not None:
+                        _set_cached("discord_hist", query, raw_hist)
+                    yield event({
+                        "type": "discord",
+                        "user": user_data if ok_u else None,
+                        "history": _parse_discord_history(raw_hist) if ok_h else None,
+                        "timeout": td1,
+                    })
             except Exception as exc:
                 yield event({"type": "module_error", "module": "discord", "error": str(exc)})
 
@@ -878,13 +955,19 @@ async def _stream_search(
         yield progress("Fetching IP geolocation…")
         ran.append("ip_info")
         try:
-            (ok, data), timed_out = await with_timeout(
-                oathnet_client.ip_info(query), "ip_info"
-            )
-            if timed_out:
-                yield event({"type": "module_error", "module": "ip_info", "error": "IP lookup timed out"})
+            cached_ip = _get_cached("ip_info", query)
+            if cached_ip is not None:
+                yield event({"type": "ip_info", "ok": True, "data": cached_ip})
             else:
-                yield event({"type": "ip_info", "ok": ok, "data": data if ok else None})
+                (ok, data), timed_out = await with_timeout(
+                    oathnet_client.ip_info(query), "ip_info"
+                )
+                if timed_out:
+                    yield event({"type": "module_error", "module": "ip_info", "error": "IP lookup timed out"})
+                else:
+                    if ok and data is not None:
+                        _set_cached("ip_info", query, data)
+                    yield event({"type": "ip_info", "ok": ok, "data": data if ok else None})
         except Exception as exc:
             yield event({"type": "module_error", "module": "ip_info", "error": str(exc)})
 
@@ -909,15 +992,21 @@ async def _stream_search(
         yield progress("Looking up Steam profile…")
         ran.append("steam")
         try:
-            (ok, data), timed_out = await with_timeout(
-                oathnet_client.steam_lookup(query), "steam"
-            )
-            if timed_out:
-                yield event({"type": "module_error", "module": "steam", "error": "Steam lookup timed out"})
+            cached_steam = _get_cached("steam", query)
+            if cached_steam is not None:
+                yield event({"type": "steam", "ok": True, "data": cached_steam})
             else:
-                yield event({"type": "steam", "ok": ok,
-                             "data": data if ok else None,
-                             "error": data.get("error") if not ok else None})
+                (ok, data), timed_out = await with_timeout(
+                    oathnet_client.steam_lookup(query), "steam"
+                )
+                if timed_out:
+                    yield event({"type": "module_error", "module": "steam", "error": "Steam lookup timed out"})
+                else:
+                    if ok and data is not None:
+                        _set_cached("steam", query, data)
+                    yield event({"type": "steam", "ok": ok,
+                                 "data": data if ok else None,
+                                 "error": data.get("error") if not ok else None})
         except Exception as exc:
             yield event({"type": "module_error", "module": "steam", "error": str(exc)})
 
@@ -926,13 +1015,19 @@ async def _stream_search(
         yield progress("Looking up Xbox profile…")
         ran.append("xbox")
         try:
-            (ok, data), timed_out = await with_timeout(
-                oathnet_client.xbox_lookup(query), "xbox"
-            )
-            if timed_out:
-                yield event({"type": "module_error", "module": "xbox", "error": "Xbox lookup timed out"})
+            cached_xbox = _get_cached("xbox", query)
+            if cached_xbox is not None:
+                yield event({"type": "xbox", "ok": True, "data": cached_xbox})
             else:
-                yield event({"type": "xbox", "ok": ok, "data": data if ok else None})
+                (ok, data), timed_out = await with_timeout(
+                    oathnet_client.xbox_lookup(query), "xbox"
+                )
+                if timed_out:
+                    yield event({"type": "module_error", "module": "xbox", "error": "Xbox lookup timed out"})
+                else:
+                    if ok and data is not None:
+                        _set_cached("xbox", query, data)
+                    yield event({"type": "xbox", "ok": ok, "data": data if ok else None})
         except Exception as exc:
             yield event({"type": "module_error", "module": "xbox", "error": str(exc)})
 
@@ -941,13 +1036,19 @@ async def _stream_search(
         yield progress("Looking up Roblox profile…")
         ran.append("roblox")
         try:
-            (ok, data), timed_out = await with_timeout(
-                oathnet_client.roblox_lookup(username=query), "roblox"
-            )
-            if timed_out:
-                yield event({"type": "module_error", "module": "roblox", "error": "Roblox lookup timed out"})
+            cached_roblox = _get_cached("roblox", query)
+            if cached_roblox is not None:
+                yield event({"type": "roblox", "ok": True, "data": cached_roblox})
             else:
-                yield event({"type": "roblox", "ok": ok, "data": data if ok else None})
+                (ok, data), timed_out = await with_timeout(
+                    oathnet_client.roblox_lookup(username=query), "roblox"
+                )
+                if timed_out:
+                    yield event({"type": "module_error", "module": "roblox", "error": "Roblox lookup timed out"})
+                else:
+                    if ok and data is not None:
+                        _set_cached("roblox", query, data)
+                    yield event({"type": "roblox", "ok": ok, "data": data if ok else None})
         except Exception as exc:
             yield event({"type": "module_error", "module": "roblox", "error": str(exc)})
 

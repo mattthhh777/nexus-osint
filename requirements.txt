@@ -10,3 +10,4 @@ tenacity==8.5.0
 python-jose[cryptography]==3.3.0
 bcrypt==4.2.1
 aiosqlite==0.20.0
+cachetools==5.5.0
