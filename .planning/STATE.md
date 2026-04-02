@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0.0
 milestone_name: — Complete)
 status: Ready to execute
-stopped_at: Plan 11-02 complete — HTTP library consolidation to httpx only
-last_updated: "2026-04-01T19:56:42.497Z"
+stopped_at: Completed 11-03-PLAN.md — streaming read + user cache
+last_updated: "2026-04-02T02:03:04.547Z"
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 15
-  completed_plans: 13
+  completed_plans: 14
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-30)
 ## Current Position
 
 Phase: 11 (cost-optimization) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 
 ## Performance Metrics
 
@@ -45,6 +45,7 @@ Plan: 2 of 4
 | Phase 04 P01 | 12 | 4 tasks | 6 files |
 | Phase 05 P01 | 2 | 1 tasks | 2 files |
 | Phase 11 P02 | 2 | 2 tasks | 2 files |
+| Phase 11 P03 | 3 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -66,6 +67,8 @@ Recent decisions affecting current work:
 - [Phase 05]: Semaphore acquisition order: _oathnet_sem first then _global_sem — consistent ordering prevents deadlock
 - [Phase 11]: httpx.AsyncClient with verify=False in sherlock_wrapper mirrors original aiohttp ssl=False — intentional for OSINT reachability
 - [Phase 11]: httpx is now sole HTTP client (aiohttp + requests removed) — ~15MB container size reduction, eliminates dual-client surface
+- [Phase 11]: read_stream uses fetchmany(batch_size=50) — balances memory savings vs DB round-trips on 1GB VPS
+- [Phase 11]: _save_users immediately updates cache to prevent stale reads after write
 
 ### Pending Todos
 
@@ -84,7 +87,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-01T19:56:42.492Z
-Stopped at: Plan 11-02 complete — HTTP library consolidation to httpx only
+Last session: 2026-04-02T02:03:04.541Z
+Stopped at: Completed 11-03-PLAN.md — streaming read + user cache
 Resume file: None
 Next action: /gsd:execute-phase 11 → Plan 11-02 HTTP library consolidation
