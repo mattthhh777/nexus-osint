@@ -1330,17 +1330,27 @@ async def _run_spiderfoot(target: str, scan_mode: str) -> AsyncGenerator[str, No
             scan_id = scan_resp.json().get("id", "")
             yield event({"type": "spiderfoot_started", "scan_id": scan_id})
 
-            for _ in range(120):
-                await asyncio.sleep(5)
+            poll_interval = 5.0   # start at 5s
+            max_interval  = 30.0  # cap at 30s
+            max_elapsed   = 600.0 # 10 min total timeout (same as before: 120 * 5s)
+            elapsed       = 0.0
+
+            while elapsed < max_elapsed:
+                await asyncio.sleep(poll_interval)
+                elapsed += poll_interval
                 try:
                     sr = await http.get(f"{SPIDERFOOT_URL}/api/v1/scanstatus/{scan_id}")
                     if sr.status_code != 200:
+                        poll_interval = min(poll_interval * 2, max_interval)
                         continue
                     sc = sr.json().get("status", "")
                     yield event({"type": "spiderfoot_progress", "status": sc})
                     if sc in ("FINISHED", "ABORTED", "ERROR"):
                         break
-                except Exception:
+                    # Backoff: double interval each successful poll, cap at 30s
+                    poll_interval = min(poll_interval * 2, max_interval)
+                except httpx.HTTPError:
+                    poll_interval = min(poll_interval * 2, max_interval)
                     continue
 
             rr = await http.get(f"{SPIDERFOOT_URL}/api/v1/scaneventresults/{scan_id}")
