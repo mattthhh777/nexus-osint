@@ -58,7 +58,7 @@ completed: 2026-04-06
 - **Duration:** ~13 min
 - **Started:** 2026-04-06T17:16:00Z
 - **Completed:** 2026-04-06T17:29:00Z
-- **Tasks:** 3/3 auto (checkpoint Task 4 awaiting human verification)
+- **Tasks:** 4/4 (3 auto + 1 human-verify checkpoint — approved by user)
 - **Files modified:** 5
 
 ## Accomplishments
@@ -143,7 +143,16 @@ On a fresh VPS deploy, Docker will download ~78MB (compressed) for the new layer
 
 The plan's 250MB target was set optimistically — PROJECT.md acknowledges this: "Docker target <250MB not <150MB — Realistic with Python 3.12-slim + dependencies." Legitimate path to reduce virtual size: remove `curl` (replace HEALTHCHECK with a Python script), remove `gosu` (use USER directive). These are F5 optimizations. The current 306MB virtual size is compliant with the production operational reality.
 
-**Decision for Math:** The checkpoint asks you to confirm whether to approve as-is or request F5 optimization first.
+**Decision recorded:** User approved at checkpoint (2026-04-06). Image size accepted as-is; F5 Docker Optimization remains the venue for further reduction.
+
+## Checkpoint Resolution
+
+**Task 4: Human verification of 3.12 upgrade** — APPROVED
+- User reviewed Dockerfile diff (2-line change, both FROM statements)
+- 27/27 tests confirmed green inside 3.12 container
+- Image size 306MB accepted (F5 scope for reduction)
+- `/health` endpoint confirmed responding correctly
+- VPS deploy unblocked via DEPLOY.md Upgrade Procedure
 
 ## Self-Check: PASSED
 
