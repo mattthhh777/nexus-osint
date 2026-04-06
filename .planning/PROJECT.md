@@ -45,14 +45,14 @@ A single search query returns comprehensive intelligence from 13+ OSINT modules 
 
 ### Active
 
-- [ ] Codebase audit with severity report (F1)
-- [ ] SQLite WAL mode + write serialization via asyncio.Queue (F2)
-- [x] Async agent orchestration with TaskGroup + Semaphore(5) (F3) — Validated in Phase 05: TaskOrchestrator with dual semaphore (Global=5, OathNet=3), queue bridge, task registry
-- [ ] Memory-disciplined architecture <200MB resting (F4)
-- [ ] Docker multi-stage build <250MB with OOM protection (F5)
-- [ ] Python 3.12+ migration with dependency validation (F6)
-- [ ] CSP headers + JWT httpOnly + per-endpoint rate limiting (F7)
-- [ ] Health monitoring watchdog with graceful degradation (F8)
+- [x] Codebase audit with severity report (F1) — 17 findings documented, user approved. Phase 03
+- [x] SQLite WAL mode + write serialization via asyncio.Queue (F2) — WAL + single conn + write queue. Phase 04
+- [x] Async agent orchestration with TaskGroup + Semaphore(5) (F3) — TaskOrchestrator with dual semaphore (Global=5, OathNet=3), queue bridge, task registry. Phase 05. Note: not yet wired to _stream_search
+- [x] Memory-disciplined architecture <200MB resting (F4) — Breach serialize cap, Sherlock async+512KB bound, tracemalloc, /health/memory. Phase 06. Pending VPS RSS verification
+- [x] Docker multi-stage build with OOM protection (F5) — multi-stage, memory limits, psutil watchdog. Phase 07 note: virtual size 306MB (content 78MB), user-accepted. Phase 05/07
+- [x] Python 3.12+ migration with dependency validation (F6) — 3.12.13 in container, 27/27 tests green, tenacity removed, FIND-16 anchored. Validated in Phase 07
+- [ ] CSP headers + JWT httpOnly + per-endpoint rate limiting (F7) — Note: JWT httpOnly already done in Phase 11
+- [ ] Health monitoring watchdog with graceful degradation (F8) — Note: /health and /health/memory already exist from Phase 06
 
 ### Out of Scope
 
@@ -100,14 +100,18 @@ A single search query returns comprehensive intelligence from 13+ OSINT modules 
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Keep vanilla JS/CSS stack | Production working, rewrite risk too high | ✓ Good |
-| Meridian design system | Consistent visual language, single source of truth | ✓ Good |
-| SQLite with WAL, not PostgreSQL | 1GB RAM constraint; WAL handles concurrent reads; asyncio.Queue serializes writes | -- Pending |
-| TaskGroup + Semaphore, not heavy processes | OOM prevention on 1GB VPS; TaskGroup auto-cancels on failure | -- Pending |
-| Docker target <250MB not <150MB | Realistic with Python 3.12-slim + dependencies | -- Pending |
-| F1 audit gates all other features | Must understand current state before changing architecture | -- Pending |
-| slowapi for rate limiting | FastAPI-native, per-endpoint control | -- Pending |
-| loguru over stdlib logging | Structured logging, never log sensitive data | -- Pending |
+| Keep vanilla JS/CSS stack | Production working, rewrite risk too high | ✅ Good |
+| Meridian design system | Consistent visual language, single source of truth | ✅ Good |
+| SQLite with WAL, not PostgreSQL | 1GB RAM constraint; WAL handles concurrent reads; asyncio.Queue serializes writes | ✅ Validated Phase 04 |
+| TaskGroup + Semaphore, not heavy processes | OOM prevention on 1GB VPS; dual semaphore (Global=5, OathNet=3) | ✅ Validated Phase 05 |
+| Docker target <250MB not <150MB | Realistic with Python 3.12-slim + dependencies | ⏳ Pending Phase 08 |
+| F1 audit gates all other features | Must understand current state before changing architecture | ✅ Validated Phase 03 |
+| slowapi for rate limiting | FastAPI-native, per-endpoint control | ⏳ Pending |
+| loguru over stdlib logging | Structured logging, never log sensitive data | ⏳ Pending |
+| httpx as sole HTTP client | Remove requests + aiohttp — 15MB container reduction | ✅ Validated Phase 11 |
+| TTLCache for API responses | maxsize=200, ttl=300s — preserves OathNet 100/day quota | ✅ Validated Phase 11 |
+| tracemalloc in production | ~3-5% CPU overhead acceptable on 1vCPU for diagnostics | ✅ Validated Phase 06 |
+| Breach serialize cap at 200 | SSE needs complete JSON; cursor pagination for rest | ✅ Validated Phase 06 |
 
 ## Evolution
 
@@ -127,4 +131,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-01 after Phase 05 completion*
+*Last updated: 2026-04-02 after Phase 06 completion*
