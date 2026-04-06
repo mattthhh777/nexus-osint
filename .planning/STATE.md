@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0.0
 milestone_name: — Complete)
-status: Ready to execute
-stopped_at: Completed 07-02-PLAN.md (tenacity removal + FIND-16 anchor)
-last_updated: "2026-04-06T17:15:21.792Z"
+status: Phase complete — ready for verification
+stopped_at: "Checkpoint: 07-03 Task 4 — human verification of Python 3.12 upgrade"
+last_updated: "2026-04-06T17:30:15.956Z"
 progress:
   total_phases: 8
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 20
-  completed_plans: 19
+  completed_plans: 20
 ---
 
 # Project State
@@ -50,6 +50,7 @@ Plan: 3 of 3
 | Phase 06 P01 | 6 | 6 tasks | 2 files |
 | Phase 07 P01 | 8 | 2 tasks | 2 files |
 | Phase 07 P02 | 3 | 2 tasks | 2 files |
+| Phase 07 P03 | 13 | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,8 @@ Recent decisions affecting current work:
 - [Phase 07]: D-02: DEPLOY.md rollback runbook committed before any base-image change — nexus:pre-py312-backup tag + pip freeze are mandatory pre-upgrade steps
 - [Phase 07]: D-03: tenacity removed — zero application imports found, package served no active purpose
 - [Phase 07]: FIND-16: confirmed single 429 branch in OathnetClient._handle(); anchor comment added to prevent regression
+- [Phase 07]: Image virtual size 306MB (content 78.2MB) — 250MB hard constraint cannot be met with python:3.12-slim + current deps; F5 Docker Optimization is the right venue for further size reduction
+- [Phase 07]: FastAPI @app.on_event migrated to asynccontextmanager lifespan — on_event deprecated in FastAPI 0.93+, fatal under -W error::DeprecationWarning
 
 ### Pending Todos
 
@@ -106,7 +109,7 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-04-06T17:15:21.786Z
-Stopped at: Completed 07-02-PLAN.md (tenacity removal + FIND-16 anchor)
+Last session: 2026-04-06T17:30:15.951Z
+Stopped at: Checkpoint: 07-03 Task 4 — human verification of Python 3.12 upgrade
 Resume file: None
 Next action: Plan Phase 07 (F6 Stack Modernization) — `/gsd:plan-phase 7`
