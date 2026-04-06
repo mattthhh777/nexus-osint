@@ -249,7 +249,7 @@ Phase 03 (F1 Audit) ──► Phase 04 (F2 SQLite) ──► Phase 05 (F3 Async)
 
 **Verification:** ✅ 14/14 observable truths confirmed. Identical search results; only httpx in requirements; zero .fetchall() in hot paths; OathnetClient singleton.
 
-**Plans:** 5/5 complete
+**Plans:** 3/3 plans complete
 - [x] 11-01-PLAN.md — OathnetClient async httpx migration + singleton pattern
 - [x] 11-02-PLAN.md — HTTP library consolidation (remove aiohttp + requests)
 - [x] 11-03-PLAN.md — DB streaming reads + _load_users cache
