@@ -193,6 +193,7 @@ class OathnetClient:
             return False, {"error": "Forbidden (HTTP 403) — quota exceeded or Cloudflare block."}
         if status == 503:
             return False, {"error": "OathNet endpoint temporarily unavailable (HTTP 503). Try again in a few minutes."}
+        # FIND-16: single 429 check — do NOT duplicate. See .planning/codebase/CONCERNS.md
         if status == 429:
             return False, {"error": "OathNet rate limit exceeded (HTTP 429). Wait before retrying."}
         if status == 404:
