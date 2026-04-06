@@ -23,16 +23,24 @@ from typing import AsyncGenerator, Optional, Union
 
 import httpx
 from dotenv import load_dotenv
+from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse, RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
-from jose import JWTError, jwt
+import jwt
+try:
+    from jwt.exceptions import InvalidTokenError as JWTError
+except ImportError:
+    # Fallback para versões ou ambientes específicos
+    from jwt import InvalidTokenError as JWTError
 import bcrypt as _bcrypt_lib
 from pydantic import BaseModel, field_validator
 from starlette.middleware.base import BaseHTTPMiddleware
 import ipaddress
+
+import tracemalloc
 
 import aiosqlite
 import psutil
@@ -204,7 +212,23 @@ def get_client_ip(request: Request) -> str:
     except ValueError:
         return "unknown"
 
-app = FastAPI(title="NexusOSINT", version="3.0.0", docs_url=None, redoc_url=None, openapi_url=None)
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    """Application lifespan — replaces deprecated @app.on_event handlers."""
+    # startup
+    tracemalloc.start(10)  # 10 frames — memory profiling for /health/memory
+    _ensure_default_user()
+    await _db.startup(db_path=AUDIT_DB)
+    logger.info("NexusOSINT v3.0 started — %d allowed origins, tracemalloc active", len(_ALLOWED_ORIGINS))
+    yield
+    # shutdown
+    await _db.shutdown()
+    if oathnet_client:
+        await oathnet_client.close()
+    logger.info("NexusOSINT v3.0 shutdown complete")
+
+
+app = FastAPI(title="NexusOSINT", version="3.0.0", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 # Allowed origins — add your domain here
 _ALLOWED_ORIGINS = [
     o.strip() for o in
@@ -270,7 +294,7 @@ def _safe_verify(password: str, hashed: str) -> bool:
     safe = hashlib.sha256(password.encode()).hexdigest().encode()
     try:
         return _bcrypt_lib.checkpw(safe, hashed.encode() if isinstance(hashed, str) else hashed)
-    except Exception as _e:
+    except (ValueError, TypeError, UnicodeDecodeError) as _e:
         logger.warning("_safe_verify failed: %s", _e)
         return False
 
@@ -350,7 +374,7 @@ async def _check_blacklist(jti: Optional[str]) -> None:
             )
     except HTTPException:
         raise
-    except Exception as exc:
+    except aiosqlite.Error as exc:
         logger.warning("Blacklist check failed (fail-open): %s", exc)
 
 async def _revoke_token(jti: Optional[str], exp: Optional[int]) -> None:
@@ -439,19 +463,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 app.add_middleware(SecurityHeadersMiddleware)
 
 
-@app.on_event("startup")
-async def startup() -> None:
-    _ensure_default_user()
-    await _db.startup(db_path=AUDIT_DB)
-    logger.info("NexusOSINT v3.0 started — %d allowed origins", len(_ALLOWED_ORIGINS))
-
-
-@app.on_event("shutdown")
-async def shutdown() -> None:
-    await _db.shutdown()
-    if oathnet_client:
-        await oathnet_client.close()
-    logger.info("NexusOSINT v3.0 shutdown complete")
+# Startup and shutdown are handled by the lifespan context manager above.
 
 
 # ── Root ──────────────────────────────────────────────────────────────────────
@@ -656,11 +668,17 @@ async def with_timeout(coro, module: str, default=None):
         return default, True
 
 
-def _serialize_breaches(breaches) -> list[dict]:
+# Memory guard: serialize at most MAX_BREACH_SERIALIZE breaches in the SSE payload.
+# Frontend paginates at BREACH_PAGE_SIZE=25; cursor API (/api/search/more-breaches)
+# fetches the rest on demand. 200 breaches ≈ 200KB JSON — acceptable for 1GB VPS.
+MAX_BREACH_SERIALIZE = 200
+
+
+def _serialize_breaches(breaches, limit: int = MAX_BREACH_SERIALIZE) -> list[dict]:
     return [{"dbname": b.dbname, "email": b.email, "username": b.username,
              "password": b.password, "ip": b.ip, "country": b.country,
              "date": b.date, "discord_id": b.discord_id, "phone": b.phone,
-             "extra": b.extra_fields} for b in breaches]
+             "extra": b.extra_fields} for b in breaches[:limit]]
 
 def _serialize_stealers(stealers) -> list[dict]:
     return [{"url": s.url, "username": s.username, "password": s.password,
@@ -883,10 +901,10 @@ async def _stream_search(
                                 "user": user_data if ok_u else None,
                                 "history": _parse_discord_history(raw_hist) if ok_h else None,
                             })
-                        except Exception as exc:
+                        except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
                             logger.warning("Auto Discord failed %s: %s", disc_id, exc)
 
-        except Exception as exc:
+        except (httpx.HTTPError, aiosqlite.Error, ValueError, KeyError, TypeError) as exc:
             logger.error("OathNet failed: %s", exc)
             yield event({"type": "module_error", "module": "oathnet", "error": str(exc)})
 
@@ -897,7 +915,7 @@ async def _stream_search(
         try:
             uname = query if is_user else query.split("@")[0]
             sherl, timed_out = await with_timeout(
-                asyncio.to_thread(search_username, uname, False), "sherlock"
+                search_username(uname, False), "sherlock"
             )
             if timed_out:
                 yield event({"type": "module_error", "module": "sherlock",
@@ -913,7 +931,7 @@ async def _stream_search(
                                "category": p.category, "icon": p.icon}
                               for p in sherl.found],
                 })
-        except Exception as exc:
+        except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
             logger.error("Sherlock failed: %s", exc)
             yield event({"type": "module_error", "module": "sherlock", "error": str(exc)})
 
@@ -959,7 +977,8 @@ async def _stream_search(
                         "history": _parse_discord_history(raw_hist) if ok_h else None,
                         "timeout": td1,
                     })
-            except Exception as exc:
+            except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+                logger.error("Discord failed: %s", exc)
                 yield event({"type": "module_error", "module": "discord", "error": str(exc)})
 
     # ── IP Info ───────────────────────────────────────────────────────────
@@ -980,7 +999,8 @@ async def _stream_search(
                     if ok and data is not None:
                         _set_cached("ip_info", query, data)
                     yield event({"type": "ip_info", "ok": ok, "data": data if ok else None})
-        except Exception as exc:
+        except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+            logger.error("IP info failed: %s", exc)
             yield event({"type": "module_error", "module": "ip_info", "error": str(exc)})
 
     # ── Subdomains ────────────────────────────────────────────────────────
@@ -996,7 +1016,8 @@ async def _stream_search(
             else:
                 subs = data.get("subdomains", []) if ok else []
                 yield event({"type": "subdomains", "ok": ok, "data": subs, "count": len(subs)})
-        except Exception as exc:
+        except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+            logger.error("Subdomains failed: %s", exc)
             yield event({"type": "module_error", "module": "subdomains", "error": str(exc)})
 
     # ── Steam ─────────────────────────────────────────────────────────────
@@ -1019,7 +1040,8 @@ async def _stream_search(
                     yield event({"type": "steam", "ok": ok,
                                  "data": data if ok else None,
                                  "error": data.get("error") if not ok else None})
-        except Exception as exc:
+        except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+            logger.error("Steam failed: %s", exc)
             yield event({"type": "module_error", "module": "steam", "error": str(exc)})
 
     # ── Xbox ──────────────────────────────────────────────────────────────
@@ -1040,7 +1062,8 @@ async def _stream_search(
                     if ok and data is not None:
                         _set_cached("xbox", query, data)
                     yield event({"type": "xbox", "ok": ok, "data": data if ok else None})
-        except Exception as exc:
+        except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+            logger.error("Xbox failed: %s", exc)
             yield event({"type": "module_error", "module": "xbox", "error": str(exc)})
 
     # ── Roblox ────────────────────────────────────────────────────────────
@@ -1061,7 +1084,8 @@ async def _stream_search(
                     if ok and data is not None:
                         _set_cached("roblox", query, data)
                     yield event({"type": "roblox", "ok": ok, "data": data if ok else None})
-        except Exception as exc:
+        except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+            logger.error("Roblox failed: %s", exc)
             yield event({"type": "module_error", "module": "roblox", "error": str(exc)})
 
     # ── GHunt ─────────────────────────────────────────────────────────────
@@ -1078,7 +1102,8 @@ async def _stream_search(
                 yield event({"type": "ghunt", "ok": ok,
                              "data": data if ok else None,
                              "error": data.get("error") if not ok else None})
-        except Exception as exc:
+        except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+            logger.error("GHunt failed: %s", exc)
             yield event({"type": "module_error", "module": "ghunt", "error": str(exc)})
 
     # ── Minecraft ─────────────────────────────────────────────────────────
@@ -1095,7 +1120,8 @@ async def _stream_search(
                 yield event({"type": "minecraft", "ok": ok,
                              "data": data if ok else None,
                              "error": data.get("error") if not ok else None})
-        except Exception as exc:
+        except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+            logger.error("Minecraft failed: %s", exc)
             yield event({"type": "module_error", "module": "minecraft", "error": str(exc)})
 
     # ── Victims ──────────────────────────────────────────────────────────
@@ -1129,7 +1155,8 @@ async def _stream_search(
             else:
                 yield event({"type": "victims", "ok": False,
                              "error": data.get("error", ""), "items": []})
-        except Exception as exc:
+        except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+            logger.error("Victims failed: %s", exc)
             yield event({"type": "module_error", "module": "victims", "error": str(exc)})
 
     # ── Discord → Roblox ─────────────────────────────────────────────────
@@ -1141,7 +1168,8 @@ async def _stream_search(
             yield event({"type": "discord_roblox", "ok": ok,
                          "data": data if ok else None,
                          "error": data.get("error") if not ok else None})
-        except Exception as exc:
+        except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+            logger.error("Discord→Roblox failed: %s", exc)
             yield event({"type": "module_error", "module": "discord_roblox", "error": str(exc)})
 
     # ── SpiderFoot ────────────────────────────────────────────────────────
@@ -1327,7 +1355,7 @@ async def _run_spiderfoot(target: str, scan_mode: str) -> AsyncGenerator[str, No
                     yield event({"type": "spiderfoot", "available": False,
                                  "error": "SpiderFoot not responding"})
                     return
-            except Exception:
+            except httpx.HTTPError:
                 yield event({"type": "spiderfoot", "available": False,
                              "error": f"Cannot reach SpiderFoot at {SPIDERFOOT_URL}"})
                 return
@@ -1380,7 +1408,8 @@ async def _run_spiderfoot(target: str, scan_mode: str) -> AsyncGenerator[str, No
                 yield event({"type": "spiderfoot", "available": True,
                              "scan_id": scan_id, "results": filtered[:500],
                              "total": len(filtered)})
-    except Exception as exc:
+    except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+        logger.error("SpiderFoot failed: %s", exc)
         yield event({"type": "spiderfoot", "available": False, "error": str(exc)})
 
 
@@ -1512,7 +1541,7 @@ async def sf_status(_: dict = Depends(get_current_user)):
         async with httpx.AsyncClient(timeout=5) as http:
             r = await http.get(f"{SPIDERFOOT_URL}/api/v1/ping")
             return {"available": r.status_code == 200, "url": SPIDERFOOT_URL}
-    except Exception as exc:
+    except httpx.HTTPError as exc:
         return {"available": False, "error": str(exc), "url": SPIDERFOOT_URL}
 
 
@@ -1524,6 +1553,7 @@ async def health():
     swap = psutil.swap_memory()
     cpu = psutil.cpu_percent(interval=0.1)
     mem_mb = mem.used / 1024 / 1024
+    proc = psutil.Process()
 
     if mem.percent > MEMORY_CRITICAL_PCT:
         _agents_paused = True
@@ -1542,7 +1572,43 @@ async def health():
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "memory_used_mb": round(mem_mb, 1),
         "memory_pct": mem.percent,
+        "rss_mb": round(proc.memory_info().rss / 1024 / 1024, 1),
         "cpu_pct": cpu,
         "swap_used_mb": round(swap.used / 1024 / 1024, 1),
+        "agents_paused": _agents_paused,
+        "cache_entries": len(_api_cache),
+    }
+
+
+@app.get("/health/memory")
+async def health_memory(_: dict = Depends(get_admin_user)):
+    """Detailed memory profiling snapshot — admin only.
+    Exposes RSS, VMS, tracemalloc current/peak, top allocations, and cache stats.
+    Use for diagnosing memory leaks on the 1GB VPS.
+    """
+    proc = psutil.Process()
+    mem_info = proc.memory_info()
+    mem = psutil.virtual_memory()
+    traced_current, traced_peak = tracemalloc.get_traced_memory()
+
+    snapshot = tracemalloc.take_snapshot()
+    top_stats = snapshot.statistics("lineno")[:15]
+
+    return {
+        "rss_mb": round(mem_info.rss / 1024 / 1024, 1),
+        "vms_mb": round(mem_info.vms / 1024 / 1024, 1),
+        "system_memory_pct": mem.percent,
+        "tracemalloc_current_mb": round(traced_current / 1024 / 1024, 2),
+        "tracemalloc_peak_mb": round(traced_peak / 1024 / 1024, 2),
+        "top_allocations": [
+            {
+                "file": str(stat.traceback),
+                "size_kb": round(stat.size / 1024, 1),
+                "count": stat.count,
+            }
+            for stat in top_stats
+        ],
+        "cache_size": len(_api_cache),
+        "cache_maxsize": _api_cache.maxsize,
         "agents_paused": _agents_paused,
     }
