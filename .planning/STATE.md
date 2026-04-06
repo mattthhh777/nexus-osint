@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0.0
 milestone_name: — Complete)
-status: Milestone complete
-stopped_at: Completed 11-04-PLAN.md — TTL cache + SpiderFoot backoff
-last_updated: "2026-04-02T02:27:54.536Z"
+status: Ready to execute
+stopped_at: Completed 07-01-PLAN.md (test gate + rollback runbook)
+last_updated: "2026-04-06T17:12:28.623Z"
 progress:
-  total_phases: 6
-  completed_phases: 5
-  total_plans: 16
-  completed_plans: 16
+  total_phases: 8
+  completed_phases: 6
+  total_plans: 20
+  completed_plans: 18
 ---
 
 # Project State
@@ -19,20 +19,20 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-30)
 
 **Core value:** A single search query returns comprehensive intelligence from 13+ OSINT modules with professional-grade data presentation — density without chaos.
-**Current focus:** Phase 11 — cost-optimization
+**Current focus:** Phase 07 — f6-stack-modernization
 
 ## Current Position
 
-Phase: 11
-Plan: Not started
+Phase: 07 (f6-stack-modernization) — EXECUTING
+Plan: 2 of 3
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 0
-- Average duration: — min
-- Total execution time: 0.0 hours
+- Total plans completed: 1
+- Average duration: ~5 min
+- Total execution time: ~0.1 hours
 
 **Previous Milestone (v3.0.0):**
 
@@ -47,6 +47,8 @@ Plan: Not started
 | Phase 11 P02 | 2 | 2 tasks | 2 files |
 | Phase 11 P03 | 3 | 2 tasks | 3 files |
 | Phase 11 P04 | 4 | 2 tasks | 2 files |
+| Phase 06 P01 | 6 | 6 tasks | 2 files |
+| Phase 07 P01 | 8 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -72,25 +74,36 @@ Recent decisions affecting current work:
 - [Phase 11]: _save_users immediately updates cache to prevent stale reads after write
 - [Phase 11]: TTLCache maxsize=200/ttl=300s wraps all OathNet calls — ~2MB max memory, preserves 100 lookups/day quota
 - [Phase 11]: SpiderFoot polling: exponential backoff 5s->30s cap, ~20 polls vs ~120, total timeout unchanged at 600s
+- [Phase 06]: D-01: Breach serialize cap at 200 (not generator) — SSE requires complete JSON per event
+- [Phase 06]: D-02: MAX_BODY_BYTES scoped inside _check_platform — only caller
+- [Phase 06]: D-03: tracemalloc enabled unconditionally — ~3-5% CPU acceptable on 1vCPU
+- [Phase 06]: D-04: /health/memory is admin-only — tracemalloc exposes internal paths
+- [Phase 06]: search_username converted to async def — eliminated deprecated asyncio.new_event_loop()
+- [Phase 07]: D-01: 4 green tests on Python 3.10 establish F6 test gate — pytest exits 0 is prerequisite for Plan 03 Dockerfile upgrade
+- [Phase 07]: D-02: DEPLOY.md rollback runbook committed before any base-image change — nexus:pre-py312-backup tag + pip freeze are mandatory pre-upgrade steps
 
 ### Pending Todos
 
-None yet.
+- Phase 06 verification: run on VPS, measure RSS after startup + 10 searches
+- CONCERNS.md: 7 findings marked RESOLVED (2026-04-02)
+- TaskOrchestrator integration into _stream_search deferred (Phase 05b or separate)
 
 ### Roadmap Evolution
 
 - Phase 11 added: Cost Optimization (TTL caching, HTTP consolidation, streaming, singleton client)
+- Phase 06 Plan 01 complete: memory guards, Sherlock async, health instrumentation
 
 ### Blockers/Concerns
 
-- No test suite exists — Python 3.12 upgrade (F6) is blocked until tests are in place
+- No test suite exists for endpoints — Python 3.12 upgrade (F6) remains blocked until endpoint tests exist
 - Local files may differ from VPS production — verify before deploying
 - OathNet Starter plan: 100 lookups/day is hard operational constraint
-- _stream_search is ~400 lines — known complexity issue, potential memory concern for F4
+- _stream_search is ~400 lines — known complexity issue
+- TaskOrchestrator built but not wired to _stream_search — tracked as deferred work
 
 ## Session Continuity
 
-Last session: 2026-04-02T02:08:41.816Z
-Stopped at: Completed 11-04-PLAN.md — TTL cache + SpiderFoot backoff
+Last session: 2026-04-06T17:12:28.617Z
+Stopped at: Completed 07-01-PLAN.md (test gate + rollback runbook)
 Resume file: None
-Next action: /gsd:execute-phase 11 → Plan 11-02 HTTP library consolidation
+Next action: Plan Phase 07 (F6 Stack Modernization) — `/gsd:plan-phase 7`
