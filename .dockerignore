@@ -45,3 +45,17 @@ logs/
 # Backups
 backups/
 *.bak
+
+# Planning & dev artifacts
+.planning/
+*.zip
+.py312-evidence.txt
+requirements.lock*.txt
+
+# SQLite DB (created at runtime, not baked in)
+nexus_osint.db
+nexus_osint.db-shm
+nexus_osint.db-wal
+
+# Claude/GSD artifacts
+.claude/
