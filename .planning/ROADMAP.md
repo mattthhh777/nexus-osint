@@ -182,6 +182,12 @@ Phase 03 (F1 Audit) ──► Phase 04 (F2 SQLite) ──► Phase 05 (F3 Async)
 
 **Verification:** Zero CSP violations; no nx_token in localStorage; 11th search/min returns 429; malformed SpiderFoot target returns 400; blacklist fail-closed.
 
+**Plans:** 4 plans
+- [ ] 09-01-PLAN.md — Backend safety gates: JWT_SECRET fail-hard, blacklist fail-closed, SpiderFoot validator, MAX_USERS cap
+- [ ] 09-02-PLAN.md — slowapi per-endpoint rate limiting + remove legacy _check_rate
+- [ ] 09-03-PLAN.md — Frontend inline handler purge (73 sites) + bootstrap.js + cases.js localStorage hardening
+- [ ] 09-04-PLAN.md — nginx.conf strict CSP + D-13 security headers (PROTECTED FILE — human gate)
+
 ---
 
 ### Phase 10: F8 — Health Monitoring
