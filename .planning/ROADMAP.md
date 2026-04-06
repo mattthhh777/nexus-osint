@@ -41,7 +41,7 @@ Phase 03 (F1 Audit) ──► Phase 04 (F2 SQLite) ──► Phase 05 (F3 Async)
 
 ## Phases
 
-### Phase 03 — F1: Codebase Audit (GATE)
+### Phase 03: F1 — Codebase Audit (GATE)
 
 | Field | Value |
 |-------|-------|
@@ -54,7 +54,7 @@ Phase 03 (F1 Audit) ──► Phase 04 (F2 SQLite) ──► Phase 05 (F3 Async)
 
 ---
 
-### Phase 04 — F2: SQLite Hardening
+### Phase 04: F2 — SQLite Hardening
 
 | Field | Value |
 |-------|-------|
@@ -76,7 +76,7 @@ Phase 03 (F1 Audit) ──► Phase 04 (F2 SQLite) ──► Phase 05 (F3 Async)
 
 ---
 
-### Phase 05 — F3: Async Agent Orchestration
+### Phase 05: F3 — Async Agent Orchestration
 
 | Field | Value |
 |-------|-------|
@@ -100,7 +100,7 @@ Phase 03 (F1 Audit) ──► Phase 04 (F2 SQLite) ──► Phase 05 (F3 Async)
 
 ---
 
-### Phase 06 — F4: Memory-Disciplined Architecture
+### Phase 06: F4 — Memory-Disciplined Architecture
 
 | Field | Value |
 |-------|-------|
@@ -124,45 +124,49 @@ Phase 03 (F1 Audit) ──► Phase 04 (F2 SQLite) ──► Phase 05 (F3 Async)
 
 ---
 
-### Phase 07 — F6: Stack Modernization
+### Phase 07: F6 — Stack Modernization
 
 | Field | Value |
 |-------|-------|
-| **Status** | Pending |
+| **Status** | **Complete** |
+| **Completed** | 2026-04-06 |
 | **Depends on** | Phase 06 |
 | **Effort** | 1-2 sessions |
-| **Risk** | **MEDIUM** (reduced from HIGH — httpx migration already done in Phase 11) |
-| **Findings** | FIND-10 (complete), FIND-16 (duplicate 429) |
+| **Risk** | MEDIUM |
+| **Findings** | FIND-10 (complete), FIND-16 (anchored) |
 
-**Sub-tasks (strict order):** Python 3.12 compatibility check, python-jose → PyJWT, ~~requests → httpx~~ (done Phase 11), dependency cleanup + fix duplicate 429.
+**Sub-tasks:** Python 3.12 compatibility + upgrade, dependency cleanup, tenacity removal, FIND-16 anchor.
 
-**Blocker:** Endpoint integration tests required before Python 3.12 upgrade.
+**Key files:** `requirements.txt`, `api/main.py`, `Dockerfile`, `pytest.ini`
 
-**Key files:** `requirements.txt`, `api/main.py`, `Dockerfile` (protected)
+**Verification:** ✅ 27/27 tests green on Python 3.12.13; tenacity removed; FIND-16 anchored; FastAPI lifespan migration complete.
 
-**Verification:** All tests pass on 3.12; JWT roundtrip with PyJWT; fewer pip packages.
+**Plans:** 3/3 complete
+- [x] 07-01-PLAN.md — Test gate + rollback runbook
+- [x] 07-02-PLAN.md — Dependency cleanup + FIND-16
+- [x] 07-03-PLAN.md — Python 3.12 Dockerfile upgrade
 
 ---
 
-### Phase 08 — F5: Docker Optimization
+### Phase 08: F5 — Docker Optimization
 
 | Field | Value |
 |-------|-------|
-| **Status** | Pending |
+| **Status** | **Complete** |
+| **Completed** | 2026-04-06 |
 | **Depends on** | Phase 06 |
-| **Effort** | 1 session |
+| **Effort** | Rolled into Phase 07 (commit acd2f68) |
 | **Risk** | LOW |
-| **Parallel with** | Phase 07 (different files) |
 
-**Sub-tasks:** Multi-stage Dockerfile (builder + runtime, pinned digest), resource limits in compose (800m RAM, 2800m swap), health check upgrade, deploy runbook.
+**Sub-tasks:** Multi-stage Dockerfile, Python-based privilege drop (no gosu), COPY --chown layer fusion, uvicorn extras removed, .dockerignore expanded, memory limits + swap tuning in compose.
 
-**Key files:** `Dockerfile` (protected), `docker-compose.yml` (protected), new `DEPLOY.md`
+**Key files:** `Dockerfile`, `entrypoint.sh`, `docker-compose.yml`, `.dockerignore`, `requirements.txt`
 
-**Verification:** `docker images` < 250MB; survives 50 concurrent requests; health check detects pressure.
+**Verification:** ✅ Image 225MB (25MB under 250MB target); 27/27 tests green; psutil watchdog active.
 
 ---
 
-### Phase 09 — F7: Security Hardening
+### Phase 09: F7 — Security Hardening
 
 | Field | Value |
 |-------|-------|
@@ -180,7 +184,7 @@ Phase 03 (F1 Audit) ──► Phase 04 (F2 SQLite) ──► Phase 05 (F3 Async)
 
 ---
 
-### Phase 10 — F8: Health Monitoring
+### Phase 10: F8 — Health Monitoring
 
 | Field | Value |
 |-------|-------|
@@ -205,15 +209,15 @@ Phase 03 (F1 Audit) ──► Phase 04 (F2 SQLite) ──► Phase 05 (F3 Async)
 | 04 | F2: SQLite | 1 | LOW | ✅ Complete | 2026-03-31 |
 | 05 | F3: Async | 1 | MED | ✅ Complete | 2026-04-01 |
 | 06 | F4: Memory | 1 | LOW | ✅ Complete | 2026-04-02 |
-| 07 | F6: Stack | 1-2 | **MED** | ⏳ Pending | — |
-| 08 | F5: Docker | 1 | LOW | ⏳ Pending | — |
+| 07 | F6: Stack | 1-2 | MED | ✅ Complete | 2026-04-06 |
+| 08 | F5: Docker | 1 | LOW | ✅ Complete | 2026-04-06 |
 | 09 | F7: Security | 2-3 | MED | ⏳ Pending | — |
 | 10 | F8: Health | 1-2 | LOW | ⏳ Pending | — |
 | 11 | Cost Opt. | 4 | LOW | ✅ Complete | 2026-04-02 |
 
-**Completed:** 5/9 phases (14 plans)
-**Remaining:** 4 phases (~5-8 sessions estimated)
-**Highest remaining risk:** Phase 07 (F6, python-jose → PyJWT + Python 3.12)
+**Completed:** 7/9 phases (20 plans)
+**Remaining:** 2 phases (~3-5 sessions estimated)
+**Highest remaining risk:** Phase 09 (F7 Security — CSP strict + inline handler removal)
 
 ---
 
@@ -233,7 +237,7 @@ Phase 03 (F1 Audit) ──► Phase 04 (F2 SQLite) ──► Phase 05 (F3 Async)
 **v4.0 requirements mapped:** 8/8
 **Findings mapped:** 15/17 (FIND-15, FIND-17 not prioritized — acceptable patterns)
 
-### Phase 11 — Cost Optimization
+### Phase 11: Cost Optimization
 
 | Field | Value |
 |-------|-------|
