@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0.0
 milestone_name: — Complete)
-status: Ready to plan
-stopped_at: "Completed 07-03: Python 3.12 upgrade — human-approved, F6 Stack Modernization complete"
-last_updated: "2026-04-06T17:37:49.234Z"
+status: Ready to execute
+stopped_at: Completed 09-01-PLAN.md — Wave 1 security gates
+last_updated: "2026-04-07T02:27:45.407Z"
 progress:
-  total_phases: 8
-  completed_phases: 7
-  total_plans: 20
-  completed_plans: 20
+  total_phases: 9
+  completed_phases: 5
+  total_plans: 15
+  completed_plans: 12
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-30)
 
 **Core value:** A single search query returns comprehensive intelligence from 13+ OSINT modules with professional-grade data presentation — density without chaos.
-**Current focus:** Phase 07 — f6-stack-modernization
+**Current focus:** Phase 09 — f7-security-hardening
 
 ## Current Position
 
-Phase: 11
-Plan: Not started
+Phase: 09 (f7-security-hardening) — EXECUTING
+Plan: 2 of 4
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Plan: Not started
 | Phase 07 P02 | 3 | 2 tasks | 2 files |
 | Phase 07 P03 | 13 | 3 tasks | 5 files |
 | Phase 07 P03 | 30 | 4 tasks | 5 files |
+| Phase 09 P01 | 21 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -91,6 +92,10 @@ Recent decisions affecting current work:
 - [Phase 07]: Image virtual size 306MB accepted — 250MB constraint cannot be met with python:3.12-slim + current deps; F5 Docker Optimization is the right venue for further reduction
 - [Phase 07]: FastAPI @app.on_event migrated to asynccontextmanager lifespan — on_event deprecated in FastAPI 0.93+, fatal under -W error::DeprecationWarning
 - [Phase 07]: pytest.ini asyncio_default_fixture_loop_scope=function — pytest-asyncio 1.3.0+ requires explicit config to avoid PytestDeprecationWarning promoted to error
+- [Phase 09]: JWT_SECRET read at module level via os.environ.get — load_dotenv() already set it; _validate_jwt_secret() called in lifespan to fail-hard before serving any request
+- [Phase 09]: _check_blacklist catches RuntimeError in addition to aiosqlite.Error/OSError/ValueError — covers DB-not-started case in test and early-boot scenarios
+- [Phase 09]: D-12 tests use app.dependency_overrides[get_admin_user] instead of TestClient with lifespan — avoids event-loop mismatch between pytest-asyncio and TestClient
+- [Phase 09]: Test file imports api.main at module top level — prevents load_dotenv() from re-populating JWT_SECRET after monkeypatch.delenv inside test function body
 
 ### Pending Todos
 
@@ -113,7 +118,7 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-04-06T17:34:34.478Z
-Stopped at: Completed 07-03: Python 3.12 upgrade — human-approved, F6 Stack Modernization complete
+Last session: 2026-04-07T02:27:45.401Z
+Stopped at: Completed 09-01-PLAN.md — Wave 1 security gates
 Resume file: None
-Next action: Plan Phase 07 (F6 Stack Modernization) — `/gsd:plan-phase 7`
+Next action: Execute Phase 09 Plan 01 — `/gsd:execute-phase 9`
