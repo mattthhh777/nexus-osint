@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import re
+import sys
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -36,7 +37,7 @@ except ImportError:
     # Fallback para versões ou ambientes específicos
     from jwt import InvalidTokenError as JWTError
 import bcrypt as _bcrypt_lib
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ValidationError, field_validator
 from starlette.middleware.base import BaseHTTPMiddleware
 import ipaddress
 
@@ -47,6 +48,7 @@ import psutil
 from cachetools import TTLCache
 from api.db import db as _db  # single-connection DatabaseManager (WAL + write queue)
 from modules.oathnet_client import oathnet_client  # async singleton — one TCP/TLS pool
+from modules.spiderfoot_wrapper import SpiderFootTarget  # D-11: FQDN/IPv4 validator
 
 load_dotenv()
 
@@ -55,19 +57,44 @@ OATHNET_API_KEY = os.getenv("OATHNET_API_KEY", "")
 SPIDERFOOT_URL  = os.getenv("SPIDERFOOT_URL", "http://spiderfoot:5001")
 APP_PASSWORD    = os.getenv("APP_PASSWORD", "")   # legacy single-user fallback
 LOG_LEVEL       = os.getenv("LOG_LEVEL", "WARNING")
-_jwt_fallback   = hashlib.sha256(
-    (OATHNET_API_KEY + "nexusosint_jwt_v3_" + os.urandom(8).hex()).encode()
-).hexdigest()
-JWT_SECRET      = os.getenv("JWT_SECRET") or _jwt_fallback
-if not os.getenv("JWT_SECRET"):
-    import warnings
-    warnings.warn(
-        "JWT_SECRET not set in .env — using ephemeral secret. "
-        "Tokens will be invalidated on restart. Set JWT_SECRET for production.",
-        stacklevel=1
-    )
 JWT_ALGORITHM   = "HS256"
 JWT_EXPIRE_HOURS = int(os.getenv("JWT_EXPIRE_HOURS", "24"))
+
+# ── JWT security constants ────────────────────────────────────────────────────
+# Known weak defaults that must never be used in production.
+# Compared case-insensitively in _validate_jwt_secret().
+_WEAK_JWT_SECRETS: frozenset[str] = frozenset(
+    {"changeme", "secret", "dev", "test", "password"}
+)
+
+# Operational cap: POST /api/admin/users returns 403 once count >= MAX_USERS.
+MAX_USERS: int = int(os.environ.get("MAX_USERS", "50"))
+
+# JWT_SECRET module-level var — read from env at import time.
+# _validate_jwt_secret() is called as FIRST step in lifespan startup and
+# calls sys.exit(1) if absent or weak, preventing any request from being served.
+JWT_SECRET: str = os.environ.get("JWT_SECRET", "")
+
+
+def _validate_jwt_secret() -> None:
+    """Fail-hard guard — called as FIRST step in lifespan startup.
+
+    Reads JWT_SECRET from env. Exits the process with code 1 if:
+      - the variable is missing or empty
+      - the value (stripped, lowercased) matches a known weak default
+
+    Returns None on success; the caller should then read os.environ["JWT_SECRET"]
+    to configure the JWT engine.
+    """
+    secret = os.environ.get("JWT_SECRET", "")
+    if not secret or secret.strip().lower() in _WEAK_JWT_SECRETS:
+        # Use print as a last resort — logging may not be configured yet
+        import logging as _log
+        _log.critical(
+            "JWT_SECRET missing, empty, or matches a known weak default — refusing to start"
+        )
+        sys.exit(1)
+
 
 DATA_DIR   = Path("/app/data")
 USERS_FILE = DATA_DIR / "users.json"
@@ -215,7 +242,8 @@ def get_client_ip(request: Request) -> str:
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     """Application lifespan — replaces deprecated @app.on_event handlers."""
-    # startup
+    # startup — D-09: fail hard if JWT_SECRET is missing or weak
+    _validate_jwt_secret()
     tracemalloc.start(10)  # 10 frames — memory profiling for /health/memory
     _ensure_default_user()
     await _db.startup(db_path=AUDIT_DB)
@@ -353,8 +381,16 @@ def _decode_token(token: str) -> dict:
 
 # ── Token Blacklist (revocation) ──────────────────────────────────────────────
 
+# Rate-limit duplicate blacklist-failure log messages to once per minute.
+_last_blacklist_warn: list[float] = [0.0]
+
+
 async def _check_blacklist(jti: Optional[str]) -> None:
-    """Raises 401 if the jti is revoked. Fails open on DB error."""
+    """Raises 401 if the jti is revoked.
+
+    D-10 (FIND-06): Fail-CLOSED on DB error — any read failure returns HTTP 503
+    to prevent a storage outage from allowing revoked tokens through.
+    """
     if not jti:
         return
     try:
@@ -374,8 +410,19 @@ async def _check_blacklist(jti: Optional[str]) -> None:
             )
     except HTTPException:
         raise
-    except aiosqlite.Error as exc:
-        logger.warning("Blacklist check failed (fail-open): %s", exc)
+    except (aiosqlite.Error, OSError, ValueError, RuntimeError) as exc:
+        # D-10: fail-closed — deny access when blacklist is unreadable.
+        # RuntimeError covers the "DB not started" case (e.g. in tests or early startup).
+        now = time.monotonic()
+        if now - _last_blacklist_warn[0] > 60:
+            logger.warning(
+                "blacklist read failure — fail-closed | err=%s", type(exc).__name__
+            )
+            _last_blacklist_warn[0] = now
+        raise HTTPException(
+            status_code=503,
+            detail="security policy unavailable",
+        )
 
 async def _revoke_token(jti: Optional[str], exp: Optional[int]) -> None:
     """Add a jti to the blacklist until its expiry."""
@@ -1174,10 +1221,20 @@ async def _stream_search(
 
     # ── SpiderFoot ────────────────────────────────────────────────────────
     if run.get("spiderfoot"):
-        yield progress("Starting SpiderFoot scan…")
-        ran.append("spiderfoot")
-        async for sf_event in _run_spiderfoot(query, req.spiderfoot_mode):
-            yield sf_event
+        # D-11: validate target before dispatching to SpiderFoot
+        try:
+            SpiderFootTarget(target=query)
+        except ValidationError:
+            yield event({
+                "type": "module_error",
+                "module": "spiderfoot",
+                "error": "invalid target: must be FQDN or IPv4",
+            })
+        else:
+            yield progress("Starting SpiderFoot scan…")
+            ran.append("spiderfoot")
+            async for sf_event in _run_spiderfoot(query, req.spiderfoot_mode):
+                yield sf_event
 
     elapsed = round(time.time() - t0, 1)
 
@@ -1310,6 +1367,11 @@ async def admin_create_user(
         role = "user"
 
     users = _load_users()
+
+    # D-12: Registration capacity cap — fail before writing
+    if len(users) >= MAX_USERS:
+        raise HTTPException(status_code=403, detail="registration capacity reached")
+
     if uname in users:
         raise HTTPException(status_code=409, detail="User already exists")
 
