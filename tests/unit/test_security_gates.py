@@ -19,6 +19,12 @@ import sys
 import pytest
 import aiosqlite
 
+# Import api.main eagerly so load_dotenv() runs once at collection time.
+# Without this, monkeypatch.delenv("JWT_SECRET") would be overridden by
+# the load_dotenv() call that happens during the first `from api.main import …`
+# inside each test function body.
+import api.main  # noqa: F401
+
 # ── D-09: JWT_SECRET fail-hard guard ─────────────────────────────────────────
 
 
@@ -63,37 +69,14 @@ def test_validate_jwt_secret_passes_strong_value(monkeypatch):
 # ── D-12: MAX_USERS registration cap ─────────────────────────────────────────
 
 
-@pytest.mark.asyncio
-async def test_admin_create_user_blocked_at_capacity(tmp_db, monkeypatch):
+def test_admin_create_user_blocked_at_capacity(monkeypatch, tmp_path):
     """POST /api/admin/users must return 403 when user count >= MAX_USERS."""
     import api.main as m
-    import json, hashlib
-    from pathlib import Path
+    import json
     from datetime import datetime, timezone
     from fastapi.testclient import TestClient
 
-    # Pin MAX_USERS to 1 so any existing user triggers the cap
-    monkeypatch.setattr(m, "MAX_USERS", 1)
-    monkeypatch.setattr(m, "_db", tmp_db)
-
-    # Pre-populate the users file with exactly one user so count == MAX_USERS
-    users = {
-        "existinguser": {
-            "password_hash": m._safe_hash("StrongPass1!"),
-            "role": "user",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "active": True,
-        }
-    }
-    # Write users to the file path used by the app
-    import tempfile
-    from pathlib import Path
-    tmp_users_file = Path(tempfile.mktemp(suffix=".json"))
-    tmp_users_file.write_text(json.dumps(users))
-    monkeypatch.setattr(m, "USERS_FILE", tmp_users_file)
-    monkeypatch.setattr(m, "_users_cache", None)  # force reload
-
-    # Create admin credentials in users file
+    # Build a users file with admin + existinguser (2 users)
     admin_users = {
         "admin": {
             "password_hash": m._safe_hash("AdminPass1!"),
@@ -101,41 +84,43 @@ async def test_admin_create_user_blocked_at_capacity(tmp_db, monkeypatch):
             "created_at": datetime.now(timezone.utc).isoformat(),
             "active": True,
         },
-        "existinguser": users["existinguser"],
+        "existinguser": {
+            "password_hash": m._safe_hash("StrongPass1!"),
+            "role": "user",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "active": True,
+        },
     }
+    tmp_users_file = tmp_path / "users.json"
     tmp_users_file.write_text(json.dumps(admin_users))
 
-    # Set MAX_USERS to 2 so 2 users == cap
+    # Set MAX_USERS to 2 so 2 users == cap, wire tmp file path
     monkeypatch.setattr(m, "MAX_USERS", 2)
+    monkeypatch.setattr(m, "USERS_FILE", tmp_users_file)
     monkeypatch.setattr(m, "_users_cache", None)
 
-    # Build admin token
-    admin_token = m._create_token("admin", "admin")
+    # Override auth dependency so tests don't need a live DB for token blacklist checks
+    m.app.dependency_overrides[m.get_admin_user] = lambda: {"sub": "admin", "role": "admin"}
 
-    with TestClient(m.app, raise_server_exceptions=False) as client:
-        client.cookies.set("nx_session", admin_token)
+    try:
+        client = TestClient(m.app, raise_server_exceptions=True)
         resp = client.post(
             "/api/admin/users",
             json={"username": "newuser", "password": "StrongPass2!", "role": "user"},
         )
+    finally:
+        m.app.dependency_overrides.pop(m.get_admin_user, None)
+
     assert resp.status_code == 403
     assert "registration capacity reached" in resp.json().get("detail", "")
 
-    tmp_users_file.unlink(missing_ok=True)
 
-
-@pytest.mark.asyncio
-async def test_admin_create_user_allowed_below_capacity(tmp_db, monkeypatch):
+def test_admin_create_user_allowed_below_capacity(monkeypatch, tmp_path):
     """POST /api/admin/users must succeed when user count < MAX_USERS."""
     import api.main as m
     import json
     from datetime import datetime, timezone
     from fastapi.testclient import TestClient
-    import tempfile
-    from pathlib import Path
-
-    monkeypatch.setattr(m, "MAX_USERS", 10)
-    monkeypatch.setattr(m, "_db", tmp_db)
 
     # Only one user (admin) — count (1) < MAX_USERS (10)
     admin_users = {
@@ -146,23 +131,27 @@ async def test_admin_create_user_allowed_below_capacity(tmp_db, monkeypatch):
             "active": True,
         },
     }
-    tmp_users_file = Path(tempfile.mktemp(suffix=".json"))
+    tmp_users_file = tmp_path / "users.json"
     tmp_users_file.write_text(json.dumps(admin_users))
+
+    monkeypatch.setattr(m, "MAX_USERS", 10)
     monkeypatch.setattr(m, "USERS_FILE", tmp_users_file)
     monkeypatch.setattr(m, "_users_cache", None)
 
-    admin_token = m._create_token("admin", "admin")
+    # Override auth dependency so tests don't need a live DB for token blacklist checks
+    m.app.dependency_overrides[m.get_admin_user] = lambda: {"sub": "admin", "role": "admin"}
 
-    with TestClient(m.app, raise_server_exceptions=False) as client:
-        client.cookies.set("nx_session", admin_token)
+    try:
+        client = TestClient(m.app, raise_server_exceptions=True)
         resp = client.post(
             "/api/admin/users",
             json={"username": "newuser2", "password": "StrongPass3!", "role": "user"},
         )
+    finally:
+        m.app.dependency_overrides.pop(m.get_admin_user, None)
+
     assert resp.status_code == 200
     assert resp.json().get("ok") is True
-
-    tmp_users_file.unlink(missing_ok=True)
 
 
 # ── D-10: Fail-closed blacklist ───────────────────────────────────────────────
