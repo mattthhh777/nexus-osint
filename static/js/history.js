@@ -27,10 +27,13 @@ function renderHistory() {
   sec.style.display = 'block';
   el.innerHTML = history.map(h => {
     const [, rc] = riskLabel(h.risk);
-    return `<div class="history-card" onclick="rerunSearch('${escAttr(h.query)}')">
+    const riskClass = rc === 'var(--red)' ? 'text-critical'
+      : rc === 'var(--orange)' ? 'text-amber'
+      : 'text-green';
+    return `<div class="history-card" data-action="rerun-search" data-query="${escAttr(h.query)}">
       <div class="history-target">${esc(h.query)}</div>
       <div class="history-meta">
-        <span style="color:${rc}">${h.rl} ${h.risk}</span>${h.total?' · '+h.total+' found':''} · ${esc(h.timestamp)}
+        <span class="${riskClass}">${h.rl} ${h.risk}</span>${h.total?' · '+h.total+' found':''} · ${esc(h.timestamp)}
       </div>
     </div>`;
   }).join('');

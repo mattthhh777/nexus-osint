@@ -99,8 +99,8 @@ function _renderBreachPage(o, el) {
     const pwdId  = 'pwd_' + i;
     const isVis  = pwdVisible[pwdId];
     const pwdCell = hasPwd
-      ? '<div class="pwd-cell"><span class="pwd-text ' + (isVis ? '' : 'masked') + '" id="' + pwdId + '">' + (isVis ? esc(b.password) : '••••••••') + '</span><button class="pwd-toggle" onclick="togglePwd(\'' + pwdId + '\',\'' + escAttr(b.password) + '\')">' + (isVis ? '🙈' : '👁') + '</button></div>'
-      : '<span style="color:var(--text3)">─</span>';
+      ? '<div class="pwd-cell"><span class="pwd-text ' + (isVis ? '' : 'masked') + '" id="' + pwdId + '">' + (isVis ? esc(b.password) : '••••••••') + '</span><button class="pwd-toggle" data-action="toggle-pwd" data-pwdid="' + pwdId + '" data-plain="' + escAttr(b.password) + '">' + (isVis ? '🙈' : '👁') + '</button></div>'
+      : '<span class="text-dim">─</span>';
     return '<tr class="sev-' + sev + '"><td><span class="sev-breach-badge">' + sev + '</span></td>'
       + '<td class="val-amber">' + esc(b.dbname) + '</td>'
       + '<td>' + esc(b.email) + '</td>'
@@ -119,10 +119,10 @@ function _renderBreachPage(o, el) {
     + '</tr></thead><tbody>' + tableRows + '</tbody></table>'
     + '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-family:var(--mono);font-size:.7rem;color:var(--text3)">'
     + '<span>Showing ' + rows.length + ' of ' + total.toLocaleString() + (currentResult.breachCursor ? ' (API: ' + currentResult.breachTotal.toLocaleString() + ' total)' : '') + '</span>'
-    + '<button class="btn-copy" onclick="revealAllPasswords()" style="font-size:.62rem">👁 Reveal All</button>'
+    + '<button class="btn-copy btn-xs" data-action="reveal-all-passwords">👁 Reveal All</button>'
     + '</div>'
     + (hasMore || currentResult.breachCursor
-      ? '<button class="load-more-btn" onclick="loadMoreBreaches()">↓ Load more · ' + total.toLocaleString() + ' total</button>'
+      ? '<button class="load-more-btn" data-action="load-more-breaches">↓ Load more · ' + total.toLocaleString() + ' total</button>'
       : '');
 }
 
@@ -368,7 +368,7 @@ function renderExtras() {
             <div class="discord-username">@${esc(u.username || '─')}</div>
             <div class="discord-id-row">
               <span>#</span>
-              <span class="discord-id-val" onclick="writeClipboard('${esc(u.id||'')}');showToast('Discord ID copied')" title="Click to copy">${esc(u.id || '─')}</span>
+              <span class="discord-id-val" data-action="copy-discord-id" data-id="${esc(u.id||'')}" data-toast="Discord ID copied" title="Click to copy">${esc(u.id || '─')}</span>
             </div>
             ${u.creation_date ? `<div class="discord-created">📅 ${esc(u.creation_date)}</div>` : ''}
             ${badgesHtml}
@@ -389,7 +389,7 @@ function renderExtras() {
           <a class="discord-view-btn" href="https://discord.com/users/${esc(u.id||'')}" target="_blank" rel="noopener">
             ↗ Open Profile
           </a>
-          <button class="discord-view-btn" onclick="writeClipboard('${esc(u.id||'')}');showToast('ID copied')">
+          <button class="discord-view-btn" data-action="copy-discord-id" data-id="${esc(u.id||'')}" data-toast="ID copied">
             📋 Copy ID
           </button>
         </div>
@@ -673,7 +673,7 @@ function renderExtras() {
           ${victims.items.map((v, i) => buildVictimCard(v, i)).join('')}
         </div>
         ${victims.has_more ? `
-        <button class="load-more-btn" onclick="loadMoreVictims()">
+        <button class="load-more-btn" data-action="load-more-victims">
           ↓ Load more victims (${victims.total - victims.items.length} more)
         </button>` : ''}
       </div>`);
@@ -768,11 +768,11 @@ function buildVictimCard(v, idx) {
   const pwned   = (v.pwned_at  || '').slice(0,10);
 
   return `<div class="victim-card" id="victim-card-${idx}">
-    <div class="victim-card-header" onclick="toggleVictimTree('${esc(logId)}', ${idx})">
+    <div class="victim-card-header" data-action="toggle-victim-tree" data-logid="${esc(logId)}" data-idx="${idx}">
       <div class="victim-card-left">
         <div class="victim-log-id">
           🚨 <span>${esc(logId)}</span>
-          <button class="victim-expand-btn" onclick="event.stopPropagation();toggleVictimTree('${esc(logId)}', ${idx})">
+          <button class="victim-expand-btn" data-action="toggle-victim-tree" data-logid="${esc(logId)}" data-idx="${idx}">
             Browse Files ▾
           </button>
         </div>
@@ -790,8 +790,8 @@ function buildVictimCard(v, idx) {
         <span class="victim-docs-label">files</span>
       </div>
     </div>
-    <div class="victim-file-tree" id="victim-tree-${idx}" style="display:none">
-      <div style="font-family:var(--mono);font-size:.74rem;color:var(--text3)">Loading file tree…</div>
+    <div class="victim-file-tree hidden" id="victim-tree-${idx}">
+      <div class="text-dim-mono">Loading file tree…</div>
     </div>
   </div>`;
 }
@@ -800,13 +800,13 @@ async function toggleVictimTree(logId, idx) {
   const treeEl = document.getElementById(`victim-tree-${idx}`);
   if (!treeEl) return;
 
-  const isOpen = treeEl.style.display !== 'none';
+  const isOpen = !treeEl.classList.contains('hidden');
   if (isOpen) {
-    treeEl.style.display = 'none';
+    treeEl.classList.add('hidden');
     return;
   }
 
-  treeEl.style.display = 'block';
+  treeEl.classList.remove('hidden');
 
   // Already loaded
   if (openVictimTrees[logId]) {
@@ -837,11 +837,11 @@ function renderTree(node, logId, depth) {
     const size = formatBytes(node.size_bytes || 0);
     return `<div class="tree-node">
       <div class="tree-file">
-        <span style="color:var(--text3);margin-right:4px">📄</span>
+        <span class="text-dim" aria-hidden="true">📄</span>
         <span class="tree-file-name" title="${esc(node.name)}">${esc(node.name)}</span>
         <span class="tree-file-size">${size}</span>
         <button class="tree-file-btn"
-          onclick="viewVictimFile('${esc(logId)}','${esc(node.id)}','${esc(node.name)}')">
+          data-action="view-victim-file" data-logid="${esc(logId)}" data-fileid="${esc(node.id)}" data-name="${esc(node.name)}">
           View
         </button>
       </div>
@@ -859,12 +859,12 @@ function renderTree(node, logId, depth) {
   if (!children.length) return '';
 
   return `<div class="tree-node">
-    <div class="tree-dir" onclick="toggleTreeDir('${nodeId}')">
+    <div class="tree-dir" data-action="toggle-tree-dir" data-nodeid="${nodeId}">
       <span class="tree-dir-icon" id="icon-${nodeId}">▶</span>
       <span>📁 ${esc(node.name || '/')}</span>
-      <span style="font-size:.62rem;color:var(--text3);margin-left:4px">(${children.length})</span>
+      <span class="tree-dir-count">(${children.length})</span>
     </div>
-    <div class="tree-children" id="${nodeId}" style="display:none">
+    <div class="tree-children hidden" id="${nodeId}">
       ${children.map(c => renderTree(c, logId, depth+1)).join('')}
     </div>
   </div>`;
@@ -874,8 +874,8 @@ function toggleTreeDir(nodeId) {
   const el   = document.getElementById(nodeId);
   const icon = document.getElementById(`icon-${nodeId}`);
   if (!el) return;
-  const isOpen = el.style.display !== 'none';
-  el.style.display   = isOpen ? 'none' : 'block';
+  const isOpen = !el.classList.contains('hidden');
+  el.classList.toggle('hidden', isOpen);
   if (icon) icon.textContent = isOpen ? '▶' : '▼';
 }
 

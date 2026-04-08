@@ -1,0 +1,137 @@
+/* ══════════════════════════════════════════════════════
+   SECURITY HARDENING — CSS replacement for all inline style="" attributes
+   Loaded after meridian system CSS. ID selectors used where
+   specificity must override existing class rules.
+   Phase 09 Plan 03 — Wave 3 CSP preparation.
+══════════════════════════════════════════════════════ */
+
+/* ── Generic visibility utility (replaces style="display:none") ── */
+.hidden { display: none !important; }
+
+/* ── Elements hidden by default, revealed by JS ── */
+#authScreen     { display: none; }
+#quotaPill      { display: none; }
+#quotaBar       { display: none; }
+#navUserBadge   { display: none; }
+/* #navAdminLink is already display:none in cards.css */
+/* #casesBadge is managed via style.display by cases.js */
+#casesBadge     { display: none; }
+#historySection { display: none; margin-top: 40px; }
+
+/* admin.html: app panel hidden until authenticated */
+#app            { display: none; }
+
+/* ── Progress bar initial widths ── */
+#quotaFill     { width: 0%; }
+#quotaPillFill { width: 100%; }
+#scanFill      { width: 0%; }
+
+/* ── Layout utilities ── */
+.search-row       { position: relative; }
+.result-actions   { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.admin-nav-brand  { display: flex; align-items: center; gap: 16px; }
+.grid-2col        { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.page-header-flex { display: flex; align-items: flex-start; justify-content: space-between; }
+
+/* ── Button utilities ── */
+.btn-full    { width: 100%; }
+.btn-ml-auto { margin-left: auto; }
+.btn-mt      { margin-top: 10px; }
+.btn-xs      { font-size: .62rem; }
+
+/* ── SVG icon alignment inside buttons ── */
+.btn-svg    { vertical-align: -1px; margin-right: 4px; }
+.btn-svg-sm { vertical-align: -1px; margin-right: 5px; }
+.nav-svg    { width: 14px; height: 14px; vertical-align: -2px; margin-right: 4px; opacity: .65; }
+
+/* ── Spacing utilities ── */
+.mb-8  { margin-bottom: 8px; }
+.mb-10 { margin-bottom: 10px; }
+.mb-12 { margin-bottom: 12px; }
+.mb-16 { margin-bottom: 16px; }
+.mt-10 { margin-top: 10px; }
+.mt-16 { margin-top: 16px; }
+.p-16  { padding: 16px; }
+
+/* ── Typography utilities ── */
+.text-dim-mono {
+  color: var(--color-text-tertiary, var(--text3, #4a5168));
+  font-family: var(--font-data, var(--mono, monospace));
+  font-size: .8rem;
+}
+.text-dim-mono-center {
+  color: var(--color-text-tertiary, var(--text3, #4a5168));
+  font-family: var(--font-data, var(--mono, monospace));
+  font-size: .8rem;
+  text-align: center;
+  margin-top: 40px;
+}
+.text-dim     { color: var(--color-text-tertiary, var(--text3, #4a5168)); }
+.text-amber   { color: var(--color-accent, var(--amber, #f0a030)); }
+.text-green   { color: var(--color-success, var(--green, #22c55e)); }
+.text-blue    { color: var(--color-info,    var(--blue, #4a9eff)); }
+.text-primary { color: var(--color-text-primary, var(--text, #e4e8f0)); }
+.text-secondary { color: var(--color-text-secondary, var(--text2, #8891a5)); }
+.text-critical  { color: var(--color-critical, var(--red, #ef4444)); }
+.text-sm-muted  { font-size: .78rem; color: var(--color-text-tertiary, var(--text3, #4a5168)); }
+.td-bold { font-weight: 600; }
+.td-xs   { font-size: .68rem; }
+.td-nowrap { white-space: nowrap; }
+.td-ellipsis { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-narrow { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.p-12 { padding: 12px; }
+.health-kv { font-family: var(--font-data, var(--mono, monospace)); font-size: .82rem; line-height: 2; }
+
+/* ── File viewer metadata ── */
+#fileViewerMeta {
+  font-family: var(--font-data, var(--mono, monospace));
+  font-size: .68rem;
+  color: var(--color-text-tertiary, var(--text3, #4a5168));
+  margin-left: auto;
+}
+
+/* ── Chart total label (admin) ── */
+.chart-total-lbl {
+  font-family: var(--font-data, var(--mono, monospace));
+  font-size: .7rem;
+  color: var(--color-text-tertiary, var(--text3, #4a5168));
+}
+
+/* ── Filter inputs (admin) ── */
+.filter-input-w { width: 180px; }
+
+/* ── Admin content panels ── */
+.admin-content-section {
+  padding: 20px;
+  font-size: .84rem;
+  color: var(--color-text-secondary, var(--text2, #8891a5));
+  line-height: 1.8;
+}
+
+.admin-code-block {
+  background: var(--color-surface-2, var(--bg3, #11141e));
+  border: 1px solid var(--color-border-subtle, var(--line, rgba(255,255,255,.06)));
+  border-radius: var(--radius-lg, 6px);
+  padding: 14px;
+  font-family: var(--font-data, var(--mono, monospace));
+  font-size: .76rem;
+  margin-bottom: 12px;
+}
+
+.admin-code-label {
+  color: var(--color-text-tertiary, var(--text3, #4a5168));
+  margin-bottom: 8px;
+  font-size: .62rem;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+
+.kuma-cmd-text {
+  color: var(--color-text-primary, var(--text, #e4e8f0));
+  user-select: all;
+}
+
+.btn-inline-block {
+  text-decoration: none;
+  display: inline-block;
+}
