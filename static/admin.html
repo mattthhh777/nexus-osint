@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NexusOSINT — Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:        #080a0f;
+  --bg2:       #0c0e15;
+  --bg3:       #11141e;
+  --bg4:       #171b28;
+  --bg5:       #1e2333;
+  --line:      rgba(255,255,255,.06);
+  --line2:     rgba(255,255,255,.1);
+  --amber:     #f5a623;
+  --amber-lo:  rgba(245,166,35,.1);
+  --red:       #e84040;
+  --red-lo:    rgba(232,64,64,.1);
+  --green:     #3ec78c;
+  --green-lo:  rgba(62,199,140,.1);
+  --blue:      #4a9eff;
+  --blue-lo:   rgba(74,158,255,.1);
+  --orange:    #e8822a;
+  --text:      #dde2f0;
+  --text2:     #7a8099;
+  --text3:     #3d4258;
+  --mono:      'JetBrains Mono', monospace;
+  --sans:      'Space Grotesk', sans-serif;
+  --r:         8px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{height:100%}
+body{
+  min-height:100vh;background:var(--bg);color:var(--text);
+  font-family:var(--sans);font-size:14px;line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,.015) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.015) 1px,transparent 1px);
+  background-size:40px 40px;pointer-events:none;z-index:0;
+}
+#app{position:relative;z-index:1;min-height:100vh}
+
+/* ── Nav ── */
+.nav{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 24px;border-bottom:1px solid var(--line);
+  position:sticky;top:0;background:rgba(8,10,15,.95);
+  backdrop-filter:blur(20px);z-index:100;
+}
+.nav-logo{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-weight:700;font-size:.88rem;letter-spacing:.08em;text-decoration:none;color:var(--text)}
+.nav-logo-mark{width:28px;height:28px;background:var(--amber);border-radius:6px;display:grid;place-items:center;font-size:.9rem;color:var(--bg)}
+.nav-badge-admin{
+  font-family:var(--mono);font-size:.66rem;font-weight:700;
+  background:var(--red-lo);border:1px solid rgba(232,64,64,.3);
+  color:var(--red);border-radius:4px;padding:2px 8px;
+}
+.nav-right{display:flex;align-items:center;gap:12px}
+.nav-user{font-family:var(--mono);font-size:.72rem;color:var(--amber);background:var(--amber-lo);border:1px solid rgba(245,166,35,.2);border-radius:6px;padding:4px 10px}
+.btn-signout{
+  background:var(--bg3);border:1px solid var(--line2);border-radius:6px;
+  padding:5px 10px;cursor:pointer;font-family:var(--mono);font-size:.7rem;
+  color:var(--text2);transition:all .15s;
+}
+.btn-signout:hover{border-color:var(--red);color:var(--red)}
+.nav-back{
+  display:flex;align-items:center;gap:5px;
+  font-family:var(--mono);font-size:.72rem;color:var(--text2);
+  text-decoration:none;transition:color .15s;
+}
+.nav-back:hover{color:var(--amber)}
+
+/* ── Layout ── */
+.layout{display:flex;min-height:calc(100vh - 57px)}
+.sidebar{
+  width:220px;flex-shrink:0;
+  border-right:1px solid var(--line);
+  padding:20px 0;
+  position:sticky;top:57px;height:calc(100vh - 57px);
+  overflow-y:auto;
+}
+.main{flex:1;padding:28px 32px;max-width:1100px}
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 20px;cursor:pointer;
+  font-size:.84rem;color:var(--text2);
+  transition:all .15s;border-left:2px solid transparent;
+}
+.nav-item:hover{color:var(--text);background:var(--bg2)}
+.nav-item.active{color:var(--amber);border-left-color:var(--amber);background:var(--amber-lo)}
+.nav-section-label{
+  font-family:var(--mono);font-size:.6rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:.1em;color:var(--text3);
+  padding:16px 20px 6px;
+}
+
+/* ── Page header ── */
+.page-header{margin-bottom:24px}
+.page-title{font-size:1.4rem;font-weight:700;color:var(--text);letter-spacing:-.02em}
+.page-sub{font-family:var(--mono);font-size:.74rem;color:var(--text2);margin-top:4px}
+
+/* ── Stat cards ── */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px}
+@media(max-width:900px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
+.stat-card{
+  background:var(--bg2);border:1px solid var(--line);
+  border-radius:10px;padding:20px;position:relative;overflow:hidden;
+}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.stat-val{font-family:var(--mono);font-size:2rem;font-weight:700;color:var(--text);letter-spacing:-.04em;line-height:1}
+.stat-lbl{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);margin-top:6px}
+.stat-delta{font-family:var(--mono);font-size:.7rem;margin-top:6px}
+.stat-card.amber::before{background:var(--amber)}
+.stat-card.green::before{background:var(--green)}
+.stat-card.blue::before{background:var(--blue)}
+.stat-card.red::before{background:var(--red)}
+
+/* ── Panels ── */
+.panel{background:var(--bg2);border:1px solid var(--line);border-radius:10px;margin-bottom:16px;overflow:hidden}
+.panel-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 20px;background:var(--bg3);border-bottom:1px solid var(--line);
+}
+.panel-title{font-weight:600;font-size:.9rem;color:var(--text)}
+.panel-body{padding:0}
+
+/* ── Tables ── */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:.76rem}
+thead th{
+  text-align:left;padding:10px 16px;
+  font-size:.62rem;font-weight:700;text-transform:uppercase;
+  letter-spacing:.08em;color:var(--text3);
+  border-bottom:1px solid var(--line);background:var(--bg3);
+  white-space:nowrap;
+}
+tbody td{
+  padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.04);
+  color:var(--text2);vertical-align:middle;
+}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:var(--bg3);color:var(--text)}
+.td-amber{color:var(--amber)}
+.td-green{color:var(--green)}
+.td-red{color:var(--red)}
+.td-muted{color:var(--text3)}
+.td-mono{font-family:var(--mono)}
+
+/* ── Badges ── */
+.badge{
+  display:inline-flex;align-items:center;
+  font-family:var(--mono);font-size:.62rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:.06em;
+  padding:2px 8px;border-radius:4px;white-space:nowrap;
+}
+.badge-green{background:var(--green-lo);color:var(--green);border:1px solid rgba(62,199,140,.2)}
+.badge-amber{background:var(--amber-lo);color:var(--amber);border:1px solid rgba(245,166,35,.2)}
+.badge-red{background:var(--red-lo);color:var(--red);border:1px solid rgba(232,64,64,.2)}
+.badge-blue{background:var(--blue-lo);color:var(--blue);border:1px solid rgba(74,158,255,.2)}
+.badge-gray{background:var(--bg4);color:var(--text3);border:1px solid var(--line)}
+
+/* ── Buttons ── */
+.btn{
+  padding:8px 16px;border-radius:var(--r);border:none;
+  font-family:var(--sans);font-size:.82rem;font-weight:600;
+  cursor:pointer;transition:all .15s;
+}
+.btn-primary{background:var(--amber);color:var(--bg)}
+.btn-primary:hover{filter:brightness(1.1)}
+.btn-secondary{background:var(--bg4);color:var(--text2);border:1px solid var(--line2)}
+.btn-secondary:hover{border-color:var(--line3);color:var(--text)}
+.btn-danger{background:var(--red-lo);color:var(--red);border:1px solid rgba(232,64,64,.2)}
+.btn-danger:hover{background:rgba(232,64,64,.2)}
+.btn-sm{padding:5px 12px;font-size:.74rem}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* ── Forms ── */
+.form-group{margin-bottom:14px}
+.form-label{font-family:var(--mono);font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px;display:block}
+.form-input{
+  width:100%;background:var(--bg4);border:1px solid var(--line2);
+  border-radius:var(--r);padding:10px 14px;color:var(--text);
+  font-family:var(--mono);font-size:.84rem;outline:none;transition:all .2s;
+}
+.form-input:focus{border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-lo)}
+.form-select{
+  width:100%;background:var(--bg4);border:1px solid var(--line2);
+  border-radius:var(--r);padding:10px 14px;color:var(--text);
+  font-family:var(--mono);font-size:.84rem;outline:none;cursor:pointer;
+}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+/* ── Modal ── */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.6);
+  z-index:200;display:none;place-items:center;backdrop-filter:blur(4px);
+}
+.modal-overlay.visible{display:grid}
+.modal{
+  background:var(--bg2);border:1px solid var(--line2);
+  border-radius:12px;padding:28px;width:100%;max-width:440px;
+  box-shadow:0 20px 60px rgba(0,0,0,.6);
+}
+.modal-title{font-size:1rem;font-weight:700;margin-bottom:4px}
+.modal-sub{font-family:var(--mono);font-size:.74rem;color:var(--text2);margin-bottom:20px}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
+
+/* ── Login screen ── */
+.login-screen{
+  position:fixed;inset:0;background:var(--bg);
+  display:grid;place-items:center;z-index:300;
+}
+.login-card{
+  background:var(--bg2);border:1px solid var(--line2);
+  border-radius:12px;padding:36px;width:100%;max-width:380px;text-align:center;
+}
+.login-logo{font-family:var(--mono);font-size:2rem;color:var(--amber);margin-bottom:8px}
+.login-title{font-size:1.1rem;font-weight:700;margin-bottom:4px}
+.login-sub{font-size:.82rem;color:var(--text2);margin-bottom:24px}
+.login-error{color:var(--red);font-size:.78rem;margin-top:8px;display:none}
+
+/* ── Pagination ── */
+.pagination{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;border-top:1px solid var(--line);
+  font-family:var(--mono);font-size:.72rem;color:var(--text2);
+}
+.pagination-btns{display:flex;gap:6px}
+.pag-btn{
+  background:var(--bg4);border:1px solid var(--line2);
+  border-radius:5px;padding:4px 10px;cursor:pointer;
+  font-family:var(--mono);font-size:.72rem;color:var(--text2);transition:all .15s;
+}
+.pag-btn:hover{border-color:var(--amber);color:var(--amber)}
+.pag-btn:disabled{opacity:.3;cursor:not-allowed}
+
+/* ── Filter bar ── */
+.filter-bar{
+  display:flex;align-items:center;gap:10px;
+  padding:12px 16px;border-bottom:1px solid var(--line);
+  flex-wrap:wrap;
+}
+.filter-input{
+  background:var(--bg4);border:1px solid var(--line2);
+  border-radius:6px;padding:6px 12px;color:var(--text);
+  font-family:var(--mono);font-size:.76rem;outline:none;
+}
+.filter-input:focus{border-color:var(--amber)}
+
+/* ── Chart ── */
+.chart-wrap{padding:20px;height:180px;position:relative}
+.chart-bars{
+  display:flex;align-items:flex-end;gap:4px;
+  height:140px;padding-bottom:4px;
+}
+.chart-bar{
+  flex:1;background:var(--amber-lo);border-radius:3px 3px 0 0;
+  border:1px solid rgba(245,166,35,.2);transition:all .3s;
+  position:relative;min-width:4px;cursor:default;
+}
+.chart-bar:hover{background:var(--amber-lo);border-color:var(--amber)}
+.chart-bar-tooltip{
+  position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);
+  background:var(--bg3);border:1px solid var(--line2);
+  border-radius:4px;padding:3px 7px;
+  font-family:var(--mono);font-size:.62rem;color:var(--text);
+  white-space:nowrap;pointer-events:none;display:none;z-index:10;
+}
+.chart-bar:hover .chart-bar-tooltip{display:block}
+
+/* ── Status indicator ── */
+.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px}
+.status-dot.green{background:var(--green);box-shadow:0 0 6px var(--green)}
+.status-dot.red{background:var(--red);box-shadow:0 0 6px var(--red)}
+.status-dot.amber{background:var(--amber);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ── Empty state ── */
+.empty-state{
+  padding:40px;text-align:center;
+  font-family:var(--mono);font-size:.82rem;color:var(--text3);
+}
+
+/* ── Toast ── */
+.toast{
+  position:fixed;bottom:24px;right:24px;
+  background:var(--bg3);border:1px solid var(--green);
+  border-radius:8px;padding:12px 16px;
+  font-size:.82rem;color:var(--text);max-width:320px;
+  box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:999;
+  display:none;animation:slideup .2s ease;
+}
+.toast.visible{display:block}
+.toast.error{border-color:var(--red)}
+@keyframes slideup{from{transform:translateY(20px);opacity:0}to{transform:none;opacity:1}}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-thumb{background:var(--bg5);border-radius:4px}
+
+/* ── Sections ── */
+.section{display:none}
+.section.active{display:block}
+
+/* ── Uptime card ── */
+.uptime-service-card{
+  background:var(--bg3);border:1px solid var(--line);
+  border-radius:8px;padding:14px 16px;margin-bottom:8px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.uptime-name{font-weight:600;font-size:.88rem;color:var(--text)}
+.uptime-url{font-family:var(--mono);font-size:.68rem;color:var(--text3)}
+.uptime-status{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:.74rem}
+
+/* ═══════════════════════════════════════════════════════════════
+   NEXUSOSINT ADMIN — ENHANCED UI v3.1
+   Refined: depth · micro-interactions · polish · accessibility
+═══════════════════════════════════════════════════════════════ */
+
+:root {
+  --shadow-xs:    0 1px 4px rgba(0,0,0,.3);
+  --shadow-sm:    0 2px 12px rgba(0,0,0,.45);
+  --shadow-md:    0 4px 24px rgba(0,0,0,.5);
+  --shadow-inset: inset 0 1px 0 rgba(255,255,255,.04);
+  --ease-out:     cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out:  cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast:     150ms;
+  --dur-mid:      260ms;
+}
+
+html { scroll-behavior: smooth; }
+
+body::before {
+  background-image:
+    linear-gradient(rgba(255,255,255,.013) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.013) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* ── Cursor ── */
+.nav-item, .btn, .pag-btn, .filter-input, .uptime-service-card { cursor: pointer; }
+
+/* ── Focus ring ── */
+:focus-visible {
+  outline: 2px solid rgba(245,166,35,.5);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+/* ── Nav: refined glassmorphism ── */
+.nav {
+  background: rgba(8,10,15,.96);
+  border-bottom: 1px solid rgba(255,255,255,.07);
+  box-shadow: 0 1px 24px rgba(0,0,0,.45);
+}
+.nav-logo-mark {
+  background: linear-gradient(135deg, var(--amber), #e0891c);
+  box-shadow: 0 2px 14px rgba(245,166,35,.35);
+}
+.nav-user {
+  font-size: .7rem;
+  border-radius: 6px;
+}
+
+/* ── Login: stronger brand moment ── */
+.login-screen {
+  background: radial-gradient(ellipse at 50% 35%,
+    rgba(245,166,35,.04) 0%, var(--bg) 60%);
+}
+.login-card {
+  box-shadow:
+    0 24px 80px rgba(0,0,0,.6),
+    0 0 0 1px rgba(255,255,255,.07) inset,
+    0 0 24px rgba(245,166,35,.1);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px;
+}
+.login-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px; height: 58px;
+  background: linear-gradient(135deg, rgba(245,166,35,.15), rgba(245,166,35,.05));
+  border: 1px solid rgba(245,166,35,.3);
+  border-radius: 14px;
+  margin: 0 auto 14px;
+  font-size: 1.5rem;
+  box-shadow: 0 4px 22px rgba(245,166,35,.18);
+}
+.form-input:focus, .form-select:focus {
+  box-shadow: 0 0 0 3px rgba(245,166,35,.12);
+}
+
+/* ── Sidebar: refined ── */
+.sidebar {
+  background: rgba(8,10,15,.5);
+  border-right: 1px solid rgba(255,255,255,.06);
+}
+.nav-item {
+  transition: all var(--dur-fast) var(--ease-in-out);
+  border-radius: 0 8px 8px 0;
+  margin: 2px 10px 2px 0;
+}
+.nav-item:hover {
+  background: rgba(255,255,255,.025);
+  color: var(--text);
+}
+.nav-item.active {
+  background: rgba(245,166,35,.08);
+  border-left-color: var(--amber);
+  color: var(--amber);
+}
+
+/* ── Nav icon ── */
+.nav-icon {
+  width: 15px; height: 15px;
+  flex-shrink: 0;
+  opacity: .65;
+  vertical-align: -2px;
+}
+.nav-item.active .nav-icon { opacity: .9; }
+
+/* ── Stat cards: lift + gradient value ── */
+.stat-card {
+  box-shadow: var(--shadow-xs), var(--shadow-inset);
+  transition: all var(--dur-mid) var(--ease-out);
+  border-radius: 10px;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--line2);
+  box-shadow: var(--shadow-md), var(--shadow-inset);
+}
+.stat-card.amber .stat-val {
+  background: linear-gradient(135deg, var(--amber), #e0891c);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.stat-card.green .stat-val {
+  background: linear-gradient(135deg, var(--green), #2ea572);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.stat-card.blue .stat-val {
+  background: linear-gradient(135deg, var(--blue), #2f7ad4);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.stat-card.red .stat-val {
+  background: linear-gradient(135deg, var(--red), #c43030);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Panels ── */
+.panel {
+  box-shadow: var(--shadow-xs), var(--shadow-inset);
+  border-radius: 10px;
+  transition: box-shadow var(--dur-fast) ease, border-color var(--dur-fast) ease;
+}
+.panel:hover {
+  border-color: rgba(255,255,255,.09);
+  box-shadow: var(--shadow-sm), var(--shadow-inset);
+}
+.panel-header {
+  border-radius: 9px 9px 0 0;
+  transition: background var(--dur-fast) ease;
+}
+.panel-header:hover { background: rgba(23,27,40,.88); }
+
+/* ── Table rows ── */
+tbody tr { transition: background var(--dur-fast) ease; }
+tbody td { vertical-align: middle; }
+
+/* ── Chart bars: smoother ── */
+.chart-bar {
+  transition: all 320ms var(--ease-out);
+  border-radius: 4px 4px 0 0;
+}
+.chart-bar:hover {
+  background: rgba(245,166,35,.25) !important;
+  border-color: var(--amber) !important;
+}
+
+/* ── Filter bar ── */
+.filter-bar {
+  background: rgba(11,13,20,.5);
+  border-bottom: 1px solid rgba(255,255,255,.05);
+}
+.filter-input {
+  border-radius: 6px;
+  transition: all var(--dur-fast) ease;
+}
+.filter-input:focus {
+  border-color: var(--amber);
+  background: var(--bg3);
+  box-shadow: 0 0 0 3px rgba(245,166,35,.1);
+}
+
+/* ── Pagination ── */
+.pag-btn {
+  border-radius: 6px;
+  transition: all var(--dur-fast) ease;
+}
+.pag-btn:hover:not(:disabled) {
+  border-color: var(--amber);
+  color: var(--amber);
+  background: rgba(245,166,35,.06);
+}
+
+/* ── Buttons ── */
+.btn-primary {
+  box-shadow: 0 4px 18px rgba(245,166,35,.28);
+  transition: all var(--dur-fast) var(--ease-out);
+}
+.btn-primary:hover:not(:disabled) {
+  box-shadow: 0 6px 28px rgba(245,166,35,.4);
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+.btn-primary:active:not(:disabled) { transform: scale(.97); }
+.btn-secondary, .btn-danger { transition: all var(--dur-fast) ease; }
+
+/* ── Modal ── */
+.modal-overlay {
+  background: rgba(0,0,0,.65);
+  backdrop-filter: blur(8px);
+}
+.modal {
+  box-shadow: 0 24px 80px rgba(0,0,0,.65),
+              0 0 0 1px rgba(255,255,255,.07) inset;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px;
+}
+
+/* ── Toast ── */
+.toast {
+  backdrop-filter: blur(12px);
+  background: rgba(17,20,30,.92);
+  box-shadow: 0 8px 40px rgba(0,0,0,.55);
+  border-radius: 10px;
+}
+
+/* ── Uptime service card ── */
+.uptime-service-card {
+  border-radius: 10px;
+  transition: all var(--dur-fast) ease;
+}
+.uptime-service-card:hover {
+  border-color: var(--line2);
+  background: rgba(23,27,40,.9);
+}
+
+/* ── Status dot ── */
+.status-dot.green {
+  box-shadow: 0 0 0 2px rgba(62,199,140,.2), 0 0 8px var(--green);
+}
+
+/* ── Page title gradient ── */
+.page-title {
+  background: linear-gradient(135deg, var(--text) 0%, rgba(221,226,240,.6) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Kbd ── */
+kbd {
+  background: var(--bg4);
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 1px 0 rgba(255,255,255,.08);
+  color: var(--text);
+  font-size: .68rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+/* ── Table utilities (CSP hardening) ── */
+.td-bold { font-weight: 600; }
+.td-nowrap { white-space: nowrap; }
+.td-ellipsis { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-narrow { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-ip { font-size: .68rem; }
+.p-12 { padding: 12px; }
+.text-critical { color: var(--red); }
+.health-kv { font-family: var(--mono); font-size: .82rem; line-height: 2; }
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M11 1L20.526 6.25V16.75L11 22 1.474 16.75V6.25z" fill="var(--amber)" opacity=".9"/></svg>
+      </div>
+    <div class="login-title">NexusOSINT Admin</div>
+    <div class="login-sub">Sign in with your admin credentials</div>
+    <div class="mb-10">
+      <input type="text" class="form-input mb-8" id="loginUser" placeholder="Username" autocomplete="username">
+      <input type="password" class="form-input" id="loginPass" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary btn-full" data-action="do-login" id="loginBtn">Sign In</button>
+    <div class="login-error" id="loginError">Invalid credentials or insufficient permissions</div>
+  </div>
+</div>
+
+<div id="app">
+
+  <!-- Nav -->
+  <nav class="nav">
+    <div class="admin-nav-brand">
+      <div class="nav-logo">
+        <div class="nav-logo-mark" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 .5L13.062 3.75v6.5L7 13.5.938 10.25v-6.5z" fill="currentColor" fill-opacity=".9"/></svg>
+        </div>
+        NEXUSOSINT
+      </div>
+      <span class="nav-badge-admin">ADMIN</span>
+    </div>
+    <div class="nav-right">
+      <a href="/" class="nav-back">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M8 2L4 6l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Back to Platform
+      </a>
+      <div class="nav-user" id="navUser">admin</div>
+      <button class="btn-signout" data-action="sign-out-admin">Sign Out</button>
+    </div>
+  </nav>
+
+  <div class="layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="nav-section-label">Overview</div>
+      <div class="nav-item active" data-action="show-section" data-section="dashboard" id="nav-dashboard">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="1.5" y="1.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="9.5" y="1.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="1.5" y="9.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="9.5" y="9.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/></svg>
+        Dashboard
+      </div>
+      <div class="nav-item" data-action="show-section" data-section="logs" id="nav-logs">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="1.5" width="10" height="13" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M6 5h4M6 8h4M6 11h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Audit Logs
+      </div>
+      <div class="nav-section-label">Management</div>
+      <div class="nav-item" data-action="show-section" data-section="users" id="nav-users">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="6" cy="5" r="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M1.5 14c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4M11 4c1.4 0 2.5 1.1 2.5 2.5S12.4 9 11 9M14.5 14c0-2-1.2-3.4-3.5-3.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Users
+      </div>
+      <div class="nav-section-label">Infrastructure</div>
+      <div class="nav-item" data-action="show-section" data-section="uptime" id="nav-uptime">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5"/><path d="M3 8l3.5 3.5L13 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Uptime
+      </div>
+      <div class="nav-item" data-action="show-section" data-section="health" id="nav-health">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M1.5 8h3l2-5 2 10 2-5 1.5 3h2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        System Health
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+
+      <!-- ── DASHBOARD ── -->
+      <div class="section active" id="section-dashboard">
+        <div class="page-header">
+          <div class="page-title">Dashboard</div>
+          <div class="page-sub" id="dashLastUpdate">Loading…</div>
+        </div>
+
+        <div class="stats-grid" id="statsGrid">
+          <div class="stat-card amber">
+            <div class="stat-val" id="statToday">─</div>
+            <div class="stat-lbl">Searches Today</div>
+          </div>
+          <div class="stat-card green">
+            <div class="stat-val" id="statTotal">─</div>
+            <div class="stat-lbl">Total Searches</div>
+          </div>
+          <div class="stat-card blue">
+            <div class="stat-val" id="statUsers">─</div>
+            <div class="stat-lbl">Active Users</div>
+          </div>
+          <div class="stat-card red">
+            <div class="stat-val" id="statQuota">─</div>
+            <div class="stat-lbl">OathNet Left Today</div>
+          </div>
+        </div>
+
+        <!-- Activity chart -->
+        <div class="panel mb-16">
+          <div class="panel-header">
+            <div class="panel-title">Search Activity — Last 7 days</div>
+            <span class="chart-total-lbl" id="chartTotal">─</span>
+          </div>
+          <div class="chart-wrap">
+            <div class="chart-bars" id="chartBars"></div>
+          </div>
+        </div>
+
+        <div class="grid-2col">
+          <!-- Top queries -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">Top Queries Today</div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Query</th><th>Count</th></tr></thead>
+                <tbody id="topQueriesBody">
+                  <tr><td colspan="2" class="empty-state">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Per user -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">Usage Per User Today</div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>User</th><th>Searches</th></tr></thead>
+                <tbody id="perUserBody">
+                  <tr><td colspan="2" class="empty-state">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── AUDIT LOGS ── -->
+      <div class="section" id="section-logs">
+        <div class="page-header">
+          <div class="page-title">Audit Logs</div>
+          <div class="page-sub">All search activity across all users</div>
+        </div>
+
+        <div class="panel">
+          <div class="filter-bar">
+            <input type="text" class="filter-input filter-input-w" id="logFilterUser" placeholder="Filter by username…">
+            <input type="text" class="filter-input filter-input-w" id="logFilterQuery" placeholder="Filter by query…">
+            <button class="btn btn-secondary btn-sm" data-action="export-logs-csv">
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true" class="btn-svg"><path d="M1.5 8v1.5a.5.5 0 00.5.5h7a.5.5 0 00.5-.5V8M5.5 1v6M3 5.5l2.5 2.5L8 5.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Export CSV
+            </button>
+            <button class="btn btn-secondary btn-sm btn-ml-auto" data-action="load-logs">
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true" class="btn-svg"><path d="M9.5 1.5A5 5 0 111.5 7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M1.5 4V7h2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Refresh
+            </button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>Time</th>
+                <th>User</th>
+                <th>Query</th>
+                <th>Type</th>
+                <th>Modules</th>
+                <th>B</th>
+                <th>S</th>
+                <th>Soc</th>
+                <th>IP</th>
+                <th>ms</th>
+              </tr></thead>
+              <tbody id="logsBody">
+                <tr><td colspan="10" class="empty-state">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="pagination">
+            <span id="logsPaginationInfo">─</span>
+            <div class="pagination-btns">
+              <button class="pag-btn" id="logsPrev" data-action="logs-page" data-dir="-1" disabled>← Prev</button>
+              <button class="pag-btn" id="logsNext" data-action="logs-page" data-dir="1">Next →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── USERS ── -->
+      <div class="section" id="section-users">
+        <div class="page-header page-header-flex">
+          <div>
+            <div class="page-title">Users</div>
+            <div class="page-sub">Manage platform access</div>
+          </div>
+          <button class="btn btn-primary" data-action="open-create-user">+ New User</button>
+        </div>
+
+        <div class="panel">
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>Username</th>
+                <th>Role</th>
+                <th>Created</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr></thead>
+              <tbody id="usersBody">
+                <tr><td colspan="5" class="empty-state">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── UPTIME ── -->
+      <div class="section" id="section-uptime">
+        <div class="page-header">
+          <div class="page-title">Uptime Monitoring</div>
+          <div class="page-sub">Internal health checks + external monitoring setup</div>
+        </div>
+
+        <!-- Internal checks -->
+        <div class="panel mb-16">
+          <div class="panel-header">
+            <div class="panel-title">Live Service Status</div>
+            <button class="btn btn-secondary btn-sm" data-action="check-uptime">
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true" class="btn-svg"><path d="M9.5 1.5A5 5 0 111.5 7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M1.5 4V7h2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Refresh
+            </button>
+          </div>
+          <div class="p-16" id="uptimeServices">
+            <div class="empty-state">Checking…</div>
+          </div>
+        </div>
+
+        <!-- UptimeRobot setup guide -->
+        <div class="panel mb-16">
+          <div class="panel-header">
+            <div class="panel-title">
+              <svg class="nav-svg" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5"/><path d="M6 8h4M8 6v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              UptimeRobot — External Monitor (Recommended)
+            </div>
+            <span class="badge badge-green">Free · 5min checks</span>
+          </div>
+          <div class="admin-content-section">
+            <p class="mb-12">UptimeRobot monitors your site from <strong class="text-primary">multiple global locations</strong> — independent of your VPS. If the VPS goes down, you still get alerted.</p>
+            <div class="admin-code-block">
+              <div class="admin-code-label">Setup Steps</div>
+              <div class="text-amber">1.</div> Go to <a href="https://uptimerobot.com" target="_blank" class="text-blue">uptimerobot.com</a> → Create free account<br>
+              <div class="text-amber">2.</div> Add New Monitor → Type: <span class="text-green">HTTPS</span><br>
+              <div class="text-amber">3.</div> URL: <span class="text-green" id="healthUrl">https://nexusosint.uk/health</span><br>
+              <div class="text-amber">4.</div> Keyword: <span class="text-green">"ok"</span> (validates the response, not just HTTP 200)<br>
+              <div class="text-amber">5.</div> Alert contacts: Email + Telegram (recommended)<br>
+              <div class="text-amber">6.</div> Add second monitor for <span class="text-green">https://nexusosint.uk/api/login</span> (POST endpoint alive check)
+            </div>
+            <a href="https://uptimerobot.com/signUp" target="_blank" class="btn btn-primary btn-sm btn-inline-block">Create UptimeRobot Account →</a>
+          </div>
+        </div>
+
+        <!-- Uptime Kuma self-hosted -->
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <svg class="nav-svg" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="1.5" y="5" width="13" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M5 5V3.5a3 3 0 016 0V5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              Uptime Kuma — Self-Hosted (Advanced)
+            </div>
+            <span class="badge badge-amber">Requires VPS config</span>
+          </div>
+          <div class="admin-content-section">
+            <p class="mb-12">Uptime Kuma runs alongside your app, monitors all internal services (including the database and Redis if added later), and provides a beautiful status dashboard.</p>
+            <div class="admin-code-block">
+              <div class="admin-code-label">Deploy Command (VPS)</div>
+              <div class="kuma-cmd-text" id="kumaCmd">docker run -d --restart=always -p 3001:3001 -v uptime-kuma:/app/data --name uptime-kuma louislam/uptime-kuma:1</div>
+            </div>
+            <p class="text-sm-muted">After running, access at <strong class="text-amber">http://146.190.142.50:3001</strong> — create account, add monitors for each service endpoint.</p>
+            <button class="btn btn-secondary btn-sm btn-mt" data-action="copy-kuma-cmd">📋 Copy Command</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── HEALTH ── -->
+      <div class="section" id="section-health">
+        <div class="page-header">
+          <div class="page-title">System Health</div>
+          <div class="page-sub">Real-time system diagnostics</div>
+        </div>
+
+        <div class="grid-2col">
+          <div class="panel">
+            <div class="panel-header"><div class="panel-title">API Health</div></div>
+            <div class="p-16" id="apiHealthBody"><div class="empty-state">Loading…</div></div>
+          </div>
+          <div class="panel">
+            <div class="panel-header"><div class="panel-title">Recent Errors</div></div>
+            <div class="p-16" id="recentErrorsBody"><div class="empty-state">No recent errors</div></div>
+          </div>
+        </div>
+
+        <div class="panel mt-16">
+          <div class="panel-header">
+            <div class="panel-title">Search Performance (last 50)</div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Query</th><th>Mode</th><th>Elapsed</th><th>Breaches</th><th>Stealers</th><th>Time</th></tr></thead>
+              <tbody id="perfBody"><tr><td colspan="6" class="empty-state">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- Create User Modal -->
+<div class="modal-overlay" id="createUserModal">
+  <div class="modal">
+    <div class="modal-title">Create New User</div>
+    <div class="modal-sub">New users can access the platform immediately after creation.</div>
+    <div class="form-group">
+      <label class="form-label">Username</label>
+      <input type="text" class="form-input" id="newUsername" placeholder="e.g. client1" autocomplete="off">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input type="password" class="form-input" id="newPassword" placeholder="••••••••">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Role</label>
+        <select class="form-select" id="newRole">
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" data-action="close-modal">Cancel</button>
+      <button class="btn btn-primary" data-action="create-user">Create User</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="js/admin.js?v=202604080001"></script>
+</body>
+</html>

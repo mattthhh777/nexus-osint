@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NexusOSINT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/tokens.css?v=202603280335">
+<link rel="stylesheet" href="css/reset.css?v=202603280335">
+<link rel="stylesheet" href="css/layout.css?v=202603280335">
+<link rel="stylesheet" href="css/components.css?v=202603280335">
+<link rel="stylesheet" href="css/panels.css?v=202603280335">
+<link rel="stylesheet" href="css/tables.css?v=202603280335">
+<link rel="stylesheet" href="css/cards.css?v=202603280335">
+<link rel="stylesheet" href="css/overlays.css?v=202603280335">
+<link rel="stylesheet" href="css/responsive.css?v=202603280335">
+<link rel="stylesheet" href="css/security-hardening.css?v=202604070001">
+</head>
+<body>
+
+<!-- Auth screen — JWT login -->
+<div class="auth-screen" id="authScreen">
+  <div class="auth-card">
+    <div class="auth-logo">⬡</div>
+    <div class="auth-title">NexusOSINT</div>
+    <div class="auth-sub">Intelligence Platform — Sign in to continue</div>
+    <div class="mb-10">
+      <input type="text" class="auth-input mb-8" id="authUsername" placeholder="Username" autocomplete="username">
+      <input type="password" class="auth-input" id="authInput" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary auth-btn" data-action="submit-auth" id="authBtn">Sign In</button>
+    <div class="auth-error" id="authError">Invalid username or password</div>
+  </div>
+</div>
+
+<div id="app">
+  <!-- Nav -->
+  <nav class="nav">
+    <div class="nav-logo">
+      <div class="nav-logo-mark" aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 .5L13.062 3.75v6.5L7 13.5.938 10.25v-6.5z" fill="currentColor" fill-opacity=".9"/></svg>
+      </div>
+      <div>
+        NEXUSOSINT
+        <span class="nav-version">v3.0</span>
+      </div>
+    </div>
+    <div class="nav-right">
+      <div class="quota-pill" id="quotaPill">
+        <div class="quota-pill-track">
+          <div class="quota-pill-fill" id="quotaPillFill"></div>
+        </div>
+        <span id="quotaPillText">─</span> <span class="text-dim">left</span>
+      </div>
+      <div class="sf-indicator">
+        <div class="sf-dot" id="sfDot"></div>
+        <span id="sfLabel">spiderfoot</span>
+      </div>
+      <button class="nav-cases-btn" data-action="toggle-cases-panel" title="Saved Cases">
+        📁 <span id="casesBadge"></span>
+      </button>
+      <div class="nav-user-badge" id="navUserBadge" title="Sign out" data-action="sign-out"></div>
+      <a href="/admin" class="nav-admin-link" id="navAdminLink">⚙ Admin</a>
+    </div>
+  </nav>
+
+  <div class="page">
+    <!-- Hero -->
+    <div class="hero">
+      <div class="hero-tag">Intelligence Platform</div>
+      <h1>Find anything on<br><span>anyone, instantly.</span></h1>
+      <p>Breach databases · Social networks · Emails · IPs · Domains · SpiderFoot OSINT</p>
+
+      <!-- Search -->
+      <div class="search-container">
+        <!-- Quota bar -->
+        <div class="quota-bar" id="quotaBar">
+          <div class="quota-track">
+            <div class="quota-fill" id="quotaFill"></div>
+          </div>
+          <span>OathNet <span class="quota-text" id="quotaText">─</span> left today</span>
+        </div>
+
+        <div class="search-row">
+          <input type="text" class="search-input" id="searchInput"
+            placeholder="username · email · IP · Discord ID · domain…">
+          <span class="query-type-badge" id="queryTypeBadge"></span>
+          <button class="btn btn-primary" id="searchBtn" data-action="start-search">
+            Search →
+          </button>
+        </div>
+
+        <div class="mode-row">
+          <div class="toggle">
+            <button class="toggle-btn active" id="btnAuto" data-action="set-mode" data-mode="auto">Automated</button>
+            <button class="toggle-btn" id="btnManual" data-action="set-mode" data-mode="manual">Manual</button>
+          </div>
+          <span class="search-hint"><kbd>Enter</kbd> to search</span>
+        </div>
+
+        <!-- Manual mode options -->
+        <div class="manual-section" id="manualSection">
+          <div class="section-label">Category</div>
+          <div class="cat-chips" id="catChips"></div>
+          <div class="section-label mt-10">Modules</div>
+          <div class="cat-chips" id="modChips"></div>
+
+          <!-- SpiderFoot scan mode -->
+          <div class="sf-options" id="sfOptions">
+            <span class="sf-mode-label">SpiderFoot scan mode:</span>
+            <button class="chip active" data-action="set-sf-mode" data-mode="passive">passive</button>
+            <button class="chip" data-action="set-sf-mode" data-mode="footprint">footprint</button>
+            <button class="chip" data-action="set-sf-mode" data-mode="investigate">investigate</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scan progress -->
+    <div class="scan-status" id="scanStatus">
+      <div class="scan-header">
+        <div class="scan-title" id="scanTitle">Scanning…</div>
+        <div class="scan-pct" id="scanPct">0%</div>
+      </div>
+      <div class="scan-track"><div class="scan-fill" id="scanFill"></div></div>
+      <div class="scan-modules" id="scanModules"></div>
+    </div>
+
+    <!-- Results -->
+    <div id="results">
+      <!-- Header -->
+      <div class="result-header">
+        <div class="result-header-left">
+          <div class="result-status">Search complete</div>
+          <div class="result-target mono" id="resTarget">─</div>
+          <div class="result-sub" id="resSub">─</div>
+        </div>
+        <div class="result-actions">
+          <div id="riskBadge" class="risk-badge">─</div>
+          <button class="btn-save-case" data-action="save-case" id="btnSaveCase">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true" class="btn-svg"><path d="M10.5 11.5h-8a1 1 0 01-1-1v-8a1 1 0 011-1h5.5L11.5 5v5.5a1 1 0 01-1 1z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M8.5 11.5V8h-4v3.5M4.5 1.5V4h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            Save Case
+          </button>
+          <button class="btn-copy-all" data-action="copy-all" id="btnCopyAll">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true" class="btn-svg"><rect x="4" y="4" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M9 4V2.5A1.5 1.5 0 007.5 1h-5A1.5 1.5 0 001 2.5v5A1.5 1.5 0 002.5 9H4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            Copy All
+          </button>
+          <button class="btn-pdf" data-action="export-pdf" id="btnExportPDF">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true" class="btn-svg"><path d="M1.5 9.5v2a.5.5 0 00.5.5h9a.5.5 0 00.5-.5v-2M6.5 1v7M4 6.5l2.5 2.5L9 6.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            PDF
+          </button>
+          <button class="btn btn-secondary btn-sm" data-action="new-search">New Search</button>
+        </div>
+      </div>
+
+      <!-- Stat grid -->
+      <div class="stat-grid" id="statGrid"></div>
+
+      <!-- Export panel -->
+      <div class="panel" id="panelExport">
+        <div class="panel-header" data-action="toggle-panel" data-panel="panelExport">
+          <div class="panel-title">
+          <svg class="panel-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 10.5v2a1 1 0 001 1h9a1 1 0 001-1v-2M8 1.5v8M5 6.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Export Report
+        </div>
+          <span class="panel-chevron">›</span>
+        </div>
+        <div class="panel-body">
+          <div class="export-row">
+            <button class="btn btn-secondary btn-sm" data-action="export-json">JSON</button>
+            <button class="btn btn-secondary btn-sm" data-action="export-csv">CSV</button>
+            <button class="btn btn-secondary btn-sm" data-action="export-txt">TXT</button>
+            <button class="btn btn-secondary btn-sm" data-action="export-pdf">PDF</button>
+            <button class="btn btn-secondary btn-sm" data-action="copy-all">Copy All</button>
+          </div>
+          <textarea class="copy-area" id="copyArea" readonly
+            data-action="select-copy-area"></textarea>
+        </div>
+      </div>
+
+      <!-- Breach panel -->
+      <div class="panel open" id="panelBreach">
+        <div class="panel-header" data-action="toggle-panel" data-panel="panelBreach">
+          <div class="panel-title">
+            <svg class="panel-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 1L13.5 3v4.5C13.5 11 11 14 8 15c-3-1-5.5-4-5.5-7.5V3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+            Security Breaches
+            <span class="panel-badge" id="breachBadge">0</span>
+          </div>
+          <div class="panel-header-actions">
+            <button class="btn-copy" data-action="copy-section" data-section="breach" id="copyBtn_breach">📋 Copy</button>
+            <span class="panel-chevron">›</span>
+          </div>
+        </div>
+        <div class="panel-body" id="breachBody">
+          <div class="text-dim-mono">No data yet</div>
+        </div>
+      </div>
+
+      <!-- Stealer panel -->
+      <div class="panel open" id="panelStealer">
+        <div class="panel-header" data-action="toggle-panel" data-panel="panelStealer">
+          <div class="panel-title">
+            <svg class="panel-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2L14 13H2L8 2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><line x1="8" y1="7" x2="8" y2="10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="11.5" r=".75" fill="currentColor"/></svg>
+            Stolen Information
+            <span class="panel-badge" id="stealerBadge">0</span>
+          </div>
+          <div class="panel-header-actions">
+            <button class="btn-copy" data-action="copy-section" data-section="stealer" id="copyBtn_stealer">📋 Copy</button>
+            <span class="panel-chevron">›</span>
+          </div>
+        </div>
+        <div class="panel-body" id="stealerBody">
+          <div class="text-dim-mono">No data yet</div>
+        </div>
+      </div>
+
+      <!-- Social panel -->
+      <div class="panel open" id="panelSocial">
+        <div class="panel-header" data-action="toggle-panel" data-panel="panelSocial">
+          <div class="panel-title">
+            <svg class="panel-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5c-2 2-3 4-3 6.5s1 4.5 3 6.5M8 1.5c2 2 3 4 3 6.5s-1 4.5-3 6.5M1.5 8h13" stroke="currentColor" stroke-width="1.5"/></svg>
+            Social Profiles
+            <span class="panel-badge" id="socialBadge">0</span>
+          </div>
+          <div class="panel-header-actions">
+            <button class="btn-copy" data-action="copy-section" data-section="social" id="copyBtn_social">📋 Copy</button>
+            <span class="panel-chevron">›</span>
+          </div>
+        </div>
+        <div class="panel-body" id="socialBody">
+          <div class="text-dim-mono">No data yet</div>
+        </div>
+      </div>
+
+      <!-- Email panel -->
+      <div class="panel" id="panelEmail">
+        <div class="panel-header" data-action="toggle-panel" data-panel="panelEmail">
+          <div class="panel-title">
+            <svg class="panel-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="1.5" y="3.5" width="13" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M1.5 5.5l6.5 4 6.5-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            Email Services
+            <span class="panel-badge" id="emailBadge">0</span>
+          </div>
+          <div class="panel-header-actions">
+            <button class="btn-copy" data-action="copy-section" data-section="email" id="copyBtn_email">📋 Copy</button>
+            <span class="panel-chevron">›</span>
+          </div>
+        </div>
+        <div class="panel-body" id="emailBody">
+          <div class="text-dim-mono">No data yet</div>
+        </div>
+      </div>
+
+      <!-- SpiderFoot panel -->
+      <div class="panel" id="panelSf">
+        <div class="panel-header" data-action="toggle-panel" data-panel="panelSf">
+          <div class="panel-title">
+            <svg class="panel-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r=".9" fill="currentColor"/></svg>
+            SpiderFoot OSINT
+            <span class="panel-badge" id="sfBadge">─</span>
+          </div>
+          <span class="panel-chevron">›</span>
+        </div>
+        <div class="panel-body" id="sfBody">
+          <div class="text-dim-mono">
+            Enable SpiderFoot in Manual mode to scan.
+          </div>
+        </div>
+      </div>
+
+      <!-- Extras panel -->
+      <div class="panel" id="panelExtras">
+        <div class="panel-header" data-action="toggle-panel" data-panel="panelExtras">
+          <div class="panel-title">
+            <svg class="panel-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="3" r="1.5" stroke="currentColor" stroke-width="1.5"/><circle cx="3" cy="13" r="1.5" stroke="currentColor" stroke-width="1.5"/><circle cx="13" cy="13" r="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.5v4M8 8.5L4 11.5M8 8.5l4 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            Network &amp; Extras
+          </div>
+          <span class="panel-chevron">›</span>
+        </div>
+        <div class="panel-body" id="extrasBody">
+          <div class="text-dim-mono">No data yet</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- History -->
+    <div id="historySection">
+      <div class="section-label mb-10">Recent Searches</div>
+      <div class="history-grid" id="historyGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Victims file viewer modal -->
+<div class="file-viewer-overlay" id="fileViewerOverlay">
+  <div class="file-viewer">
+    <div class="file-viewer-header">
+      <div class="file-viewer-title" id="fileViewerTitle">Loading…</div>
+      <button class="file-viewer-close" data-action="close-file-viewer" aria-label="Close viewer">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="file-viewer-body">
+      <pre class="file-viewer-content" id="fileViewerContent">Loading file content…</pre>
+    </div>
+    <div class="file-viewer-footer">
+      <button class="btn-copy btn-sm" data-action="copy-file-content">📋 Copy</button>
+      <span id="fileViewerMeta"></span>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Cases overlay -->
+<div class="cases-overlay" id="casesOverlay" data-action="toggle-cases-panel"></div>
+<div class="cases-panel" id="casesPanel">
+  <div class="cases-panel-header">
+    <div class="cases-panel-title">
+      <svg class="cases-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M1.5 4.5a1 1 0 011-1h3l1.5 2h7a1 1 0 011 1v6a1 1 0 01-1 1h-12a1 1 0 01-1-1z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      Saved Cases
+    </div>
+    <button class="cases-panel-close" data-action="toggle-cases-panel" aria-label="Close cases panel">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+  <div class="cases-panel-body" id="casesPanelBody">
+    <div class="text-dim-mono-center">
+      No saved cases yet.<br>Save a search result to start.
+    </div>
+  </div>
+  <div class="cases-panel-footer">
+    <button class="btn btn-secondary btn-sm btn-full" data-action="clear-all-cases">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" class="btn-svg-sm"><path d="M1.5 3h9M4.5 3V2h3v1M2.5 3l.5 7h6l.5-7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Clear All Cases
+    </button>
+  </div>
+</div>
+
+<script src="js/state.js?v=202603280335"></script>
+<script src="js/utils.js?v=202603280335"></script>
+<script src="js/auth.js?v=202603280335"></script>
+<script src="js/search.js?v=202603280335"></script>
+<script src="js/render.js?v=202603280335"></script>
+<script src="js/panels.js?v=202603280335"></script>
+<script src="js/export.js?v=202603280335"></script>
+<script src="js/cases.js?v=202603280335"></script>
+<script src="js/history.js?v=202603280335"></script>
+<script src="js/bootstrap.js?v=202604070001"></script>
+</body>
+</html>
