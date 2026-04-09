@@ -7,8 +7,14 @@ services:
       dockerfile: Dockerfile
     container_name: nexus-osint
     restart: unless-stopped
+    stop_grace_period: 35s
     working_dir: /app
-    command: uvicorn api.main:app --host 0.0.0.0 --port 8000
+    command: >
+      uvicorn api.main:app
+        --host 0.0.0.0
+        --port 8000
+        --workers 1
+        --timeout-graceful-shutdown 30
     environment:
       - OATHNET_API_KEY=${OATHNET_API_KEY}
       - SPIDERFOOT_URL=http://spiderfoot:5001
@@ -38,6 +44,7 @@ services:
         reservations:
           memory: 200m
     mem_swappiness: 10
+    memswap_limit: 2800m
     networks:
       - internal
 

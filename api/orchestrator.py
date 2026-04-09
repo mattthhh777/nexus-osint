@@ -9,7 +9,13 @@ Design (per Phase 05 decisions D-01 through D-06):
   - Tracked create_task + registry (NOT TaskGroup — D-02/D-03: yield inside TaskGroup is impossible)
   - _guarded() wrapper: catches per-module exceptions, pushes error to queue, never crashes orchestrator
 
-Usage:
+Phase 10 additions:
+  - DegradationMode enum: NORMAL / REDUCED / CRITICAL
+  - Singleton get_orchestrator(): process-wide shared instance for watchdog + /health
+  - Mutable soft-gate ceiling (set_ceiling/get_ceiling): watchdog reduces prospectively
+  - Properties: active_count, semaphore_slots_free, degradation_mode
+
+Usage (per-search — existing):
     orchestrator = TaskOrchestrator()
     orchestrator.submit("breach", coro, is_oathnet=True)
     orchestrator.submit("sherlock", coro, is_oathnet=False)
@@ -18,11 +24,18 @@ Usage:
             handle_error(name, result)
         else:
             handle_result(name, result)
+
+Usage (singleton — Phase 10):
+    orch = get_orchestrator()
+    orch.set_ceiling(2)  # watchdog reducing under memory pressure
+    orch.degradation_mode  # DegradationMode.REDUCED
 """
 from __future__ import annotations
 
 import asyncio
+import enum
 import logging
+import threading
 from typing import Any, AsyncGenerator, Coroutine
 
 # ── Constants ────────────────────────────────────────────────────────────────
@@ -31,6 +44,14 @@ GLOBAL_CONCURRENCY_LIMIT = 5   # hard ceiling — ALL concurrent module tasks
 OATHNET_CONCURRENCY_LIMIT = 3  # OathNet scoped limit — prevents slot starvation
 
 logger = logging.getLogger("nexusosint.orchestrator")
+
+
+# ── DegradationMode ───────────────────────────────────────────────────────────
+
+class DegradationMode(enum.Enum):
+    NORMAL   = "normal"    # mem < 75%  — full concurrency (ceiling=5)
+    REDUCED  = "reduced"   # 80% < mem < 85% — ceiling reduced to 2
+    CRITICAL = "critical"  # mem > 85% — ceiling reduced to 0, reject all new
 
 
 # ── TaskOrchestrator ─────────────────────────────────────────────────────────
@@ -63,6 +84,10 @@ class TaskOrchestrator:
         self._registry: dict[str, asyncio.Task[None]] = {}
         self._result_queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
         self._expected: int = 0
+        # Phase 10: mutable soft-gate ceiling + degradation mode
+        self._max_concurrent: int = max_concurrent   # mutable soft-gate ceiling
+        self._initial_ceiling: int = max_concurrent  # restore target for NORMAL mode
+        self._degradation_mode: DegradationMode = DegradationMode.NORMAL
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -86,6 +111,14 @@ class TaskOrchestrator:
                         consume an OathNet semaphore slot in addition to the
                         global slot.
         """
+        # Phase 10: soft-gate — reject immediately if ceiling was explicitly
+        # reduced by the watchdog (degradation active). When ceiling equals
+        # the initial value (NORMAL mode) the Semaphore queues as before.
+        if self._max_concurrent < self._initial_ceiling and len(self._registry) >= self._max_concurrent:
+            raise RuntimeError(
+                f"Concurrency ceiling {self._max_concurrent} reached "
+                f"(degradation_mode={self._degradation_mode.value})"
+            )
         task = asyncio.create_task(
             self._guarded(name, coro, is_oathnet),
             name=f"module-{name}",
@@ -114,6 +147,35 @@ class TaskOrchestrator:
     def active_count(self) -> int:
         """Number of tasks currently executing (in registry)."""
         return len(self._registry)
+
+    @property
+    def degradation_mode(self) -> DegradationMode:
+        """Current degradation mode set by the memory watchdog."""
+        return self._degradation_mode
+
+    @property
+    def semaphore_slots_free(self) -> int:
+        """Free slots in the global semaphore. Reads internal _value."""
+        return self._global_sem._value  # type: ignore[attr-defined]
+
+    def set_ceiling(self, new_ceiling: int) -> None:
+        """
+        Set the soft-gate ceiling. Prospective only — does not cancel in-flight tasks.
+        Must be in [0, initial_ceiling].
+        """
+        if new_ceiling < 0 or new_ceiling > self._initial_ceiling:
+            raise ValueError(
+                f"ceiling must be in [0, {self._initial_ceiling}], got {new_ceiling}"
+            )
+        self._max_concurrent = new_ceiling
+
+    def get_ceiling(self) -> int:
+        """Return the current soft-gate ceiling."""
+        return self._max_concurrent
+
+    def set_degradation_mode(self, mode: DegradationMode) -> None:
+        """Set the degradation mode (called by watchdog on transitions)."""
+        self._degradation_mode = mode
 
     async def cancel_all(self) -> None:
         """
@@ -191,3 +253,31 @@ class TaskOrchestrator:
             await self._result_queue.put((name, exc))
         finally:
             self._registry.pop(name, None)
+
+
+# ── Singleton accessor (Phase 10) ─────────────────────────────────────────────
+
+_singleton_lock: threading.Lock = threading.Lock()
+_singleton: TaskOrchestrator | None = None
+
+
+def get_orchestrator() -> TaskOrchestrator:
+    """
+    Return the process-wide singleton TaskOrchestrator. Lazy-initialized, thread-safe.
+
+    Used by the memory watchdog and /health endpoint to share a single orchestrator
+    state across the entire FastAPI process lifetime.
+    """
+    global _singleton
+    if _singleton is None:
+        with _singleton_lock:
+            if _singleton is None:
+                _singleton = TaskOrchestrator()
+    return _singleton
+
+
+def reset_orchestrator_for_tests() -> None:
+    """Test-only: clear the singleton so each test gets a fresh instance."""
+    global _singleton
+    with _singleton_lock:
+        _singleton = None

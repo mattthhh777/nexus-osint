@@ -26,6 +26,9 @@ import httpx
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse, RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -47,6 +50,8 @@ import aiosqlite
 import psutil
 from cachetools import TTLCache
 from api.db import db as _db  # single-connection DatabaseManager (WAL + write queue)
+from api.orchestrator import get_orchestrator, DegradationMode  # Phase 10: singleton + degradation
+from api.watchdog import memory_watchdog_loop  # Phase 10: memory pressure watchdog
 from modules.oathnet_client import oathnet_client  # async singleton — one TCP/TLS pool
 from modules.spiderfoot_wrapper import SpiderFootTarget  # D-11: FQDN/IPv4 validator
 
@@ -69,6 +74,14 @@ _WEAK_JWT_SECRETS: frozenset[str] = frozenset(
 
 # Operational cap: POST /api/admin/users returns 403 once count >= MAX_USERS.
 MAX_USERS: int = int(os.environ.get("MAX_USERS", "50"))
+
+# ── Rate limit ceilings — tunable per deployment via env vars ────────────────
+RL_LOGIN_LIMIT      = os.environ.get("RL_LOGIN_LIMIT",      "5/minute")
+RL_REGISTER_LIMIT   = os.environ.get("RL_REGISTER_LIMIT",   "3/hour")
+RL_SEARCH_LIMIT     = os.environ.get("RL_SEARCH_LIMIT",     "10/minute")
+RL_SPIDERFOOT_LIMIT = os.environ.get("RL_SPIDERFOOT_LIMIT", "3/hour")
+RL_ADMIN_LIMIT      = os.environ.get("RL_ADMIN_LIMIT",      "30/minute")
+RL_READ_LIMIT       = os.environ.get("RL_READ_LIMIT",       "60/minute")
 
 # JWT_SECRET module-level var — read from env at import time.
 # _validate_jwt_secret() is called as FIRST step in lifespan startup and
@@ -108,9 +121,8 @@ logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.WARNING))
 logger = logging.getLogger("nexusosint")
 
 # ── Memory watchdog thresholds ───────────────────────────────────────────────
-MEMORY_ALERT_MB: int = 400       # log warning, investigate
-MEMORY_CRITICAL_PCT: int = 85    # pause new agent tasks, return degraded status
-_agents_paused: bool = False     # set True by /health when memory is critical
+MEMORY_ALERT_MB: int = 400       # log warning, investigate (watchdog uses this)
+MEMORY_CRITICAL_PCT: int = 85    # Phase 10: watchdog CRITICAL threshold (85%)
 
 # ── TTL cache for external API responses ─────────────────────────────────────
 # 5-min TTL, max 200 entries — 200 * ~10KB avg = ~2MB max, acceptable for 1GB VPS
@@ -189,36 +201,6 @@ async def _save_quota(used: int, left: int, daily_limit: int) -> None:
     )
 
 
-async def _check_rate(key: str, max_calls: int, window_s: int) -> bool:
-    """Persistent rate limiter via SQLite — survives container restarts."""
-    now    = time.time()
-    cutoff = now - window_s
-    try:
-        row = await _db.read_one(
-            "SELECT COUNT(*) as cnt FROM rate_limits WHERE key = ? AND ts >= ?",
-            (key, cutoff),
-        )
-        count = row["cnt"] if row else 0
-
-        if count >= max_calls:
-            # Purge expired in background — no need to wait
-            await _db.write(
-                "DELETE FROM rate_limits WHERE key = ? AND ts < ?", (key, cutoff)
-            )
-            return False
-
-        # Purge expired + insert new entry (serialized via write queue)
-        await _db.write(
-            "DELETE FROM rate_limits WHERE key = ? AND ts < ?", (key, cutoff)
-        )
-        await _db.write(
-            "INSERT INTO rate_limits (key, ts) VALUES (?, ?)", (key, now)
-        )
-        return True
-    except aiosqlite.OperationalError as exc:
-        logger.warning("Rate limit DB error (fail-closed): %s", exc)
-        return False  # fail closed — prevent abuse if DB unavailable
-
 def get_client_ip(request: Request) -> str:
     """Extrai IP real com cadeia de confiança: Cloudflare → Nginx → direto.
     Valida formato antes de retornar — nunca retorna um header forjável bruto.
@@ -247,9 +229,21 @@ async def lifespan(application: FastAPI):
     tracemalloc.start(10)  # 10 frames — memory profiling for /health/memory
     _ensure_default_user()
     await _db.startup(db_path=AUDIT_DB)
-    logger.info("NexusOSINT v3.0 started — %d allowed origins, tracemalloc active", len(_ALLOWED_ORIGINS))
+    # Phase 10: start memory watchdog as tracked background task
+    watchdog_task = asyncio.create_task(
+        memory_watchdog_loop(), name="memory-watchdog"
+    )
+    logger.info("NexusOSINT v3.0 started — %d allowed origins, tracemalloc active, memory watchdog active", len(_ALLOWED_ORIGINS))
     yield
-    # shutdown
+    # shutdown — Phase 10: cancel watchdog + drain orchestrator before DB shutdown
+    watchdog_task.cancel()
+    await asyncio.gather(watchdog_task, return_exceptions=True)
+    try:
+        await get_orchestrator().cancel_all()
+    except asyncio.CancelledError:
+        raise
+    except (RuntimeError, OSError) as exc:
+        logger.warning("orchestrator.cancel_all() error during shutdown: %s", type(exc).__name__)
     await _db.shutdown()
     if oathnet_client:
         await oathnet_client.close()
@@ -270,6 +264,49 @@ app.add_middleware(
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],
 )
+
+# ── Rate limiter — key function + registration ────────────────────────────────
+
+def _rate_key(request: Request) -> str:
+    """Prefer JWT sub for authenticated users, fall back to client IP."""
+    token = request.cookies.get("nx_session")
+    if token:
+        try:
+            payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+            sub = payload.get("sub")
+            if sub:
+                return f"u:{sub}"
+        except (jwt.InvalidTokenError, jwt.ExpiredSignatureError):
+            pass
+    return f"ip:{get_remote_address(request)}"
+
+
+limiter = Limiter(key_func=_rate_key, storage_uri="memory://")
+app.state.limiter = limiter
+
+
+def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    """Custom 429 handler — returns normalised JSON body with Retry-After header.
+
+    Retry-After is estimated from the limit window when available, with a 60s
+    fallback. This avoids the slowapi _inject_headers path which requires the
+    return value to be a starlette Response (breaks endpoints that return dicts).
+    """
+    # exc.limit is a Limit object; its string form is e.g. "5 per 1 minute"
+    limit = getattr(exc, "limit", None)
+    try:
+        # limits.Limit exposes .get_expiry_length() in some versions; fall back to 60
+        retry_after = int(limit.get_expiry_length()) if limit and hasattr(limit, "get_expiry_length") else 60
+    except Exception:
+        retry_after = 60
+    return JSONResponse(
+        {"detail": "rate limit exceeded", "retry_after": retry_after},
+        status_code=429,
+        headers={"Retry-After": str(retry_after)},
+    )
+
+
+app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 
 static_path = Path(__file__).parent.parent / "static"
 if static_path.exists():
@@ -526,7 +563,9 @@ async def root():
 
 # ── Admin gate: troca Bearer token por HttpOnly cookie (bridge VULN-01) ──
 @app.post("/api/admin/auth-gate")
+@limiter.limit(RL_ADMIN_LIMIT)
 async def admin_auth_gate(
+    request: Request,
     response: Response,
     user: dict = Depends(get_admin_user),
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
@@ -597,6 +636,7 @@ async def admin_panel(request: Request):
 # ── Auth endpoints ────────────────────────────────────────────────────────────
 
 @app.post("/api/auth")
+@limiter.limit(RL_LOGIN_LIMIT)
 async def auth_legacy(request: Request):
     """Legacy endpoint — kept for frontend compat. Returns ok:true if no password set."""
     if not APP_PASSWORD and not _load_users():
@@ -606,20 +646,11 @@ async def auth_legacy(request: Request):
 
 
 @app.post("/api/login")
+@limiter.limit(RL_LOGIN_LIMIT)
 async def login(request: Request, body: LoginRequest):
     """JWT login. Define cookie HttpOnly nx_session (VULN-01).
-    Rate limit duplo: por IP e por username (VULN-04).
+    Rate limited by slowapi (RL_LOGIN_LIMIT, keyed by IP — supersedes _check_rate, FIND-04).
     """
-    ip = get_client_ip(request)
-
-    # Bloqueio por IP: 5 tentativas / 60s
-    if not await _check_rate(f"login_ip:{ip}", 5, 60):
-        raise HTTPException(status_code=429, detail="Too many login attempts from this IP. Wait 1 minute.")
-
-    # Bloqueio por username: 10 tentativas / 300s — defesa contra ataques distribuídos
-    if not await _check_rate(f"login_user:{body.username}", 10, 300):
-        raise HTTPException(status_code=429, detail="Too many attempts for this account. Wait 5 minutes.")
-
     user = _verify_user(body.username, body.password)
     if not user:
         raise HTTPException(
@@ -651,11 +682,13 @@ async def login(request: Request, body: LoginRequest):
 
 
 @app.get("/api/me")
-async def me(user: dict = Depends(get_current_user)):
+@limiter.limit(RL_READ_LIMIT)
+async def me(request: Request, user: dict = Depends(get_current_user)):
     """Returns current user info."""
     return {"username": user["sub"], "role": user.get("role", "user")}
 
 @app.post("/api/logout")
+@limiter.limit(RL_READ_LIMIT)
 async def logout(request: Request, response: Response):
     """Termina sessão: revoga o JWT no blacklist e apaga o cookie nx_session (VULN-01)."""
     token = request.cookies.get("nx_session")
@@ -736,21 +769,21 @@ def _serialize_stealers(stealers) -> list[dict]:
 # ── Search ────────────────────────────────────────────────────────────────────
 
 @app.post("/api/search")
+@limiter.limit(RL_SEARCH_LIMIT)
 async def search(
     request: Request,
     req: SearchRequest,
     user: dict = Depends(get_current_user),
 ):
-    """Protected SSE search endpoint."""
-    if _agents_paused:
+    """Protected SSE search endpoint. Rate limited by slowapi (RL_SEARCH_LIMIT, per user)."""
+    # Phase 10: gate on CRITICAL only — REDUCED still permits scans at lower ceiling
+    if get_orchestrator().degradation_mode == DegradationMode.CRITICAL:
         raise HTTPException(
             status_code=503,
-            detail="Service degraded — memory pressure. Retry in a few minutes.",
+            detail="System under memory pressure — new scans temporarily rejected",
             headers={"Retry-After": "120"},
         )
     client_ip = get_client_ip(request)
-    if not await _check_rate(f"search:{client_ip}", 10, 60):
-        raise HTTPException(status_code=429, detail="Rate limit exceeded. Max 20 searches/minute.")
     return StreamingResponse(
         _stream_search(req, user["sub"], client_ip),
         media_type="text/event-stream",
@@ -766,6 +799,26 @@ async def _stream_search(
 
     def event(data: dict) -> str:
         return f"data: {json.dumps(data, default=str)}\n\n"
+
+    # Phase 10: register this search in the orchestrator so active_count
+    # reports non-zero during a running scan. Sentinel stays in the registry
+    # until _sentinel_done is set at the end of the search.
+    orch = get_orchestrator()
+    _sentinel_done: asyncio.Event = asyncio.Event()
+
+    async def _search_sentinel() -> None:
+        await _sentinel_done.wait()
+
+    try:
+        orch.submit(
+            f"search-{id(_sentinel_done)}",
+            _search_sentinel(),
+            is_oathnet=False,
+        )
+    except RuntimeError:
+        # Ceiling reached (REDUCED mode at capacity) — search continues untracked.
+        # CRITICAL mode is already blocked at the /api/search gate.
+        logger.warning("Orchestrator ceiling reached — search proceeds untracked (degradation=%s)", orch.degradation_mode.value)
 
     query    = req.query
     q_type   = detect_type(query)
@@ -1249,6 +1302,9 @@ async def _stream_search(
         elapsed_s=elapsed,
     )
 
+    # Phase 10: release sentinel so orchestrator deregisters this search
+    _sentinel_done.set()
+
     yield event({
         "type": "done",
         "elapsed_s": elapsed,
@@ -1260,7 +1316,8 @@ async def _stream_search(
 # ── Admin endpoints ───────────────────────────────────────────────────────────
 
 @app.get("/api/admin/stats")
-async def admin_stats(_: dict = Depends(get_admin_user)):
+@limiter.limit(RL_ADMIN_LIMIT)
+async def admin_stats(request: Request, _: dict = Depends(get_admin_user)):
     """Dashboard stats for admin."""
     try:
         today = datetime.now(timezone.utc).date().isoformat()
@@ -1310,7 +1367,9 @@ async def admin_stats(_: dict = Depends(get_admin_user)):
 
 
 @app.get("/api/admin/logs")
+@limiter.limit(RL_ADMIN_LIMIT)
 async def admin_logs(
+    request: Request,
     limit: int = 50,
     offset: int = 0,
     username: Optional[str] = None,
@@ -1338,7 +1397,8 @@ async def admin_logs(
 
 
 @app.get("/api/admin/users")
-async def admin_list_users(_: dict = Depends(get_admin_user)):
+@limiter.limit(RL_ADMIN_LIMIT)
+async def admin_list_users(request: Request, _: dict = Depends(get_admin_user)):
     """List all users (without password hashes)."""
     users = _load_users()
     return {
@@ -1348,7 +1408,9 @@ async def admin_list_users(_: dict = Depends(get_admin_user)):
 
 
 @app.post("/api/admin/users")
+@limiter.limit(RL_REGISTER_LIMIT)
 async def admin_create_user(
+    request: Request,
     body: dict,
     _: dict = Depends(get_admin_user),
 ):
@@ -1386,7 +1448,9 @@ async def admin_create_user(
 
 
 @app.delete("/api/admin/users/{username}")
+@limiter.limit(RL_ADMIN_LIMIT)
 async def admin_delete_user(
+    request: Request,
     username: str,
     admin: dict = Depends(get_admin_user),
 ):
@@ -1493,6 +1557,7 @@ def _parse_discord_history(raw: dict) -> dict | None:
 # ── Breach pagination endpoint ───────────────────────────────────────────────
 
 @app.post("/api/search/more-breaches")
+@limiter.limit(RL_SEARCH_LIMIT)
 async def more_breaches(
     request: Request,
     body: dict,
@@ -1530,6 +1595,7 @@ async def more_breaches(
 # ── Victims API endpoints ────────────────────────────────────────────────────
 
 @app.get("/api/victims/search")
+@limiter.limit(RL_READ_LIMIT)
 async def victims_search_endpoint(
     request: Request,
     q: str = "",
@@ -1566,7 +1632,9 @@ def _validate_id(val: str, max_len: int = 128) -> str:
 
 
 @app.get("/api/victims/{log_id}/manifest")
+@limiter.limit(RL_READ_LIMIT)
 async def victims_manifest_endpoint(
+    request: Request,
     log_id: str,
     user: dict = Depends(get_current_user),
 ):
@@ -1581,7 +1649,9 @@ async def victims_manifest_endpoint(
 
 
 @app.get("/api/victims/{log_id}/files/{file_id}")
+@limiter.limit(RL_READ_LIMIT)
 async def victims_file_endpoint(
+    request: Request,
     log_id: str,
     file_id: str,
     user: dict = Depends(get_current_user),
@@ -1598,7 +1668,8 @@ async def victims_file_endpoint(
 
 
 @app.get("/api/spiderfoot/status")
-async def sf_status(_: dict = Depends(get_current_user)):
+@limiter.limit(RL_READ_LIMIT)
+async def sf_status(request: Request, _: dict = Depends(get_current_user)):
     try:
         async with httpx.AsyncClient(timeout=5) as http:
             r = await http.get(f"{SPIDERFOOT_URL}/api/v1/ping")
@@ -1609,27 +1680,23 @@ async def sf_status(_: dict = Depends(get_current_user)):
 
 @app.get("/health")
 @app.head("/health")
-async def health():
-    global _agents_paused
+@limiter.limit(RL_READ_LIMIT)
+async def health(request: Request):
     mem = psutil.virtual_memory()
     swap = psutil.swap_memory()
     cpu = psutil.cpu_percent(interval=0.1)
     mem_mb = mem.used / 1024 / 1024
     proc = psutil.Process()
 
-    if mem.percent > MEMORY_CRITICAL_PCT:
-        _agents_paused = True
-        logger.warning("Memory critical %.0f%% — new agents paused", mem.percent)
-    elif _agents_paused and mem.percent <= MEMORY_CRITICAL_PCT - 10:
-        # Auto-resume once memory drops 10% below critical threshold
-        _agents_paused = False
-        logger.info("Memory recovered %.0f%% — agents resumed", mem.percent)
-
-    if mem_mb > MEMORY_ALERT_MB and not _agents_paused:
-        logger.warning("Memory alert %.0fMB — investigate", mem_mb)
+    # Phase 10: single source of truth — orchestrator degradation_mode
+    orch = get_orchestrator()
+    uptime_s = round(time.time() - proc.create_time(), 1)
+    wal_path = Path(str(AUDIT_DB) + "-wal")
+    wal_size_bytes = wal_path.stat().st_size if wal_path.exists() else 0
+    degradation = orch.degradation_mode
 
     return {
-        "status": "degraded" if _agents_paused else "healthy",
+        "status": "degraded" if degradation != DegradationMode.NORMAL else "healthy",
         "version": "3.0.0",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "memory_used_mb": round(mem_mb, 1),
@@ -1637,13 +1704,20 @@ async def health():
         "rss_mb": round(proc.memory_info().rss / 1024 / 1024, 1),
         "cpu_pct": cpu,
         "swap_used_mb": round(swap.used / 1024 / 1024, 1),
-        "agents_paused": _agents_paused,
+        "agents_paused": degradation != DegradationMode.NORMAL,
         "cache_entries": len(_api_cache),
+        # Phase 10 new fields
+        "uptime_s":             uptime_s,
+        "active_tasks":         orch.active_count,
+        "semaphore_slots_free": orch.semaphore_slots_free,
+        "wal_size_bytes":       wal_size_bytes,
+        "degradation_mode":     degradation.value,
     }
 
 
 @app.get("/health/memory")
-async def health_memory(_: dict = Depends(get_admin_user)):
+@limiter.limit(RL_ADMIN_LIMIT)
+async def health_memory(request: Request, _: dict = Depends(get_admin_user)):
     """Detailed memory profiling snapshot — admin only.
     Exposes RSS, VMS, tracemalloc current/peak, top allocations, and cache stats.
     Use for diagnosing memory leaks on the 1GB VPS.
@@ -1672,5 +1746,5 @@ async def health_memory(_: dict = Depends(get_admin_user)):
         ],
         "cache_size": len(_api_cache),
         "cache_maxsize": _api_cache.maxsize,
-        "agents_paused": _agents_paused,
+        "agents_paused": get_orchestrator().degradation_mode != DegradationMode.NORMAL,
     }
