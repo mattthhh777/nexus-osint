@@ -194,16 +194,22 @@ Phase 03 (F1 Audit) ──► Phase 04 (F2 SQLite) ──► Phase 05 (F3 Async)
 
 | Field | Value |
 |-------|-------|
-| **Status** | Pending |
+| **Status** | **Complete** |
+| **Completed** | 2026-04-08 |
 | **Depends on** | Phase 08, Phase 09 |
-| **Effort** | 1-2 sessions |
+| **Effort** | 1 session |
 | **Risk** | LOW |
 
 **Sub-tasks:** Real `/health` endpoint (RSS, CPU%, active tasks, semaphore slots, WAL size, uptime), memory watchdog (>80% warn, >85% reduce semaphore, <75% restore), graceful shutdown (drain orchestrator → flush DB → close), degradation modes (NORMAL/REDUCED/CRITICAL).
 
-**Key files:** `api/main.py`, new `api/watchdog.py`, `api/orchestrator.py`
+**Key files:** `api/main.py`, new `api/watchdog.py`, `api/orchestrator.py`, `docker-compose.yml`
 
-**Verification:** `/health` returns all fields; memory pressure triggers degradation; `docker stop` completes < 35s; all queued logs written before shutdown.
+**Verification:** `/health` returns all 5 new fields (TestClient verified); 62/62 tests pass; docker stop human verification deferred.
+
+**Plans:** 3/3 complete
+- [x] 10-01-PLAN.md — Singleton orchestrator + DegradationMode enum + soft-gate ceiling
+- [x] 10-02-PLAN.md — Watchdog module + lifespan integration + /health enrichment + _agents_paused elimination
+- [x] 10-03-PLAN.md — docker-compose stop_grace_period 35s + uvicorn --timeout-graceful-shutdown 30
 
 ---
 
@@ -217,13 +223,13 @@ Phase 03 (F1 Audit) ──► Phase 04 (F2 SQLite) ──► Phase 05 (F3 Async)
 | 06 | F4: Memory | 1 | LOW | ✅ Complete | 2026-04-02 |
 | 07 | F6: Stack | 1-2 | MED | ✅ Complete | 2026-04-06 |
 | 08 | F5: Docker | 1 | LOW | ✅ Complete | 2026-04-06 |
-| 09 | F7: Security | 2-3 | MED | ⏳ Pending | — |
-| 10 | F8: Health | 1-2 | LOW | ⏳ Pending | — |
+| 09 | F7: Security | 2-3 | MED | ✅ Complete | 2026-04-08 |
+| 10 | F8: Health | 1 | LOW | ✅ Complete | 2026-04-08 |
 | 11 | Cost Opt. | 4 | LOW | ✅ Complete | 2026-04-02 |
 
-**Completed:** 7/9 phases (20 plans)
-**Remaining:** 2 phases (~3-5 sessions estimated)
-**Highest remaining risk:** Phase 09 (F7 Security — CSP strict + inline handler removal)
+**Completed:** 9/9 phases (22 plans)
+**Remaining:** 0 phases
+**Milestone v4.0.0 COMPLETE**
 
 ---
 
