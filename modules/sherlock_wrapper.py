@@ -293,8 +293,9 @@ async def _check_platform(client: httpx.AsyncClient, username: str, platform: di
             result.found = (resp.status_code == int(claim_value))
 
         elif claim_type in ("text_present", "text_absent"):
-            # Read a limited amount of HTML to avoid large payloads
-            body = resp.text
+            # Truncate body to prevent OOM from large HTML pages (512KB cap)
+            MAX_BODY_BYTES = 524_288
+            body = resp.text[:MAX_BODY_BYTES]
             body_lower = body.lower()
             text_lower = str(claim_value).lower()
             if claim_type == "text_present":
@@ -362,29 +363,25 @@ def _try_sherlock_cli(username: str) -> Optional[SherlockResult]:
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def search_username(username: str, prefer_cli: bool = False) -> SherlockResult:
+async def search_username(username: str, prefer_cli: bool = False) -> SherlockResult:
     """
-    Main entry point.
-    - If prefer_cli=True: tries Sherlock CLI first.
+    Main entry point (async).
+    - If prefer_cli=True: tries Sherlock CLI first (via to_thread — subprocess is blocking).
       Falls back to internal async engine if CLI is not found OR returns 0 results.
     - Always runs internal async engine if CLI is unavailable/finds nothing.
     """
     username = username.strip().lstrip("@")
 
     if prefer_cli:
-        cli_result = _try_sherlock_cli(username)
+        # _try_sherlock_cli uses subprocess.run(timeout=120) — must run in thread
+        cli_result = await asyncio.to_thread(_try_sherlock_cli, username)
         # Only accept CLI result if it actually found something
         if cli_result and cli_result.found_count > 0:
             return cli_result
         # CLI returned 0 or failed → fall through to internal engine
 
-    # Run async checks in a fresh event loop (Streamlit-safe)
-    try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        platform_results = loop.run_until_complete(_run_async_checks(username))
-    finally:
-        loop.close()
+    # Direct async call — no event loop creation needed
+    platform_results = await _run_async_checks(username)
 
     result = SherlockResult(username=username, success=True, source="internal")
     for pr in platform_results:

@@ -1,0 +1,50 @@
+# Secrets — NUNCA sobe isso pro GitHub
+.env
+*.env
+.streamlit/secrets.toml
+
+# Cases salvos localmente (dados de investigação)
+cases.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Docker
+*.tar
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+# NexusOSINT runtime files
+.quota_state.json
+logs/
+*.log
+
+# Python compiled files
+*.pyc
+*.pyd
+# Claude Code local config
+.claude/
+# NexusOSINT exports
+nexus_*.json
+
+# SQLite runtime files
+nexus_osint.db
+nexus_osint.db-shm
+nexus_osint.db-wal
+
+# Pasta de arquivos fora do projeto
+fora do git/
