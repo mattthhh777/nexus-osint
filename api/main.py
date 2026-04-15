@@ -753,8 +753,18 @@ async def with_timeout(coro, module: str, default=None):
 # fetches the rest on demand. 200 breaches ≈ 200KB JSON — acceptable for 1GB VPS.
 MAX_BREACH_SERIALIZE = 200
 
+# ── Phase 13: extra_fields key accumulator ────────────────────────────────────
+# In-memory set — grows as real breach scans happen. Resets on container restart.
+# Purpose: admin endpoint /api/admin/breach-extra-keys reads this to discover
+# which non-standard fields the OathNet API actually returns, informing the
+# Phase 14 breach card whitelist. Only key names are stored — never values.
+_seen_breach_extra_keys: set[str] = set()
+
 
 def _serialize_breaches(breaches, limit: int = MAX_BREACH_SERIALIZE) -> list[dict]:
+    for b in breaches:
+        if b.extra_fields:
+            _seen_breach_extra_keys.update(b.extra_fields.keys())
     return [{"dbname": b.dbname, "email": b.email, "username": b.username,
              "password": b.password, "ip": b.ip, "country": b.country,
              "date": b.date, "discord_id": b.discord_id, "phone": b.phone,
@@ -1747,4 +1757,25 @@ async def health_memory(request: Request, _: dict = Depends(get_admin_user)):
         "cache_size": len(_api_cache),
         "cache_maxsize": _api_cache.maxsize,
         "agents_paused": get_orchestrator().degradation_mode != DegradationMode.NORMAL,
+    }
+
+
+@app.get("/api/admin/breach-extra-keys")
+@limiter.limit(RL_ADMIN_LIMIT)
+async def breach_extra_keys(request: Request, _: dict = Depends(get_admin_user)):
+    """Phase 13 diagnostic: return key names seen in breach extra_fields since process start.
+
+    Accumulates across all real OathNet scans run while the container is up.
+    Only key names are exposed — never field values (no PII leak risk).
+    Resets on container restart. Run a few real queries before calling this.
+
+    Use the result to build the Phase 14 breach card whitelist in render.js.
+    """
+    return {
+        "keys": sorted(_seen_breach_extra_keys),
+        "count": len(_seen_breach_extra_keys),
+        "note": (
+            "In-memory accumulator — resets on container restart. "
+            "Run at least one real breach query before checking."
+        ),
     }
