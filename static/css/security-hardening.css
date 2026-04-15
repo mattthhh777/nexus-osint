@@ -19,7 +19,7 @@
 #historySection { display: none; margin-top: 40px; }
 
 /* admin.html: app panel hidden until authenticated */
-#app            { display: none; }
+/* #app display managed by auth.js */
 
 /* ── Progress bar initial widths ── */
 #quotaFill     { width: 0%; }

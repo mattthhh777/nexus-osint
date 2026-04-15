@@ -7,20 +7,45 @@
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
+/* ── Tablet nav cleanup (768px breakpoint) ── */
+@media (max-width: 768px) {
+  /* Hide spiderfoot text label — too crowded on narrow viewports */
+  .sf-indicator { display: none !important; }
+  /* Tighten nav-right gap on tablets */
+  .nav-right { gap: 8px; }
+}
+
 /* ── Mobile layout (640px breakpoint) ── */
 @media (max-width: 640px) {
   /* Nav */
-  .nav { padding: 14px 16px; }
+  .nav { padding: 12px 14px; }
   .quota-pill   { display: none !important; }
   .nav-version  { display: none; }
+  .nav-right    { gap: 8px; }
 
   /* Page + Hero */
   .page { padding: 0 14px 60px; }
   .hero { padding: 40px 0 28px; }
   .hero h1 { font-size: 1.6rem; }
 
-  /* Search */
-  .search-container { border-radius: var(--radius-lg); }
+  /* Search container */
+  .search-container { border-radius: var(--radius-lg); padding: 14px; }
+
+  /* Search row — stack input + button vertically */
+  .search-row { flex-direction: column; gap: 8px; margin-bottom: 10px; }
+  .search-input { width: 100%; box-sizing: border-box; }
+  #searchBtn { width: 100%; box-sizing: border-box; }
+
+  /* Query type badge — reposition inside input area when stacked */
+  .query-type-badge {
+    right: 10px;
+    top: 20px;
+    transform: none;
+  }
+
+  /* Mode row — center toggle, drop keyboard hint (no physical keyboard) */
+  .mode-row { justify-content: center; gap: 8px; flex-wrap: nowrap; }
+  .search-hint { display: none !important; }
 
   /* Stat grid */
   .stat-grid { grid-template-columns: repeat(3, 1fr) !important; }

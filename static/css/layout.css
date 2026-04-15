@@ -115,3 +115,8 @@
   max-width: 440px;
   margin: 0 auto 36px;
 }
+#app {
+  display: none;
+  width: 100%;
+  min-height: 100vh;
+}

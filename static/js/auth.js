@@ -30,6 +30,7 @@ async function checkAuth() {
       authUser = data;
       renderNavUser(data);
       document.getElementById('authScreen').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
       return;
     }
   } catch(e) {}
@@ -45,6 +46,7 @@ async function checkAuth() {
     const data = await r.json();
     if (data.ok) {
       document.getElementById('authScreen').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
       return;
     }
   } catch(e) {}
@@ -77,6 +79,7 @@ async function submitAuth() {
     if (r.ok && data.ok) {
       authUser = { username: data.username, role: data.role };
       document.getElementById('authScreen').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
       renderNavUser(authUser);
     } else {
       errEl.style.display = 'block';
