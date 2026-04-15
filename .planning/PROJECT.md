@@ -2,29 +2,53 @@
 
 ## What This Is
 
-A premium OSINT (Open Source Intelligence) SaaS platform for security professionals, investigators, and intelligence analysts. Aggregates breach data, stealer logs, social media profiles, and infrastructure intel through a unified search interface with SSE streaming results. Production at nexusosint.uk v3.0.0. Engineered for maximum capability on minimal hardware (1GB RAM VPS).
+A premium OSINT (Open Source Intelligence) SaaS platform for security professionals, investigators, and intelligence analysts. Aggregates breach data, stealer logs, social media profiles, and infrastructure intel through a unified search interface with SSE streaming results. Production at nexusosint.uk v4.0.0. Engineered for maximum capability on minimal hardware (1GB RAM VPS).
 
 ## Core Value
 
-A single search query returns comprehensive intelligence from 13+ OSINT modules with professional-grade data presentation — density without chaos.
+A single search query returns comprehensive intelligence from 13+ OSINT modules with professional-grade data presentation — density without chaos. From the same scan, show 2× more data without additional backend cost by rendering what already arrives.
 
-## Current Milestone: v4.0 Low-Resource Agent Architecture & Hardening
+## Current Milestone: v4.1 Results UX — Data completeness & presentation
 
-**Goal:** Transform NexusOSINT into a modular, agent-orchestrated OSINT platform engineered for 1GB RAM / 1 vCPU — maximum capability from minimum hardware through async micro-tasks, memory discipline, and controlled concurrency.
+**Goal:** Transform raw data tables into readable, actionable intelligence cards. Breach data already flows through the pipeline with 11+ fields (including `extra_fields` dict for unmapped API data) — the bottleneck is purely in the render layer. Social profiles get platform-branded SVG cards. Inline filters land on dense panels. The visual gap vs. reference platforms (OathNet, OSINT Industries) closes by 50%+ at zero backend cost.
 
 **Target features:**
-- F1: Codebase Audit — detect memory leaks, zombie processes, unsafe patterns, evaluate manual security changes
-- F2: SQLite Hardening — WAL mode, write serialization via asyncio.Queue, eliminate "database is locked"
-- F3: Async Agent Orchestration Lite — TaskGroup + Semaphore-controlled micro-tasks (credential leak, geo-metadata, social scrapers)
-- F4: Memory-Disciplined Architecture — <200MB resting footprint, generators everywhere, no bulk collections
-- F5: Docker Optimization — multi-stage build <250MB, swap strategy, OOM-resistant config
-- F6: Stack Modernization — Python 3.12+, proxy rotation, OathNet rate optimization
-- F7: Security Hardening — CSP headers, JWT httpOnly migration, rate limiting per-endpoint
-- F8: Health Monitoring — memory/CPU watchdog, graceful degradation under pressure
+
+- Phase 12: Pre-gate — commit deployed files + delete backup zips
+- Phase 13: Data Instrumentation — admin endpoint to discover real `extra_fields` keys + frontend whitelist
+- Phase 14: Breach Cards — flat table → 2-col card per entry, reads `extra_fields`, per-field copy
+- Phase 15: Social Cards — emoji chips → SVG brand icon cards (Lucide + Simple Icons)
+- Phase 16: Inline Filters — filter input in panels with >10 entries, debounced 150ms
+- Phase 17: Summary Hero — 4 stat cards (Total Found / Breaches / Stealers / Social) at results top
+- Phase 18: Copy & Expand — per-field copy + "Raw JSON" modal per item
+- Phase 19: Micro-polish — press-feedback, sf-dot visible on mobile, placeholder rotativo
+
+## Key Decisions
+
+| Decision | Rationale | Outcome |
+|----------|-----------|---------|
+| Keep vanilla JS/CSS stack | Production working, rewrite risk too high | ✅ Good |
+| Meridian design system | Consistent visual language, single source of truth | ✅ Good |
+| SQLite with WAL, not PostgreSQL | 1GB RAM constraint; WAL handles concurrent reads; asyncio.Queue serializes writes | ✅ Validated Phase 04 |
+| TaskGroup + Semaphore, not heavy processes | OOM prevention on 1GB VPS; dual semaphore (Global=5, OathNet=3) | ✅ Validated Phase 05 |
+| httpx as sole HTTP client | Remove requests + aiohttp — 15MB container reduction | ✅ Validated Phase 11 |
+| TTLCache for API responses | maxsize=200, ttl=300s — preserves OathNet 100/day quota | ✅ Validated Phase 11 |
+| tracemalloc in production | ~3-5% CPU overhead acceptable on 1vCPU for diagnostics | ✅ Validated Phase 06 |
+| Breach serialize cap at 200 | SSE needs complete JSON; cursor pagination for rest | ✅ Validated Phase 06 |
+| Docker image target 306MB accepted | 250MB hard constraint not met with python:3.12-slim + deps; F5 Docker Optimization is venue for reduction | ✅ User-accepted Phase 07 |
+| v4.1 D-01: extra_fields instrumentation (A+C) | Admin endpoint discovers real keys empirically; frontend uses explicit whitelist — avoids internal API fields polluting UI | ✅ Approved 2026-04-15 |
+| v4.1 D-02: Breach cards before social cards (14→15) | Breach has richer data already in pipeline; higher ROI first | ✅ Approved 2026-04-15 |
+| v4.1 D-03: Admin panel out of v4.1 scope | Low ROI vs complexity; reserved for v4.2 | ✅ Approved 2026-04-15 |
+| v4.1 D-04: Toggle slider Tier 2.4 dropped | Low ROI, not requested by user research | ✅ Approved 2026-04-15 |
+| v4.1 D-05: SVG brand icons via Lucide + Simple Icons | ~50 icons +~40KB — lazy-load via sprite; no emoji icons per CLAUDE.md | ✅ Approved 2026-04-15 |
+| v4.1 D-06: Social profile data ceiling accepted | Sherlock returns only 4 fields; full parity with references requires custom scrapers (v5.0+ scope, ~$400/mo APIs); 50% visual impact at 10% cost | ✅ Approved 2026-04-15 |
+| v4.1 D-07: CLAUDE.md compliance absorbed into each phase DoD | Touch targets, aria-labels, cursor — applied per-component, not a separate phase | ✅ Approved 2026-04-15 |
+| v4.1 D-08: css.zip + js.zip deleted | Emergency backups from VPS permission incident — no longer needed | ✅ Approved 2026-04-15 |
+| v4.1 CSP fix: form-ancestors → frame-ancestors in /js/ block | Typo introduced Phase 09-04; X-Frame-Options DENY still present but CSP frame-ancestors was non-functional | ✅ Fixed pre-gate commit 2026-04-15 |
 
 ## Requirements
 
-### Validated
+### Validated (v4.0 complete)
 
 - ✓ JWT authentication with multi-user support and admin roles — v3.0.0
 - ✓ SSE streaming search across 13+ OSINT modules in parallel — v3.0.0
@@ -42,27 +66,40 @@ A single search query returns comprehensive intelligence from 13+ OSINT modules 
 - ✓ Meridian CSS design system tokens (16/16 requirements complete) — v3.0.0 Phase 1
 - ✓ XSS sanitization: sanitizeImageUrl, esc(), escAttr() on all API data — v3.0.0 Phase 2
 - ✓ Security bugs fixed: admin_stats context manager, rate limit fail-closed — v3.0.0
+- ✓ Codebase audit (F1) — 17 findings, all addressed. Phase 03
+- ✓ SQLite WAL + asyncio.Queue single-writer serialization (F2) — Phase 04
+- ✓ Async TaskOrchestrator (F3) — TaskGroup + dual semaphore (Global=5, OathNet=3) — Phase 05
+- ✓ Memory discipline <200MB resting (F4) — generators, fetch caps, tracemalloc — Phase 06
+- ✓ Docker multi-stage build (F5) — OOM limits, health check, memory reservations — Phase 05/07
+- ✓ Python 3.12 migration (F6) — 27/27 tests green, tenacity removed — Phase 07
+- ✓ CSP headers + JWT httpOnly + slowapi rate limiting (F7) — Phase 09
+- ✓ Health watchdog + graceful degradation /health endpoint (F8) — Phase 10
+- ✓ Mobile responsive layout — breakpoints 640px/768px — Phase 12 (pre-gate)
 
-### Active
+### Active (v4.1 in progress)
 
-- [x] Codebase audit with severity report (F1) — 17 findings documented, user approved. Phase 03
-- [x] SQLite WAL mode + write serialization via asyncio.Queue (F2) — WAL + single conn + write queue. Phase 04
-- [x] Async agent orchestration with TaskGroup + Semaphore(5) (F3) — TaskOrchestrator with dual semaphore (Global=5, OathNet=3), queue bridge, task registry. Phase 05. Note: not yet wired to _stream_search
-- [x] Memory-disciplined architecture <200MB resting (F4) — Breach serialize cap, Sherlock async+512KB bound, tracemalloc, /health/memory. Phase 06. Pending VPS RSS verification
-- [x] Docker multi-stage build with OOM protection (F5) — multi-stage, memory limits, psutil watchdog. Phase 07 note: virtual size 306MB (content 78MB), user-accepted. Phase 05/07
-- [x] Python 3.12+ migration with dependency validation (F6) — 3.12.13 in container, 27/27 tests green, tenacity removed, FIND-16 anchored. Validated in Phase 07
-- [ ] CSP headers + JWT httpOnly + per-endpoint rate limiting (F7) — Note: JWT httpOnly already done in Phase 11
-- [ ] Health monitoring watchdog with graceful degradation (F8) — Note: /health and /health/memory already exist from Phase 06
+- [ ] Breach data extra fields instrumentation — Phase 13
+- [ ] Breach cards: 2-col card per entry with extra_fields — Phase 14
+- [ ] Social profile cards: SVG brand icons, platform-branded — Phase 15
+- [ ] Inline panel filters (>10 results) — Phase 16
+- [ ] Results summary hero (4 stat cards) — Phase 17
+- [ ] Per-field copy + raw JSON expand modal — Phase 18
+- [ ] Micro-polish: press-feedback, sf-dot mobile, placeholder rotativo — Phase 19
 
 ### Out of Scope
 
 - Next.js / React / Vue migration — vanilla stack is production, rewrite risk too high
 - PostgreSQL / Redis — SQLite sufficient at current scale with WAL
-- New OSINT data sources beyond OathNet API — focus is architecture, not data expansion
+- New OSINT data sources beyond OathNet API — focus is presentation, not data expansion
 - Mobile app — web-first
 - CI/CD pipeline — deploy via scp, not blocking current work
 - Tailwind CSS / Shadcn/ui — using custom Meridian design system
 - Horizontal scaling / multi-VPS — design for it but deploy on single VPS
+- Admin panel redesign — v4.2
+- Custom scrapers (TikTok, Strava, full social enrichment) — v5.0, ~$400/mo APIs
+- Dark mode toggle — permanent single-theme Amber/Noir
+- i18n — Portuguese only for now
+- PWA/offline — out of scope
 
 ## Context
 
@@ -78,12 +115,14 @@ A single search query returns comprehensive intelligence from 13+ OSINT modules 
 - RAM target: <200MB resting footprint
 - Swap: 2GB mandatory
 - Concurrency ceiling: asyncio.Semaphore(5) — absolute max simultaneous tasks
-- Docker image target: <250MB
+- Docker image target: <250MB (currently 306MB — accepted, F5 venue for reduction)
 
-**Completed milestones (do not redo):**
+**Design system:** Meridian — "Night command station" aesthetic. Noir/amber palette.
+Density without chaos. Max border-radius 6px (except pills).
+
+**Completed milestones:**
 - v3.0.0: Monolith split (4384→361 lines), Meridian CSS tokens (9 files), XSS sanitization, backend security fixes. 16/16 requirements complete, 9 plans executed.
-
-**Design system:** Meridian — "Night command station" aesthetic. Noir/amber palette. Density without chaos. Max border-radius 6px (except pills).
+- v4.0.0: Low-resource agent architecture + hardening. 10 phases, 22 plans completed.
 
 ## Constraints
 
@@ -91,27 +130,57 @@ A single search query returns comprehensive intelligence from 13+ OSINT modules 
 - **Hardware**: 1 vCPU / 1GB RAM / 25GB SSD — every architectural decision must respect this
 - **Memory ceiling**: <200MB resting, Semaphore(5) for concurrent tasks
 - **Amber/noir identity**: Color palette is brand identity — never change
-- **File protection**: Do NOT modify docker-compose.yml, nginx.conf, Dockerfile, entrypoint.sh, admin.html, modules/*.py without explicit approval
+- **File protection**: Do NOT modify docker-compose.yml, nginx.conf, Dockerfile, entrypoint.sh, admin.html, modules/*.py without explicit approval (nginx.conf pre-gate exception was for CSP fix)
 - **Known traps**: Never use passlib, su-exec, `from __future__ import annotations`, `user: "1000:1000"` in compose, `internal: true` on Docker network
-- **Sync risk**: Local files may differ from VPS — verify before deploying
-- **Gated execution**: F1 (audit) must complete before any implementation begins
+- **Frontend scope**: v4.1 changes are frontend-only except Phase 13 (1 admin endpoint)
+- **DoD transversal (Phases 14-19)**:
+  - Zero emoji as functional icons — SVG only
+  - Touch targets ≥44×44px on mobile
+  - `aria-label` on all icon-only buttons
+  - `cursor: pointer` on all custom clickable elements
+  - Tested at viewport 375px without horizontal scroll
+  - Respects `prefers-reduced-motion`
+  - Zero regression on securityheaders.com score (A)
 
-## Key Decisions
+## Known Risks (v4.1)
 
-| Decision | Rationale | Outcome |
-|----------|-----------|---------|
-| Keep vanilla JS/CSS stack | Production working, rewrite risk too high | ✅ Good |
-| Meridian design system | Consistent visual language, single source of truth | ✅ Good |
-| SQLite with WAL, not PostgreSQL | 1GB RAM constraint; WAL handles concurrent reads; asyncio.Queue serializes writes | ✅ Validated Phase 04 |
-| TaskGroup + Semaphore, not heavy processes | OOM prevention on 1GB VPS; dual semaphore (Global=5, OathNet=3) | ✅ Validated Phase 05 |
-| Docker target <250MB not <150MB | Realistic with Python 3.12-slim + dependencies | ⏳ Pending Phase 08 |
-| F1 audit gates all other features | Must understand current state before changing architecture | ✅ Validated Phase 03 |
-| slowapi for rate limiting | FastAPI-native, per-endpoint control | ⏳ Pending |
-| loguru over stdlib logging | Structured logging, never log sensitive data | ⏳ Pending |
-| httpx as sole HTTP client | Remove requests + aiohttp — 15MB container reduction | ✅ Validated Phase 11 |
-| TTLCache for API responses | maxsize=200, ttl=300s — preserves OathNet 100/day quota | ✅ Validated Phase 11 |
-| tracemalloc in production | ~3-5% CPU overhead acceptable on 1vCPU for diagnostics | ✅ Validated Phase 06 |
-| Breach serialize cap at 200 | SSE needs complete JSON; cursor pagination for rest | ✅ Validated Phase 06 |
+| Risk | Mitigation |
+|------|------------|
+| `extra_fields` may be empty in real queries | Phase 13 resolves empirically before Phase 14 |
+| +40KB SVGs on already dense page | Lazy-load via `<use href>` sprite, not inline |
+| Inline filters may lag with many results | Debounce 150ms + virtualize if >100 items |
+| 2-col breach cards break at <360px | Fallback to 1-col below narrow breakpoint |
+
+## Backend Architecture Reference (for v4.1 frontend work)
+
+### BreachRecord fields (modules/oathnet_client.py:36-48)
+
+| Field | Type | Notes |
+|-------|------|-------|
+| dbname, email, username, password | str | Base fields |
+| ip, domain, date, country | str | Context fields |
+| discord_id, phone | str | Alias-resolved in parser |
+| data_types | list[str] | Breach category tags |
+| extra_fields | dict | All non-KNOWN_FIELDS from OathNet API |
+
+**Serializer** (`api/main.py:757-761`): sends all 10 typed fields + `extra` key.  
+**Frontend gap**: `render.js:_renderBreachPage` currently reads only 8 fields; ignores `discord_id` and entire `extra` dict.
+
+### StealerRecord fields (modules/oathnet_client.py:53-62)
+
+| Field | Type |
+|-------|------|
+| url, username, password | str |
+| domain, email | list[str] |
+| log_id, pwned_at | str |
+
+**Serializer gap**: `log` and `email` list not serialized — low priority fix.
+
+### Social profile (sherlock_wrapper.py)
+
+Sherlock returns only 4 fields per platform: `platform`, `url`, `icon`, `category`.  
+No enriched data (bio, creation date, followers, verified status) without custom scrapers.  
+This ceiling is accepted (D-06). Cards will show what's available elegantly.
 
 ## Evolution
 
@@ -131,4 +200,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-02 after Phase 06 completion*
+*Last updated: 2026-04-15 after Phase 12 pre-gate (v4.1 planning kickoff)*
