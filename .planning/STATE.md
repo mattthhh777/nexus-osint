@@ -20,7 +20,7 @@ See: .planning/PROJECT.md (updated 2026-04-15 — milestone v4.1)
 
 **Core value:** From the same scan, show 2× more data without additional backend cost — rendering what already arrives in the pipeline.
 
-**Current focus:** Phase 13 — Data Instrumentation (extra_fields discovery)
+**Current focus:** Phase 17 — Summary Hero (4 stat cards at results top)
 
 ## Current Position
 
@@ -29,19 +29,19 @@ Phase 12 (v41-pregate) — **COMPLETE**
 - ✅ Committed 7 deployed-but-unversioned files (nginx.conf, 4× CSS, index.html, auth.js)
 - ✅ Fixed security bug: form-ancestors → frame-ancestors in nginx /js/ CSP block
 
-Phase 13 (v41-data-instrument) — **NEXT**
+Phase 13 (v41-data-instrument) — **COMPLETE**
 
 ## Phase Map
 
 | # | Phase | Status | Notes |
 |---|-------|--------|-------|
 | 12 | v41-pregate | ✅ COMPLETE | Pre-gate commit + zip cleanup |
-| 13 | v41-data-instrument | ⏳ NEXT | Admin endpoint + extra_fields whitelist |
-| 14 | v41-breach-cards | ☐ | Flat table → 2-col cards |
-| 15 | v41-social-cards | ☐ | Emoji chips → SVG brand icon cards |
-| 16 | v41-inline-filters | ☐ | Filter input in panels >10 entries |
-| 17 | v41-summary-hero | ☐ | 4 stat cards at results top |
-| 18 | v41-copy-expand | ☐ | Per-field copy + raw JSON modal |
+| 13 | v41-data-instrument | ✅ COMPLETE | `/api/admin/breach-extra-keys` + accumulator |
+| 14 | v41-breach-cards | ✅ COMPLETE | Flat table → 2-col cards + extra_fields + per-field copy |
+| 15 | v41-social-cards | ✅ COMPLETE | Emoji chips → SVG brand icon cards (25 platforms) |
+| 16 | v41-inline-filters | ✅ COMPLETE | Filter input: social (>10 platforms) + holehe (>10 domains), debounce 150ms |
+| 17 | v41-summary-hero | ✅ COMPLETE | Clickable stat cards + risk tinting + ↓ view hint |
+| 18 | v41-copy-expand | ⏳ NEXT | Per-field copy + raw JSON modal |
 | 19 | v41-micro-polish | ☐ | press-feedback, sf-dot, placeholder rotativo |
 
 ## Accumulated Context

@@ -2,6 +2,48 @@
    PANELS — Quota, Scan Status, Results, Stats, Panels
 ══════════════════════════════════════════════════════ */
 
+/* ── Inline panel filter (Phase 16) ── */
+.panel-filter {
+  width: 100%; box-sizing: border-box;
+  background: var(--color-bg-recessed);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  padding: 6px 10px; margin-bottom: 10px;
+  color: var(--color-text-primary);
+  font-family: var(--font-data); font-size: .76rem;
+  outline: none;
+  transition: border-color var(--duration-fast);
+}
+.panel-filter:focus { border-color: var(--color-accent-border); }
+.panel-filter::placeholder { color: var(--color-text-tertiary); }
+.filter-no-results {
+  font-family: var(--font-data); font-size: .74rem;
+  color: var(--color-text-tertiary);
+  padding: 8px 0; margin: 0;
+}
+
+/* ── Stat card interactive states (Phase 17 — Summary Hero) ── */
+.stat-card[data-action] { cursor: pointer; }
+.stat-card[data-action]:hover { border-color: var(--color-border-strong); }
+.stat-card-jump {
+  font-family: var(--font-data); font-size: .6rem;
+  color: var(--color-text-tertiary); margin-top: 6px;
+  opacity: 0; transition: opacity var(--duration-fast);
+}
+.stat-card[data-action]:hover .stat-card-jump { opacity: 1; }
+
+.stat-card.risk-found {
+  border-color: var(--color-info-border);
+}
+.stat-card.risk-high {
+  background: var(--color-high-muted);
+  border-color: var(--color-high-border);
+}
+.stat-card.risk-critical {
+  background: var(--color-critical-muted);
+  border-color: var(--color-critical-border);
+}
+
 /* ── Quota bar ── */
 .quota-bar {
   display: flex; align-items: center; gap: 12px;

@@ -33,10 +33,16 @@ registerAction('copy-section',       function (el, ds) { copySection(ds.section)
 // ── Copy area (textarea select-all) ───────────────────
 registerAction('select-copy-area',   function (el) { el.select(); });
 
-// ── Breach table ──────────────────────────────────────
+// ── Breach cards ──────────────────────────────────────
 registerAction('toggle-pwd',         function (el, ds) { togglePwd(ds.pwdid, ds.plain); });
 registerAction('reveal-all-passwords', function () { revealAllPasswords(); });
 registerAction('load-more-breaches', function () { loadMoreBreaches(); });
+registerAction('copy-field',         function (el, ds) {
+  if (!ds.val) return;
+  writeClipboard(ds.val);
+  el.classList.add('copied');
+  setTimeout(() => el.classList.remove('copied'), 1500);
+});
 
 // ── Discord copy ──────────────────────────────────────
 registerAction('copy-discord-id',    function (el, ds) {
@@ -65,6 +71,14 @@ registerAction('rerun-search',       function (el, ds) { rerunSearch(ds.query); 
 registerAction('load-case',          function (el, ds) { loadCase(ds.id); });
 registerAction('delete-case',        function (el, ds) { deleteCase(ds.id); });
 registerAction('clear-all-cases',    function () { clearAllCases(); });
+
+// ── Summary Hero — stat card jump (Phase 17) ──────────
+registerAction('jump-to-panel',      function (el, ds) {
+  const panel = document.getElementById(ds.panel);
+  if (!panel) return;
+  if (!panel.classList.contains('open')) panel.classList.add('open');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
 
 // ── Activate delegation and start the app ────────────
 initDelegation();
