@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v4.1.0
 milestone_name: Results UX — Data completeness & presentation
-status: PRE-GATE COMPLETE — Phase 13 ready for execution
-stopped_at: Phase 12 pre-gate commit done (2026-04-15)
-last_updated: "2026-04-15T07:00:00.000Z"
+status: MILESTONE COMPLETE — v4.1 Results UX all 8 phases done
+stopped_at: Phase 19 micro-polish complete (2026-04-15)
+last_updated: "2026-04-15T23:59:00.000Z"
 progress:
   total_phases: 8
-  completed_phases: 1
+  completed_phases: 8
   total_plans: 0
   completed_plans: 0
 ---
@@ -41,8 +41,8 @@ Phase 13 (v41-data-instrument) — **COMPLETE**
 | 15 | v41-social-cards | ✅ COMPLETE | Emoji chips → SVG brand icon cards (25 platforms) |
 | 16 | v41-inline-filters | ✅ COMPLETE | Filter input: social (>10 platforms) + holehe (>10 domains), debounce 150ms |
 | 17 | v41-summary-hero | ✅ COMPLETE | Clickable stat cards + risk tinting + ↓ view hint |
-| 18 | v41-copy-expand | ⏳ NEXT | Per-field copy + raw JSON modal |
-| 19 | v41-micro-polish | ☐ | press-feedback, sf-dot, placeholder rotativo |
+| 18 | v41-social-avatars | ✅ COMPLETE | Social cards com foto de perfil via unavatar.io + CSP fix |
+| 19 | v41-micro-polish | ✅ COMPLETE | press-feedback, sf-dot pulse/offline, placeholder rotativo |
 
 ## Accumulated Context
 

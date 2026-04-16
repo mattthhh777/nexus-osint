@@ -11,9 +11,12 @@ async function checkSpiderFoot() {
     const dot = document.getElementById('sfDot');
     const lbl = document.getElementById('sfLabel');
     if (data.available) {
+      dot.classList.remove('offline');
       dot.classList.add('online');
       lbl.textContent = 'spiderfoot online';
     } else {
+      dot.classList.remove('online');
+      dot.classList.add('offline');
       lbl.textContent = 'spiderfoot offline';
     }
   } catch(e) {}

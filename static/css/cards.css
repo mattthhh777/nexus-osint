@@ -107,6 +107,7 @@
   transition: all .15s;
 }
 .discord-view-btn:hover { border-color: var(--color-accent); color: var(--color-accent); background: var(--color-accent-muted); }
+.discord-view-btn:active { transform: scale(.97); transition-duration: 60ms; }
 
 /* ── Gaming card ── */
 /* Gaming cards (enhanced v3.1) */
@@ -262,6 +263,7 @@
   transition: all var(--duration-fast) var(--ease-in-out);
 }
 .btn-copy:hover { border-color: var(--color-accent); color: var(--color-accent); background: var(--color-accent-muted); }
+.btn-copy:active { transform: scale(.95); transition-duration: 60ms; }
 .btn-copy.copied { border-color: var(--color-success); color: var(--color-success); background: var(--color-success-muted); }
 
 .btn-copy-all {
@@ -391,6 +393,7 @@
   transform: translateY(-2px);
   box-shadow: var(--shadow-sm);
 }
+.social-card:active { transform: translateY(0) scale(.98); box-shadow: none; transition-duration: 60ms; }
 
 /* Platform header row */
 .social-card-header {
@@ -474,6 +477,7 @@
   color: var(--color-accent);
   background: var(--color-accent-muted);
 }
+.social-card-cta:active { transform: scale(.97); transition-duration: 60ms; }
 
 /* ── Breach Cards (Phase 14) ── */
 .breach-grid { display: flex; flex-direction: column; gap: 6px; }

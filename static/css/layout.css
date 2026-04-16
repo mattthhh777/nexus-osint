@@ -67,7 +67,16 @@
 }
 .sf-dot.online {
   background: var(--color-success);
-  box-shadow: 0 0 0 2px var(--color-success-muted), 0 0 10px var(--color-success);
+  box-shadow: 0 0 0 2px var(--color-success-muted), 0 0 8px var(--color-success);
+  animation: sfPulse 2.4s ease-in-out infinite;
+}
+.sf-dot.offline {
+  background: var(--color-medium);
+  box-shadow: 0 0 0 2px var(--color-medium-muted);
+}
+@keyframes sfPulse {
+  0%, 100% { box-shadow: 0 0 0 2px var(--color-success-muted), 0 0 6px var(--color-success); }
+  50%       { box-shadow: 0 0 0 4px var(--color-success-muted), 0 0 14px var(--color-success); }
 }
 
 /* ── Nav version badge ── */

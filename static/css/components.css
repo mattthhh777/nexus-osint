@@ -96,6 +96,7 @@
   color: var(--color-text-primary);
   background: var(--color-surface-1);
 }
+.btn-secondary:active:not(:disabled) { transform: translateY(0) scale(.97); transition-duration: 60ms; }
 .btn-sm { padding: 6px 14px; font-size: .78rem; }
 .btn:disabled { opacity: .4; cursor: not-allowed; }
 

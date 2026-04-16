@@ -25,6 +25,7 @@
 /* ── Stat card interactive states (Phase 17 — Summary Hero) ── */
 .stat-card[data-action] { cursor: pointer; }
 .stat-card[data-action]:hover { border-color: var(--color-border-strong); }
+.stat-card[data-action]:active { transform: translateY(0) scale(.96); box-shadow: none; transition-duration: 60ms; }
 .stat-card-jump {
   font-family: var(--font-data); font-size: .6rem;
   color: var(--color-text-tertiary); margin-top: 6px;

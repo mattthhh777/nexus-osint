@@ -97,3 +97,23 @@ document.getElementById('searchInput')?.addEventListener('input', function (e) {
 document.getElementById('searchInput')?.addEventListener('keydown', function (e) {
   if (e.key === 'Enter') startSearch();
 });
+
+// ── Rotating search placeholder (Phase 19) ───────────
+(function() {
+  const input = document.getElementById('searchInput');
+  if (!input) return;
+  const hints = [
+    'username \u00b7 email \u00b7 IP \u00b7 Discord ID \u00b7 domain\u2026',
+    'Try: johndoe',
+    'Try: john@example.com',
+    'Try: 192.168.1.1',
+    'Try: example.com',
+    'Try: 123456789012345678',
+  ];
+  let i = 0;
+  setInterval(function() {
+    if (document.activeElement === input || input.value) return;
+    i = (i + 1) % hints.length;
+    input.placeholder = hints[i];
+  }, 2800);
+})();
