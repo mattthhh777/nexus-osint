@@ -129,10 +129,14 @@ function newSearch() {
   currentResult.breachCursor = '';
   currentResult.breachTotal  = 0;
   breachPage = 0;
-  // Reset panels — remove not-run state
+  // Reset panels — remove not-run state and any hide-on-zero display override
   ['Breach','Stealer','Social','Email'].forEach(p => {
     const el = document.getElementById('panel'+p);
-    if (el) { el.classList.add('open'); el.classList.remove('not-run'); }
+    if (el) {
+      el.classList.add('open');
+      el.classList.remove('not-run');
+      el.style.display = '';
+    }
   });
   // Remove not-run badges
   document.querySelectorAll('.panel-not-run-badge').forEach(b => b.remove());
