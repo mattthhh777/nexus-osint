@@ -35,6 +35,8 @@ const _SI = {
   keybase:    'M10.888 14.408l-3.026 3.026.643 2.572-2.572-.643-1.028 1.028 2.572.643-.643 2.572 2.572-.643 3.026-3.026-1.544-5.529zm9.826-12.582a2.186 2.186 0 0 0-3.09 0l-3.737 3.737-1.286-1.286-1.544 1.544 1.286 1.286-6.954 6.954 5.53 1.543 6.954-6.954 1.286 1.286 1.544-1.543-1.286-1.286 3.737-3.737a2.186 2.186 0 0 0 0-3.09l-.44-.454z',
   devdot:     'M7.826 10.083a.784.784 0 0 0-.468-.175h-.701v4.198h.701a.786.786 0 0 0 .469-.175c.155-.117.233-.292.233-.525v-2.798c.001-.233-.079-.408-.234-.525zM19.236 3H4.764C3.791 3 3.002 3.787 3 4.76v14.48c.002.973.791 1.76 1.764 1.76h14.473c.973 0 1.762-.787 1.763-1.76V4.76A1.763 1.763 0 0 0 19.236 3zm-9.443 9.663c0 .655-.24 1.169-.717 1.541-.479.371-1.066.558-1.765.565H5.587V9.087h1.724c.727 0 1.324.195 1.79.583.466.388.695.892.692 1.515v2.478zm3.322 2.106c0 .538-.419.834-.827.834-.349 0-.795-.193-.795-.834v-4.198c0-.538.42-.833.795-.833.348 0 .827.193.827.833v4.198zm3.22-.021c0 .519-.38.861-.917.861-.504 0-.87-.34-.917-.861V9.13c0-.519.38-.86.917-.86.504 0 .87.34.917.86v5.618z',
   hackernews: 'M0 24V0h24v24H0zM6.951 5.896l4.112 7.708v5.064h1.583v-4.972l4.148-7.799h-1.749l-3.156 6.571-.026.026-3.155-6.598z',
+  discord:    'M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057.106 18.1.131 18.14.163 18.165a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z',
+  xbox:       'M4.038 5.489c.084-.101.17-.2.258-.297C5.743 3.676 7.615 2.643 9.773 2.234a.24.24 0 0 1 .26.134L12 6.226l1.967-3.858a.24.24 0 0 1 .26-.134c2.158.41 4.03 1.441 5.477 2.958.088.097.174.196.258.297A12.02 12.02 0 0 1 23.97 11.8a.241.241 0 0 1-.057.178l-5.55 6.296a.242.242 0 0 1-.378-.02L12 9.62l-5.985 8.633a.242.242 0 0 1-.378.02L.087 11.978A.241.241 0 0 1 .03 11.8a12.02 12.02 0 0 1 4.008-6.31z',
 };
 
 // Map platform name → icon key in _SI
@@ -75,6 +77,15 @@ function _socialIconEl(platform) {
   }
   const init = platform.split(/[\s\/]+/).filter(Boolean).slice(0, 2).map(w => w[0] || '').join('').toUpperCase().slice(0, 2);
   return '<span class="social-card-init" aria-hidden="true">' + esc(init) + '</span>';
+}
+
+// Returns true only for values worth having a copy button (filters out enum labels, booleans, snake_case internals)
+function _shouldShowCopy(val) {
+  if (val.length < 3) return false;
+  if (/^(yes|no|true|false)$/i.test(val)) return false;
+  if (/^[A-Z][A-Z_0-9]{2,}$/.test(val)) return false;       // ALL_CAPS_ENUM
+  if (/^[a-z][a-z_0-9]{2,}$/.test(val) && !val.includes(' ')) return false; // snake_case_label
+  return true;
 }
 
 // Extracts the username from a social profile URL (last meaningful path segment)
@@ -176,7 +187,7 @@ function renderResults() {
   renderSocial(s);
   renderHolehe(o);
   renderExtras();
-  renderSpiderFoot();
+
 
   document.getElementById('results').classList.add('visible');
   document.getElementById('results').scrollIntoView({behavior:'smooth', block:'start'});
@@ -196,11 +207,14 @@ function renderBreaches(o) {
   pwdVisible = {};
   const el    = document.getElementById('breachBody');
   const badge = document.getElementById('breachBadge');
+  const panel = document.getElementById('panelBreach');
   if (!o || !o.breaches || o.breaches.length === 0) {
+    if (panel) panel.style.display = 'none';
     badge.textContent = '0';
     el.innerHTML = '<div style="color:var(--green);font-family:var(--mono);font-size:.8rem">✓ No breaches found.</div>';
     return;
   }
+  if (panel) panel.style.display = '';
   badge.textContent = o.breach_count;
   _renderBreachPage(o, el);
 }
@@ -219,7 +233,7 @@ function _renderBreachPage(o, el) {
       + '<span class="breach-field-key">' + esc(key) + '</span>'
       + '<div class="breach-field-row">'
       + '<span class="breach-field-val' + (cls ? ' ' + cls : '') + '">' + esc(valStr) + '</span>'
-      + '<button class="btn-copy btn-xs" data-action="copy-field" data-val="' + escAttr(valStr) + '">copy</button>'
+      + (!isExtra || _shouldShowCopy(valStr) ? '<button class="btn-copy btn-xs" data-action="copy-field" data-val="' + escAttr(valStr) + '">copy</button>' : '')
       + '</div></div>';
   };
 
@@ -383,11 +397,14 @@ async function loadMoreBreaches() {
 function renderStealers(o) {
   const el = document.getElementById('stealerBody');
   const badge = document.getElementById('stealerBadge');
+  const panel = document.getElementById('panelStealer');
   if (!o || !o.stealers || o.stealers.length === 0) {
+    if (panel) panel.style.display = 'none';
     badge.textContent = '0';
     el.innerHTML = `<div style="color:var(--green);font-family:var(--mono);font-size:.8rem">✓ No stealer logs found.</div>`;
     return;
   }
+  if (panel) panel.style.display = '';
   badge.textContent = o.stealer_count;
   el.innerHTML = `
     <div style="color:var(--red);font-family:var(--mono);font-size:.78rem;margin-bottom:12px;padding:8px 12px;background:var(--red-lo);border:1px solid rgba(232,64,64,.2);border-radius:6px">
@@ -444,11 +461,14 @@ function _attachFilter(bodyEl, itemSelector, getText) {
 function renderSocial(s) {
   const el    = document.getElementById('socialBody');
   const badge = document.getElementById('socialBadge');
+  const panel = document.getElementById('panelSocial');
   if (!s || !s.found || s.found.length === 0) {
+    if (panel) panel.style.display = 'none';
     badge.textContent = '0';
     el.innerHTML = '<div style="color:var(--color-text-tertiary);font-family:var(--font-data);font-size:.8rem">No profiles found.</div>';
     return;
   }
+  if (panel) panel.style.display = '';
   badge.textContent = s.found_count;
 
   const cards = s.found.map(p => {
@@ -507,11 +527,14 @@ function renderSocial(s) {
 function renderHolehe(o) {
   const el = document.getElementById('emailBody');
   const badge = document.getElementById('emailBadge');
+  const panel = document.getElementById('panelEmail');
   if (!o || !o.holehe_domains || o.holehe_domains.length === 0) {
+    if (panel) panel.style.display = 'none';
     badge.textContent = '0';
     el.innerHTML = '<div style="color:var(--text3);font-family:var(--mono);font-size:.8rem">No email registrations found.</div>';
     return;
   }
+  if (panel) panel.style.display = '';
   badge.textContent = o.holehe_count;
 
   const filterHtml = o.holehe_domains.length > 10
@@ -598,11 +621,18 @@ function renderExtras() {
     const badgesHtml = u.badges?.length
       ? `<div class="discord-badges">${u.badges.map(b=>`<span class="discord-badge">${esc(b)}</span>`).join('')}</div>` : '';
 
+    const fmtDiscordDate = (raw) => {
+      if (!raw) return '';
+      const d = new Date(raw);
+      if (isNaN(d.getTime())) return raw.slice(0, 10);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    };
     parts.push(`<div>
       <div class="section-label" style="margin-bottom:10px">Discord Profile</div>
       <div class="discord-card">
+        ${safeBannerUrl ? `<div class="discord-banner has-banner" style="background-image:url('${safeBannerUrl}')"></div>` : ''}
         <div class="discord-card-inner">
-          <div class="discord-avatar-wrap"><div style="width:56px;height:56px;border-radius:8px;background:var(--bg4);display:flex;align-items:center;justify-content:center;font-size:1.5rem;flex-shrink:0">🟥</div></div>
+          <div class="discord-avatar-wrap">${avatarHtml}</div>
           <div class="discord-card-content">
             <div class="discord-global-name">${esc(u.global_name || u.username || 'Unknown')}</div>
             <div class="discord-username">@${esc(u.username || '─')}</div>
@@ -610,7 +640,7 @@ function renderExtras() {
               <span>#</span>
               <span class="discord-id-val" data-action="copy-discord-id" data-id="${esc(u.id||'')}" data-toast="Discord ID copied" title="Click to copy">${esc(u.id || '─')}</span>
             </div>
-            ${u.creation_date ? `<div class="discord-created">📅 ${esc(u.creation_date)}</div>` : ''}
+            ${u.creation_date ? `<div class="discord-created">📅 ${esc(fmtDiscordDate(u.creation_date))}</div>` : ''}
             ${badgesHtml}
           </div>
         </div>
@@ -627,11 +657,9 @@ function renderExtras() {
         </div>` : ''}
         <div class="discord-card-footer">
           <a class="discord-view-btn" href="https://discord.com/users/${esc(u.id||'')}" target="_blank" rel="noopener">
-            ↗ Open Profile
+            <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12" aria-hidden="true"><path d="${_SI.discord}"/></svg>
+            View Discord Profile
           </a>
-          <button class="discord-view-btn" data-action="copy-discord-id" data-id="${esc(u.id||'')}" data-toast="ID copied">
-            📋 Copy ID
-          </button>
         </div>
       </div>
     </div>`);
@@ -685,38 +713,46 @@ function renderExtras() {
     const d   = xbox.data;
     const m   = d.meta?.meta || d.meta || {};
     const scr = d.meta?.scraper_data || {};
-    const gamerscore = scr.gamerscore || m.gamerscore || '─';
-    const tier       = m.accounttier  || m.accountTier || '─';
-    const rep        = m.xboxonerep   || m.xboxOneRep  || '';
-    const gamesPlayed= scr.games_played || 0;
-    const gameHistory= scr.game_history || [];
+    const gamerscore  = scr.gamerscore || m.gamerscore || '';
+    const tier        = m.accounttier  || m.accountTier || '';
+    const rep         = m.xboxonerep   || m.xboxOneRep  || '';
+    const gamesPlayed = scr.games_played ?? null;
+    const gameHistory = scr.game_history || [];
+    // Gamertag may be in different fields depending on API response shape
+    const xboxName    = d.gamertag || d.Gamertag || d.username || (d.id && isNaN(Number(d.id)) ? d.id : '') || 'Unknown';
+    const xboxXUID    = d.xuid || (d.id && !isNaN(Number(d.id)) ? d.id : '');
+    const xboxSvg     = `<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true"><path d="${_SI.xbox}"/></svg>`;
+    const safeXboxAvatar = sanitizeImageUrl(d.avatar);
+    const xboxAvatarHtml = safeXboxAvatar
+      ? `<img class="social-avatar" src="${safeXboxAvatar}" alt="avatar" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0" onerror="this.style.display='none'">`
+      : '';
     parts.push(`<div>
       <div class="section-label" style="margin-bottom:8px">Xbox Live Profile</div>
       <div class="gaming-card">
         <div class="gaming-card-header">
-          <span class="gaming-card-icon">🎮</span>
+          ${xboxAvatarHtml ? `<div style="margin-right:10px">${xboxAvatarHtml}</div>` : `<span class="gaming-card-icon" style="color:#107c10;display:flex">${xboxSvg}</span>`}
           <div style="flex:1">
-            <div class="gaming-card-title">${esc(d.username||d.gamertag||d.Gamertag||'Unknown')}</div>
-            <div class="gaming-card-sub">Gamertag: ${esc(d.id||d.xuid||'─')}</div>
+            <div class="gaming-card-title">${esc(xboxName)}</div>
+            ${xboxXUID ? `<div class="gaming-card-sub">XUID: ${esc(xboxXUID)}</div>` : ''}
           </div>
-          <div style="text-align:right;font-family:var(--mono);font-size:.72rem">
+          ${gamerscore ? `<div style="text-align:right;font-family:var(--mono);font-size:.72rem">
             <div style="color:var(--amber);font-size:1rem;font-weight:700">${esc(String(gamerscore))}</div>
             <div style="color:var(--text3)">Gamerscore</div>
-          </div>
+          </div>` : ''}
         </div>
         <div class="gaming-kv">
-          <div class="gaming-kv-item">
+          ${tier ? `<div class="gaming-kv-item">
             <span class="gaming-kv-key">Tier</span>
             <span class="gaming-kv-val" style="color:${tier==='Gold'?'var(--amber)':tier==='Silver'?'var(--text2)':'var(--text3)'}">${esc(tier)}</span>
-          </div>
-          <div class="gaming-kv-item">
+          </div>` : ''}
+          ${rep ? `<div class="gaming-kv-item">
             <span class="gaming-kv-key">Reputation</span>
-            <span class="gaming-kv-val">${esc(rep||'─')}</span>
-          </div>
-          <div class="gaming-kv-item">
+            <span class="gaming-kv-val">${esc(rep)}</span>
+          </div>` : ''}
+          ${gamesPlayed !== null ? `<div class="gaming-kv-item">
             <span class="gaming-kv-key">Games Played</span>
             <span class="gaming-kv-val">${esc(String(gamesPlayed))}</span>
-          </div>
+          </div>` : ''}
         </div>
         ${gameHistory.length ? `<div style="border-top:1px solid var(--line);padding:10px 14px">
           <div class="gaming-kv-key" style="margin-bottom:8px">Recent Games</div>
@@ -840,49 +876,6 @@ function renderExtras() {
     }
   }
 
-  // Minecraft
-  const mc = currentResult.extras.minecraft;
-  if (mc) {
-    if (!mc.ok || mc.error) {
-      const mcErr = mc.error || '';
-      const is503 = mcErr.includes('503') || mcErr.includes('server error');
-      parts.push(`<div>
-        <div class="section-label" style="margin-bottom:8px">Minecraft Account</div>
-        <div style="background:var(--bg3);border:1px solid var(--line2);border-radius:6px;padding:10px 14px;font-family:var(--mono);font-size:.76rem;color:var(--text3)">
-          ${is503
-            ? '⚠ Minecraft lookup unavailable — OathNet Mojang endpoint is temporarily down (HTTP 503). Try again later.'
-            : '⚠ ' + esc(mcErr || 'Minecraft lookup failed.')}
-        </div>
-      </div>`);
-    } else {
-      const d = mc.data || {};
-      const uuid = d.uuid || '';
-      const currentName = d.username || d['Current Username'] || '';
-      const history = d.history || [];
-      parts.push(`<div>
-        <div class="section-label" style="margin-bottom:10px">Minecraft Account</div>
-        <div class="gaming-card">
-          <div class="gaming-card-header">
-            <span class="gaming-card-icon">⛏</span>
-            <div>
-              <div class="gaming-card-title">${esc(currentName || 'Unknown')}</div>
-              ${uuid ? `<div class="gaming-card-sub">UUID: <span style="color:var(--amber);font-size:.68rem">${esc(uuid)}</span></div>` : ''}
-            </div>
-          </div>
-          ${history.length ? `
-          <div class="discord-history-section" style="border-top:1px solid var(--line);padding-top:10px;margin-top:10px">
-            <div class="discord-history-label">Username History (${history.length})</div>
-            <div class="discord-history-list">
-              ${history.map((h,i) => `
-                <div class="discord-history-item">
-                  <span class="discord-history-name">${i===0?'<span style="color:var(--green)">▶ </span>':''}${esc(h.username||h)}</span>
-                  <span class="discord-history-date">${esc((h.changed_at||'Origin').slice(0,10))}</span>
-                </div>`).join('')}
-            </div>
-          </div>` : ''}
-        </div>
-      </div>`);
-    }
   }
 
   // Victims (Compromised Machines)
@@ -957,41 +950,6 @@ function renderExtras() {
       if (sibling) sibling.style.display = 'flex';
     });
   });
-}
-
-// ── SpiderFoot ────────────────────────────────────────
-function renderSpiderFoot() {
-  const el = document.getElementById('sfBody');
-  const badge = document.getElementById('sfBadge');
-  const sf = currentResult.extras.sf_final;
-
-  if (!sf) {
-    badge.textContent = '─';
-    return;
-  }
-  if (!sf.available) {
-    el.innerHTML = `<div style="color:var(--text3);font-family:var(--mono);font-size:.8rem">
-      ⚠ SpiderFoot unavailable: ${esc(sf.error||'')}
-    </div>`;
-    return;
-  }
-
-  const results = sf.results || [];
-  badge.textContent = results.length;
-
-  if (results.length === 0) {
-    el.innerHTML = `<div style="color:var(--green);font-family:var(--mono);font-size:.8rem">✓ No findings.</div>`;
-    return;
-  }
-
-  el.innerHTML = results.slice(0, 100).map(r => `
-    <div class="sf-finding">
-      <div class="sf-type">${esc(r.type)}</div>
-      <div>
-        <div class="sf-data">${esc(r.data?.slice(0,200)||'')}</div>
-        <div class="sf-source">${esc(r.source||'')}</div>
-      </div>
-    </div>`).join('');
 }
 
 // ══════════════════════════════════════════════════════

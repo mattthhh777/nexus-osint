@@ -2,7 +2,6 @@
 //  STATE — Global variables and constants
 // ══════════════════════════════════════════════════════
 let mode = 'auto';
-let sfMode = 'passive';
 let selectedMods = new Set();
 let activeCat = 'Data Leaks';
 let currentResult = {};
@@ -15,17 +14,16 @@ const CATEGORIES = {
   'Social & Gaming':   {icon:'🎮', mods:['sherlock','discord']},
   'Email Intelligence':{icon:'📧', mods:['holehe','ghunt']},
   'Network':           {icon:'🌐', mods:['ip_info','subdomain']},
-  'Gaming Platforms':  {icon:'🕹', mods:['steam','xbox','roblox','minecraft','discord_roblox']},
+  'Gaming Platforms':  {icon:'🕹', mods:['steam','xbox','roblox','discord_roblox']},
   'Deep OSINT':        {icon:'🔬', mods:['victims']},
-  'SpiderFoot':        {icon:'🕷', mods:['spiderfoot']},
 };
 
 const MOD_LABELS = {
   breach:'Breaches', stealer:'Stealer', sherlock:'Sherlock',
   discord:'Discord', holehe:'Holehe', ip_info:'IP Info',
-  subdomain:'Subdomains', spiderfoot:'SpiderFoot',
+  subdomain:'Subdomains',
   steam:'Steam', xbox:'Xbox', roblox:'Roblox',
-  ghunt:'GHunt (Google)', minecraft:'Minecraft',
+  ghunt:'GHunt (Google)',
   victims:'Victims (Stealer Logs)', discord_roblox:'Discord→Roblox',
 };
 
@@ -36,7 +34,6 @@ async function init() {
   await checkAuth();
   buildCatChips();
   buildModChips();
-  checkSpiderFoot();
   renderHistory();
   updateCasesBadge();
   selectedMods = new Set(['breach','stealer']);

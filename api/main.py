@@ -541,7 +541,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Robots-Tag"]           = "noindex, nofollow, noarchive"
         response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
         response.headers["Cross-Origin-Opener-Policy"]  = "same-origin"
-        response.headers["Cross-Origin-Embedder-Policy"]= "require-corp"
+        response.headers["Cross-Origin-Embedder-Policy"]= "unsafe-none"
         return response
 
 app.add_middleware(SecurityHeadersMiddleware)
@@ -728,7 +728,7 @@ MODULE_TIMEOUTS = {
     "xbox":           20,   # Xbox profile
     "roblox":         20,   # Roblox profile
     "ghunt":          25,   # Google account OSINT
-    "minecraft":      20,   # Minecraft history
+
     "victims":        30,   # Victims search
     "discord_roblox": 15,   # Discord→Roblox lookup
 }
@@ -848,7 +848,7 @@ async def _stream_search(
             "steam": is_steam or is_user,
             "xbox":  is_user,
             "roblox": is_user,
-            "ghunt": is_email, "minecraft": is_user,
+            "ghunt": is_email,
             "spiderfoot": False,
         }
     else:
@@ -865,7 +865,7 @@ async def _stream_search(
             "xbox":      "xbox"       in mods,
             "roblox":    "roblox"     in mods,
             "ghunt":     "ghunt"      in mods and is_email,
-            "minecraft": "minecraft"  in mods and is_user,
+
             "spiderfoot":"spiderfoot" in mods,
         }
 
@@ -1216,23 +1216,6 @@ async def _stream_search(
             logger.error("GHunt failed: %s", exc)
             yield event({"type": "module_error", "module": "ghunt", "error": str(exc)})
 
-    # ── Minecraft ─────────────────────────────────────────────────────────
-    if run.get("minecraft"):
-        yield progress("Looking up Minecraft account…")
-        ran.append("minecraft")
-        try:
-            (ok, data), timed_out = await with_timeout(
-                oathnet_client.minecraft_history(query), "minecraft"
-            )
-            if timed_out:
-                yield event({"type": "module_error", "module": "minecraft", "error": "Minecraft lookup timed out"})
-            else:
-                yield event({"type": "minecraft", "ok": ok,
-                             "data": data if ok else None,
-                             "error": data.get("error") if not ok else None})
-        except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
-            logger.error("Minecraft failed: %s", exc)
-            yield event({"type": "module_error", "module": "minecraft", "error": str(exc)})
 
     # ── Victims ──────────────────────────────────────────────────────────
     if run.get("victims"):

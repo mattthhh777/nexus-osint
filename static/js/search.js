@@ -1,28 +1,4 @@
 // ══════════════════════════════════════════════════════
-//  SPIDERFOOT STATUS
-// ══════════════════════════════════════════════════════
-async function checkSpiderFoot() {
-  try {
-    // Use plain fetch — apiFetch re-shows authScreen on 401 which causes a
-    // race condition when this runs before the user has authenticated.
-    const r = await fetch('/api/spiderfoot/status', { credentials: 'include' });
-    if (!r.ok) return;
-    const data = await r.json();
-    const dot = document.getElementById('sfDot');
-    const lbl = document.getElementById('sfLabel');
-    if (data.available) {
-      dot.classList.remove('offline');
-      dot.classList.add('online');
-      lbl.textContent = 'spiderfoot online';
-    } else {
-      dot.classList.remove('online');
-      dot.classList.add('offline');
-      lbl.textContent = 'spiderfoot offline';
-    }
-  } catch(e) {}
-}
-
-// ══════════════════════════════════════════════════════
 //  MODE & CHIPS
 // ══════════════════════════════════════════════════════
 function setMode(m) {
@@ -30,12 +6,6 @@ function setMode(m) {
   document.getElementById('btnAuto').classList.toggle('active', m === 'auto');
   document.getElementById('btnManual').classList.toggle('active', m === 'manual');
   document.getElementById('manualSection').classList.toggle('visible', m === 'manual');
-}
-
-function setSfMode(m, el) {
-  sfMode = m;
-  document.querySelectorAll('#sfOptions .chip').forEach(c => c.classList.remove('active'));
-  el.classList.add('active');
 }
 
 function buildCatChips() {
@@ -53,8 +23,6 @@ function selectCat(name, el) {
   // Select all mods of this category
   selectedMods = new Set(CATEGORIES[name].mods);
   buildModChips();
-  // Show SpiderFoot options if SpiderFoot selected
-  document.getElementById('sfOptions').classList.toggle('visible', selectedMods.has('spiderfoot'));
 }
 
 function buildModChips() {
@@ -70,7 +38,6 @@ function toggleMod(m, el) {
   if (selectedMods.has(m)) selectedMods.delete(m);
   else selectedMods.add(m);
   el.classList.toggle('active', selectedMods.has(m));
-  document.getElementById('sfOptions').classList.toggle('visible', selectedMods.has('spiderfoot'));
 }
 
 // ══════════════════════════════════════════════════════
@@ -93,7 +60,6 @@ async function startSearch() {
     query,
     mode: mode === 'auto' ? 'automated' : 'manual',
     modules: [...selectedMods],
-    spiderfoot_mode: sfMode,
   };
 
   try {
@@ -163,12 +129,6 @@ function handleEvent(evt) {
     case 'subdomains':
       currentResult.extras.subdomains = evt;
       break;
-    case 'spiderfoot':
-    case 'spiderfoot_started':
-    case 'spiderfoot_progress':
-      currentResult.extras.spiderfoot = (currentResult.extras.spiderfoot || []);
-      if (evt.type === 'spiderfoot') currentResult.extras.sf_final = evt;
-      break;
     case 'steam':
       currentResult.extras.steam = evt;
       break;
@@ -180,9 +140,6 @@ function handleEvent(evt) {
       break;
     case 'ghunt':
       currentResult.extras.ghunt = evt;
-      break;
-    case 'minecraft':
-      currentResult.extras.minecraft = evt;
       break;
     case 'victims':
       currentResult.extras.victims = evt;

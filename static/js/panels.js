@@ -44,8 +44,7 @@ function applyPanelVisibility() {
     'panelStealer': ['stealer'],
     'panelSocial':  ['sherlock'],
     'panelEmail':   ['holehe'],
-    'panelExtras':  ['ip_info', 'subdomain', 'discord', 'steam', 'xbox', 'roblox', 'ghunt', 'minecraft', 'victims', 'discord_roblox'],
-    'panelSf':      ['spiderfoot'],
+    'panelExtras':  ['ip_info', 'subdomain', 'discord', 'steam', 'xbox', 'roblox', 'ghunt', 'victims', 'discord_roblox'],
     'panelExport':  null, // always visible after any search
   };
 

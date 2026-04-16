@@ -16,7 +16,6 @@ registerAction('toggle-panel',       function (el, ds) { togglePanel(ds.panel); 
 // ── Search ────────────────────────────────────────────
 registerAction('start-search',       function () { startSearch(); });
 registerAction('set-mode',           function (el, ds) { setMode(ds.mode); });
-registerAction('set-sf-mode',        function (el, ds) { setSfMode(ds.mode, el); });
 registerAction('select-cat',         function (el, ds) { selectCat(ds.name, el); });
 registerAction('toggle-mod',         function (el, ds) { toggleMod(ds.mod, el); });
 registerAction('new-search',         function () { newSearch(); });

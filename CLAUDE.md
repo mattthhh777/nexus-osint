@@ -661,6 +661,29 @@ SQLite readers:      máx 3 simultâneos com WAL no VPS 1GB
 
 ---
 
+## DEPLOY — VPS PRODUCTION
+
+**VPS**: DigitalOcean `root@146.190.142.50`
+
+Após qualquer mudança de código aprovada e commitada, Claude faz o deploy assim:
+
+```bash
+# 1. Enviar arquivos alterados para o VPS
+scp -r api/ static/ nginx.conf docker-compose.yml root@146.190.142.50:/root/nexus_osint/
+
+# 2. Rebuild e restart no VPS
+ssh root@146.190.142.50 "cd /root/nexus_osint && docker compose up -d --build"
+```
+
+**Regras de deploy**:
+- Deploy só ocorre após `git commit` bem-sucedido
+- Nunca fazer deploy de branch diferente de `master` sem aprovação explícita
+- Se `docker compose up` falhar no VPS → investigar logs antes de qualquer rollback: `ssh root@146.190.142.50 "docker logs nexus_osint-nexus-1 --tail 50"`
+- Deploy de mudanças de schema de banco de dados exige janela de manutenção planejada
+- Nunca enviar `.env` ou arquivos de segredos via SCP — esses já existem no VPS
+
+---
+
 ## DEVELOPER PROFILE
 
 **Math** — low-code / vibe coding, desenvolvedor principal do NexusOSINT (produto commercial).

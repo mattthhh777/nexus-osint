@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="css/components.css?v=202604150002">
 <link rel="stylesheet" href="css/panels.css?v=202604150003">
 <link rel="stylesheet" href="css/tables.css?v=202604150001">
-<link rel="stylesheet" href="css/cards.css?v=202604150004">
+<link rel="stylesheet" href="css/cards.css?v=202604160001">
 <link rel="stylesheet" href="css/overlays.css?v=202604150001">
 <link rel="stylesheet" href="css/responsive.css?v=202604150001">
 <link rel="stylesheet" href="css/security-hardening.css?v=202604150001">
@@ -53,10 +53,6 @@
         </div>
         <span id="quotaPillText">─</span> <span class="text-dim">left</span>
       </div>
-      <div class="sf-indicator">
-        <div class="sf-dot" id="sfDot"></div>
-        <span id="sfLabel">spiderfoot</span>
-      </div>
       <button class="nav-cases-btn" data-action="toggle-cases-panel" title="Saved Cases">
         📁 <span id="casesBadge"></span>
       </button>
@@ -70,7 +66,7 @@
     <div class="hero">
       <div class="hero-tag">Intelligence Platform</div>
       <h1>Find anything on<br><span>anyone, instantly.</span></h1>
-      <p>Breach databases · Social networks · Emails · IPs · Domains · SpiderFoot OSINT</p>
+      <p>Breach databases · Social networks · Emails · IPs · Domains</p>
 
       <!-- Search -->
       <div class="search-container">
@@ -106,13 +102,6 @@
           <div class="section-label mt-10">Modules</div>
           <div class="cat-chips" id="modChips"></div>
 
-          <!-- SpiderFoot scan mode -->
-          <div class="sf-options" id="sfOptions">
-            <span class="sf-mode-label">SpiderFoot scan mode:</span>
-            <button class="chip active" data-action="set-sf-mode" data-mode="passive">passive</button>
-            <button class="chip" data-action="set-sf-mode" data-mode="footprint">footprint</button>
-            <button class="chip" data-action="set-sf-mode" data-mode="investigate">investigate</button>
-          </div>
         </div>
       </div>
     </div>
@@ -251,22 +240,6 @@
         </div>
       </div>
 
-      <!-- SpiderFoot panel -->
-      <div class="panel" id="panelSf">
-        <div class="panel-header" data-action="toggle-panel" data-panel="panelSf">
-          <div class="panel-title">
-            <svg class="panel-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r=".9" fill="currentColor"/></svg>
-            SpiderFoot OSINT
-            <span class="panel-badge" id="sfBadge">─</span>
-          </div>
-          <span class="panel-chevron">›</span>
-        </div>
-        <div class="panel-body" id="sfBody">
-          <div class="text-dim-mono">
-            Enable SpiderFoot in Manual mode to scan.
-          </div>
-        </div>
-      </div>
 
       <!-- Extras panel -->
       <div class="panel" id="panelExtras">
@@ -341,7 +314,7 @@
 <script src="js/utils.js?v=202603280335"></script>
 <script src="js/auth.js?v=202604140001"></script>
 <script src="js/search.js?v=202604150001"></script>
-<script src="js/render.js?v=202604150006"></script>
+<script src="js/render.js?v=202604160002"></script>
 <script src="js/panels.js?v=202603280335"></script>
 <script src="js/export.js?v=202603280335"></script>
 <script src="js/cases.js?v=202603280335"></script>
