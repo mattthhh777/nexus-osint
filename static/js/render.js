@@ -876,8 +876,6 @@ function renderExtras() {
     }
   }
 
-  }
-
   // Victims (Compromised Machines)
   const victims = currentResult.extras.victims;
   if (victims) {
