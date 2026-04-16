@@ -669,10 +669,10 @@ Após qualquer mudança de código aprovada e commitada, Claude faz o deploy ass
 
 ```bash
 # 1. Enviar arquivos alterados para o VPS
-scp -r api/ static/ nginx.conf docker-compose.yml root@146.190.142.50:/root/nexus_osint/
+scp -r api/ static/ nginx.conf root@146.190.142.50:/root/nexus-osint/
 
 # 2. Rebuild e restart no VPS
-ssh root@146.190.142.50 "cd /root/nexus_osint && docker compose up -d --build"
+ssh root@146.190.142.50 "cd /root/nexus-osint && docker compose up -d --build"
 ```
 
 **Regras de deploy**:

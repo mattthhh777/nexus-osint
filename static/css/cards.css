@@ -18,6 +18,15 @@
   position: absolute; top: 0; left: 0; right: 0; height: 2px;
   background: linear-gradient(90deg, var(--color-accent), var(--color-accent-muted), transparent);
 }
+.discord-banner {
+  height: 72px;
+  background: var(--color-surface-2);
+  background-size: cover;
+  background-position: center top;
+}
+.discord-banner.has-banner {
+  height: 88px;
+}
 .discord-card-inner {
   display: flex; align-items: flex-start; gap: 16px;
   padding: 20px;
