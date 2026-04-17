@@ -801,72 +801,46 @@ function renderExtras() {
     const rDiscord = d.Discord || d.discord || '';
     const rBanned  = d['is_banned'] || false;
 
-    const robloxLogoSvg = `<svg viewBox="0 0 512 512" fill="#fff" width="22" height="22" aria-hidden="true"><path d="M146.2 0L0 146.2l73.4 292.2L365.8 512 512 365.8 438.6 73.6zm98.1 290.8l-82.6-22.1 22.1-82.6 82.6 22.1z"/></svg>`;
+    const rblxLogo = `<svg viewBox="0 0 24 24" fill="#fff" width="18" height="18" aria-hidden="true"><path fill-rule="evenodd" d="M12 1L23 12L12 23L1 12ZM12 8L16 12L12 16L8 12Z"/></svg>`;
 
     parts.push(`<div>
-      <div class="roblox-card">
-        <div class="roblox-card-topbar">
-          <div class="roblox-logo-sq">${robloxLogoSvg}</div>
-          <div>
-            <div class="roblox-card-title">Roblox Profile</div>
-          </div>
-          <span class="roblox-card-tag">Gaming</span>
+      <div class="rblx-intel-card">
+        <div class="rblx-header">
+          <div class="rblx-icon-wrap">${rblxLogo}</div>
+          <span class="rblx-platform-name">ROBLOX</span>
+          <span class="rblx-intel-badge">GAMING INTEL</span>
         </div>
-        <div class="roblox-hero">
-          ${rAvatar
-            ? `<img class="roblox-char-img" src="${rAvatar}" alt="avatar" data-fallback="true">`
-            + `<div class="roblox-char-fallback" style="display:none">🟥</div>`
-            : `<div class="roblox-char-fallback">🟥</div>`}
-          <div class="roblox-hero-name">${esc(rDisplay)}</div>
-          <div class="roblox-hero-handle">@${esc(rName)}</div>
-        </div>
-        <div class="roblox-section">
-          <div class="roblox-section-header">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-            Account Details
+        <div class="rblx-body">
+          <div class="rblx-avatar-col">
+            ${rAvatar
+              ? `<img class="rblx-avatar" src="${rAvatar}" alt="avatar" data-fallback="true">`
+              : `<div class="rblx-avatar-fallback">⬛</div>`}
+            ${rBanned ? `<span class="rblx-banned-chip">BANNED</span>` : ''}
           </div>
-          <div class="roblox-details-grid">
+          <div class="rblx-data-col">
             <div>
-              <div class="roblox-detail-label">Display Name</div>
-              <div class="roblox-detail-val">${esc(rDisplay)}</div>
+              <div class="rblx-display-name">${esc(rDisplay)}</div>
+              <div class="rblx-username">@${esc(rName)}</div>
             </div>
-            <div>
-              <div class="roblox-detail-label">Username</div>
-              <div class="roblox-detail-val">${esc(rName)}</div>
+            <div class="rblx-facts">
+              ${rId ? `<div class="rblx-fact"><span class="rblx-fact-label">USER ID</span><span class="rblx-fact-val">${esc(String(rId))}</span></div>` : ''}
+              ${rJoined ? `<div class="rblx-fact"><span class="rblx-fact-label">JOINED</span><span class="rblx-fact-val">${esc(rJoined)}</span></div>` : ''}
+              ${rDiscord ? `<div class="rblx-fact"><span class="rblx-fact-label">DISCORD</span><span class="rblx-fact-val" style="color:#7289da">${esc(rDiscord)}</span></div>` : ''}
             </div>
-            ${rId ? `<div>
-              <div class="roblox-detail-label">User ID</div>
-              <div class="roblox-detail-val">${esc(String(rId))}</div>
-            </div>` : ''}
-            ${rJoined ? `<div>
-              <div class="roblox-detail-label">Join Date</div>
-              <div class="roblox-detail-val">${esc(rJoined)}</div>
-            </div>` : ''}
-            ${rBanned ? `<div style="grid-column:span 2">
-              <div class="roblox-detail-label">Status</div>
-              <div class="roblox-detail-val" style="color:#e83832">⛔ BANNED</div>
-            </div>` : ''}
-            ${rDiscord ? `<div style="grid-column:span 2">
-              <div class="roblox-detail-label">Linked Discord</div>
-              <div class="roblox-detail-val" style="color:#7289da">${esc(rDiscord)}</div>
-            </div>` : ''}
           </div>
         </div>
-        <div class="roblox-section">
-          <div class="roblox-section-header">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            Username History
-          </div>
-          <div class="roblox-history-pills">
+        <div class="rblx-history-section">
+          <div class="rblx-section-label">USERNAME HISTORY</div>
+          <div class="rblx-pills">
             ${rOldArr.length
-              ? rOldArr.map(u => `<span class="roblox-history-pill">${esc(u)}</span>`).join('')
-              : `<span class="roblox-history-pill none-pill">None</span>`}
+              ? rOldArr.map(u => `<span class="rblx-pill">${esc(u)}</span>`).join('')
+              : `<span class="rblx-pill rblx-pill-none">None</span>`}
           </div>
         </div>
-        ${rId ? `<div class="roblox-card-footer">
-          <a class="roblox-view-btn" href="https://www.roblox.com/users/${esc(String(rId))}/profile"
+        ${rId ? `<div class="rblx-footer">
+          <a class="rblx-view-link" href="https://www.roblox.com/users/${esc(String(rId))}/profile"
              target="_blank" rel="noopener">
-            ↗ View Roblox Profile
+            ↗ View Profile on Roblox
           </a>
         </div>` : ''}
       </div>
