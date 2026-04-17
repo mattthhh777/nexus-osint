@@ -1002,13 +1002,11 @@ async def _stream_search(
                         ran.append("discord")
                         try:
                             (ok_u, user_data), td1 = await with_timeout(
-                                oathnet_client.discord_userinfo(disc_id), "discord_auto"
+                                oathnet_client.discord_userinfo(disc_id), "discord_auto", default=(False, None)
                             )
                             (ok_h, raw_hist), td2 = await with_timeout(
-                                oathnet_client.discord_username_history(disc_id), "discord_auto"
+                                oathnet_client.discord_username_history(disc_id), "discord_auto", default=(False, None)
                             )
-                            if td1: ok_u = False; user_data = None
-                            if td2: ok_h = False; raw_hist = None
                             yield event({
                                 "type": "discord", "query_id": disc_id,
                                 "user": user_data if ok_u else None,
@@ -1073,13 +1071,11 @@ async def _stream_search(
                     })
                 else:
                     (ok_u, user_data), td1 = await with_timeout(
-                        oathnet_client.discord_userinfo(query), "discord"
+                        oathnet_client.discord_userinfo(query), "discord", default=(False, None)
                     )
                     (ok_h, raw_hist), td2 = await with_timeout(
-                        oathnet_client.discord_username_history(query), "discord"
+                        oathnet_client.discord_username_history(query), "discord", default=(False, None)
                     )
-                    if td1: ok_u = False; user_data = None
-                    if td2: ok_h = False; raw_hist = None
                     if ok_u and user_data is not None:
                         _set_cached("discord_user", query, user_data)
                     if ok_h and raw_hist is not None:
@@ -1260,10 +1256,17 @@ async def _stream_search(
         yield progress("Looking up linked Roblox account…")
         ran.append("discord_roblox")
         try:
-            ok, data = await oathnet_client.discord_to_roblox(query)
-            yield event({"type": "discord_roblox", "ok": ok,
-                         "data": data if ok else None,
-                         "error": data.get("error") if not ok else None})
+            (ok, data), timed_out = await with_timeout(
+                oathnet_client.discord_to_roblox(query), "discord_roblox", default=(False, {"error": "timed out"})
+            )
+            if timed_out:
+                logger.warning("Module 'discord_roblox' timed out")
+                yield event({"type": "discord_roblox", "ok": False, "data": None, "error": "Discord→Roblox lookup timed out"})
+            else:
+                logger.info("Discord→Roblox result: ok=%s data=%s", ok, data)
+                yield event({"type": "discord_roblox", "ok": ok,
+                             "data": data if ok else None,
+                             "error": data.get("error") if not ok else None})
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
             logger.error("Discord→Roblox failed: %s", exc)
             yield event({"type": "module_error", "module": "discord_roblox", "error": str(exc)})

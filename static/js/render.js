@@ -1017,6 +1017,12 @@ function renderExtras() {
         </div>
       </div>
     </div>`);
+  } else if (d2r && !d2r.ok) {
+    const errMsg = d2r.error || 'Discord→Roblox lookup failed — no linked account found or API unavailable.';
+    parts.push(`<div>
+      <div class="section-label" style="font-size:.65rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:6px">Platform Connections</div>
+      <div style="background:var(--amber-lo);border:1px solid rgba(245,166,35,.2);border-radius:6px;padding:8px 12px;font-family:var(--mono);font-size:.72rem;color:var(--amber)">⚠ ${esc(errMsg)}</div>
+    </div>`);
   }
 
   el.innerHTML = parts.length
