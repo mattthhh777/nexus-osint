@@ -849,24 +849,27 @@ async def _stream_search(
             "xbox":  is_user,
             "roblox": is_user,
             "ghunt": is_email,
+            "discord_roblox": is_disc,
+            "victims": is_user or is_email,
             "spiderfoot": False,
         }
     else:
         mods = set(req.modules)
         run = {
-            "breach":    "breach"     in mods,
-            "stealer":   "stealer"    in mods,
-            "sherlock":  "sherlock"   in mods and (is_email or is_user),
-            "holehe":    "holehe"     in mods and is_email,
-            "discord":   "discord"    in mods,
-            "ip_info":   "ip_info"    in mods and is_ip,
-            "subdomain": "subdomain"  in mods and is_dom,
-            "steam":     "steam"      in mods,
-            "xbox":      "xbox"       in mods,
-            "roblox":    "roblox"     in mods,
-            "ghunt":     "ghunt"      in mods and is_email,
-
-            "spiderfoot":"spiderfoot" in mods,
+            "breach":         "breach"         in mods,
+            "stealer":        "stealer"        in mods,
+            "sherlock":       "sherlock"       in mods and (is_email or is_user),
+            "holehe":         "holehe"         in mods and is_email,
+            "discord":        "discord"        in mods,
+            "ip_info":        "ip_info"        in mods and is_ip,
+            "subdomain":      "subdomain"      in mods and is_dom,
+            "steam":          "steam"          in mods,
+            "xbox":           "xbox"           in mods,
+            "roblox":         "roblox"         in mods,
+            "ghunt":          "ghunt"          in mods and is_email,
+            "discord_roblox": "discord_roblox" in mods,
+            "victims":        "victims"        in mods,
+            "spiderfoot":     "spiderfoot"     in mods,
         }
 
     total    = sum(run.values())
