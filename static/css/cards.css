@@ -563,6 +563,183 @@
   .breach-card-fields { grid-template-columns: 1fr; }
 }
 
+/* ── Roblox profile card ── */
+.roblox-card {
+  background: linear-gradient(160deg, #1a0a0a 0%, #100606 100%);
+  border: 1px solid rgba(232,64,50,.22);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  max-width: 480px;
+  position: relative;
+}
+.roblox-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, #e83832, rgba(232,56,50,.3), transparent);
+}
+.roblox-card-topbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 16px 20px 0;
+}
+.roblox-logo-sq {
+  width: 38px; height: 38px; border-radius: 8px;
+  background: #e83832; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.roblox-card-title { font-weight: 700; font-size: .88rem; color: var(--color-text-primary); }
+.roblox-card-tag {
+  margin-left: auto;
+  font-family: var(--font-data); font-size: .58rem; font-weight: 700;
+  background: rgba(232,56,50,.15); border: 1px solid rgba(232,56,50,.3);
+  color: #e87060; border-radius: 4px; padding: 2px 8px; letter-spacing: .04em;
+}
+.roblox-hero {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 16px 20px 8px; gap: 6px;
+}
+.roblox-char-img {
+  width: 76px; height: 76px; border-radius: 50%;
+  border: 2px solid rgba(232,56,50,.35);
+  object-fit: cover; display: block;
+  background: rgba(232,56,50,.08);
+}
+.roblox-char-fallback {
+  width: 76px; height: 76px; border-radius: 50%;
+  border: 2px solid rgba(232,56,50,.35);
+  background: rgba(232,56,50,.08);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2rem;
+}
+.roblox-hero-name { font-weight: 700; font-size: 1.05rem; color: var(--color-text-primary); margin-top: 4px; }
+.roblox-hero-handle { font-family: var(--font-data); font-size: .72rem; color: var(--color-text-tertiary); }
+.roblox-section { padding: 0 20px 14px; }
+.roblox-section-header {
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--font-data); font-size: .7rem; font-weight: 700;
+  color: var(--color-text-secondary); margin-bottom: 10px;
+}
+.roblox-details-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  background: rgba(232,56,50,.06); border: 1px solid rgba(232,56,50,.12);
+  border-radius: var(--radius-md); padding: 12px 14px;
+}
+.roblox-detail-label {
+  font-family: var(--font-data); font-size: .53rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .1em; color: var(--color-text-tertiary);
+}
+.roblox-detail-val {
+  font-family: var(--font-data); font-size: .78rem; font-weight: 600;
+  color: var(--color-text-primary); margin-top: 2px;
+  word-break: break-all;
+}
+.roblox-history-pills { display: flex; flex-wrap: wrap; gap: 5px; }
+.roblox-history-pill {
+  font-family: var(--font-data); font-size: .68rem;
+  background: rgba(232,56,50,.1); border: 1px solid rgba(232,56,50,.2);
+  color: var(--color-text-secondary); border-radius: var(--radius-md); padding: 2px 9px;
+}
+.roblox-history-pill.none-pill { color: var(--color-text-tertiary); background: var(--color-surface-1); border-color: var(--color-border-subtle); }
+.roblox-card-footer {
+  padding: 12px 20px 16px;
+  border-top: 1px solid rgba(232,56,50,.12);
+  display: flex; justify-content: center;
+}
+.roblox-view-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 22px; border-radius: var(--radius-lg);
+  border: 1px solid rgba(232,56,50,.3); background: rgba(232,56,50,.1);
+  color: #e87060; font-family: var(--font-data); font-size: .72rem; font-weight: 700;
+  text-decoration: none; cursor: pointer; transition: all .15s;
+}
+.roblox-view-btn:hover { background: rgba(232,56,50,.2); border-color: #e83832; color: #fff; }
+.roblox-view-btn:active { transform: scale(.97); transition-duration: 60ms; }
+
+/* ── Platform Connections card (Discord → Roblox) ── */
+.platform-card {
+  background: var(--color-bg-recessed);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  max-width: 580px;
+}
+.platform-card-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 18px;
+  background: var(--color-surface-1);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.platform-card-icon {
+  width: 36px; height: 36px; border-radius: 8px;
+  background: #5865f2; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; color: #fff; font-size: 1rem;
+}
+.platform-card-titles { flex: 1; min-width: 0; }
+.platform-card-title { font-weight: 700; font-size: .88rem; color: var(--color-text-primary); }
+.platform-card-sub { font-family: var(--font-data); font-size: .64rem; color: var(--color-text-tertiary); margin-top: 1px; }
+.platform-card-badge {
+  margin-left: auto; flex-shrink: 0;
+  font-family: var(--font-data); font-size: .62rem; font-weight: 700;
+  background: var(--color-surface-2); border: 1px solid var(--color-border-default);
+  color: var(--color-text-secondary); border-radius: 4px; padding: 3px 10px;
+}
+.platform-bridge-row {
+  display: flex; align-items: center;
+  padding: 9px 18px; border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-1);
+}
+.platform-label-discord {
+  font-family: var(--font-data); font-size: .62rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .1em; color: #7289da;
+  display: flex; align-items: center; gap: 5px;
+}
+.platform-label-roblox {
+  font-family: var(--font-data); font-size: .62rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .1em; color: #e87060;
+  display: flex; align-items: center; gap: 5px; margin-left: auto;
+}
+.platform-linked-center {
+  margin: 0 auto;
+  font-family: var(--font-data); font-size: .62rem; font-weight: 700;
+  color: var(--color-success); display: flex; align-items: center; gap: 6px;
+}
+.platform-linked-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--color-success); flex-shrink: 0;
+}
+.platform-split {
+  display: grid; grid-template-columns: 1fr 1px 1fr;
+}
+.platform-divider { background: var(--color-border-subtle); }
+.platform-col {
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 6px;
+}
+.platform-col-avatar {
+  width: 44px; height: 44px; border-radius: 50%;
+  object-fit: cover; border: 2px solid var(--color-border-default);
+  background: var(--color-surface-2); flex-shrink: 0;
+}
+.platform-col-avatar-fallback {
+  width: 44px; height: 44px; border-radius: 50%;
+  border: 2px solid var(--color-border-default);
+  background: var(--color-surface-2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem; flex-shrink: 0;
+}
+.platform-col-name { font-weight: 700; font-size: .84rem; color: var(--color-text-primary); }
+.platform-col-handle { font-family: var(--font-data); font-size: .66rem; color: var(--color-text-tertiary); }
+.platform-col-id {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--font-data); font-size: .62rem; color: var(--color-accent); font-weight: 700;
+  background: var(--color-accent-muted); border: 1px solid var(--color-accent-border);
+  border-radius: 4px; padding: 1px 7px; width: fit-content;
+}
+.platform-col-date { font-family: var(--font-data); font-size: .62rem; color: var(--color-text-tertiary); }
+.platform-col-link {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: var(--font-data); font-size: .66rem; font-weight: 600;
+  color: var(--color-accent); text-decoration: none; margin-top: 4px;
+}
+.platform-col-link:hover { text-decoration: underline; }
+
 /* ── Keyframes ── */
 @keyframes fadeSlideUp {
   from { opacity: 0; transform: translateY(20px); }
