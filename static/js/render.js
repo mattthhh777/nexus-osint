@@ -597,7 +597,15 @@ function renderExtras() {
       </div>`);
       continue;
     }
-    if (!disc.user) continue;
+    if (!disc.user) {
+      parts.push(`<div>
+        <div class="section-label" style="margin-bottom:8px">Discord Lookup${disc.query_id ? ` — ID ${esc(disc.query_id)}` : ''}</div>
+        <div style="background:var(--amber-lo);border:1px solid rgba(245,166,35,.2);border-radius:6px;padding:10px 14px;font-family:var(--mono);font-size:.76rem;color:var(--amber)">
+          ⚠ Discord profile not found or API quota exhausted.
+        </div>
+      </div>`);
+      continue;
+    }
     const u = disc.user;
     const histList = disc.history?.usernames || [];
     const safeAvatarUrl = sanitizeImageUrl(u.avatar_url);
@@ -709,7 +717,15 @@ function renderExtras() {
 
   // Xbox
   const xbox = currentResult.extras.xbox;
-  if (xbox?.ok && xbox.data) {
+  if (xbox && !xbox.ok) {
+    const xboxErr = xbox.data?.error || 'Xbox lookup failed — profile not found or API quota exhausted.';
+    parts.push(`<div>
+      <div class="section-label" style="margin-bottom:8px">Xbox Live</div>
+      <div style="background:var(--amber-lo);border:1px solid rgba(245,166,35,.2);border-radius:6px;padding:10px 14px;font-family:var(--mono);font-size:.76rem;color:var(--amber)">
+        ⚠ ${esc(xboxErr)}
+      </div>
+    </div>`);
+  } else if (xbox?.ok && xbox.data) {
     const d   = xbox.data;
     const m   = d.meta?.meta || d.meta || {};
     const scr = d.meta?.scraper_data || {};

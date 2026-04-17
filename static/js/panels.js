@@ -60,6 +60,7 @@ function applyPanelVisibility() {
     const wasRun = mods.some(m => modulesRan.has(m));
     if (wasRun || !searchRan) {
       panel.classList.remove('not-run');
+      if (wasRun) panel.classList.add('open');
     } else {
       panel.classList.add('not-run');
       // Remove open state for not-run panels
