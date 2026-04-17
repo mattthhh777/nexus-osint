@@ -817,7 +817,7 @@ function renderExtras() {
             ? `<img class="roblox-char-img" src="${rAvatar}" alt="avatar" data-fallback="true">`
             + `<div class="roblox-char-fallback" style="display:none">🟥</div>`
             : `<div class="roblox-char-fallback">🟥</div>`}
-          <div class="roblox-hero-name">${esc(rName)}</div>
+          <div class="roblox-hero-name">${esc(rDisplay)}</div>
           <div class="roblox-hero-handle">@${esc(rName)}</div>
         </div>
         <div class="roblox-section">
