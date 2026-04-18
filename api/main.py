@@ -1170,7 +1170,8 @@ async def _stream_search(
                 else:
                     if ok and data is not None:
                         _set_cached("xbox", query, data)
-                    yield event({"type": "xbox", "ok": ok, "data": data if ok else None})
+                    logger.info("Xbox lookup ok=%s data_keys=%s", ok, list(data.keys()) if isinstance(data, dict) else type(data).__name__)
+                    yield event({"type": "xbox", "ok": ok, "data": data})
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
             logger.error("Xbox failed: %s", exc)
             yield event({"type": "module_error", "module": "xbox", "error": str(exc)})
