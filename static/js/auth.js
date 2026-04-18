@@ -94,16 +94,12 @@ async function submitAuth() {
 }
 
 function renderNavUser(user) {
-  const el = document.getElementById('navUserBadge');
-  if (el) {
-    el.textContent = user.username;
-    el.style.display = 'flex';
-  }
-  // Show admin link for admin users
-  const adminLink = document.getElementById('navAdminLink');
-  if (adminLink && user.role === 'admin') {
-    adminLink.classList.add('visible');
-  }
+  const nameEl = document.getElementById('navUserName');
+  if (nameEl) nameEl.textContent = user.username;
+  const trigger = document.getElementById('navUserTrigger');
+  if (trigger) trigger.style.display = 'flex';
+  const adminItem = document.getElementById('userMenuAdmin');
+  if (adminItem && user.role === 'admin') adminItem.removeAttribute('hidden');
 }
 
 async function signOut() {

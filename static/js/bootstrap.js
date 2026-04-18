@@ -8,6 +8,7 @@
 // ── Auth actions ──────────────────────────────────────
 registerAction('submit-auth',        function () { submitAuth(); });
 registerAction('sign-out',           function () { signOut(); });
+registerAction('toggle-user-menu',   function () { toggleUserMenu(); });
 
 // ── Navigation / panels ───────────────────────────────
 registerAction('toggle-cases-panel', function () { toggleCasesPanel(); });
@@ -79,9 +80,32 @@ registerAction('jump-to-panel',      function (el, ds) {
   panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
+// ── User menu ─────────────────────────────────────────
+function toggleUserMenu() {
+  const dropdown = document.getElementById('userMenuDropdown');
+  const trigger  = document.getElementById('navUserTrigger');
+  if (!dropdown || !trigger) return;
+  const open = dropdown.classList.toggle('visible');
+  trigger.setAttribute('aria-expanded', String(open));
+}
+
+function closeUserMenu() {
+  const dropdown = document.getElementById('userMenuDropdown');
+  const trigger  = document.getElementById('navUserTrigger');
+  if (!dropdown) return;
+  dropdown.classList.remove('visible');
+  if (trigger) trigger.setAttribute('aria-expanded', 'false');
+}
+
 // ── Activate delegation and start the app ────────────
 initDelegation();
 init();
+
+// ── User menu — outside-click closes dropdown ─────────
+document.addEventListener('click', function (e) {
+  const menu = document.getElementById('navUserMenu');
+  if (menu && !menu.contains(e.target)) closeUserMenu();
+});
 
 // ── Non-click event listeners (input/keydown, not covered by delegation) ──
 document.getElementById('authInput')?.addEventListener('keydown', function (e) {

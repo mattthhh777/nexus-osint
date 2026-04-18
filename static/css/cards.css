@@ -327,9 +327,8 @@
   cursor: pointer; transition: all .15s;
   display: flex; align-items: center; gap: 5px;
 }
-.nav-user-badge::before { content: '👤 '; }
-.nav-user-badge:hover { background: var(--color-accent-muted); }
-.nav-user-badge:hover::after { content: ' · sign out'; color: var(--color-text-tertiary); font-size: .62rem; }
+/* Phase 14: nav-user-badge replaced by .nav-user-trigger dropdown */
+.nav-user-badge { display: none !important; }
 
 /* ── Nav cases button ── */
 .nav-cases-btn {

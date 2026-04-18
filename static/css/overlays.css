@@ -168,3 +168,41 @@
   padding: 12px 20px; border-top: 1px solid var(--color-border-subtle);
   display: flex; gap: 8px; align-items: center;
 }
+
+/* ── Phase 14 — Unified user dropdown ── */
+.nav-user-menu { position: relative; }
+.nav-user-trigger {
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--font-data); font-size: .7rem; font-weight: 700;
+  color: var(--color-accent); background: var(--color-accent-muted);
+  border: 1px solid var(--color-accent-border);
+  border-radius: var(--radius-lg); padding: 5px 10px;
+  cursor: pointer; transition: all .15s;
+}
+.nav-user-trigger:hover { background: var(--color-accent-muted); filter: brightness(1.1); }
+.nav-user-icon { width: 14px; height: 14px; flex-shrink: 0; }
+.nav-user-caret {
+  width: 10px; height: 10px; flex-shrink: 0;
+  transition: transform var(--duration-fast) var(--ease-in-out);
+}
+.nav-user-trigger[aria-expanded="true"] .nav-user-caret { transform: rotate(180deg); }
+.user-menu-dropdown {
+  position: absolute; right: 0; top: calc(100% + 8px); min-width: 180px;
+  background: var(--color-surface-glass); backdrop-filter: blur(20px);
+  border: 1px solid var(--color-border-default); border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md); z-index: calc(var(--z-overlay) + 1);
+  display: none; padding: 4px; flex-direction: column;
+}
+.user-menu-dropdown.visible { display: flex; }
+.user-menu-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; border-radius: var(--radius-md);
+  font-family: var(--font-data); font-size: .72rem; font-weight: 600;
+  color: var(--color-text-secondary); background: none; border: none;
+  cursor: pointer; text-decoration: none; white-space: nowrap;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+.user-menu-item:hover { background: var(--color-surface-2); color: var(--color-text-primary); }
+.user-menu-item--danger { color: var(--color-critical); }
+.user-menu-item--danger:hover { background: var(--color-critical-muted); color: var(--color-critical); }
+.user-menu-item[hidden] { display: none; }

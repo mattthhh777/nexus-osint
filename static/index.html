@@ -12,8 +12,8 @@
 <link rel="stylesheet" href="css/components.css?v=202604180200">
 <link rel="stylesheet" href="css/panels.css?v=202604180100">
 <link rel="stylesheet" href="css/tables.css?v=202604150001">
-<link rel="stylesheet" href="css/cards.css?v=202604180002">
-<link rel="stylesheet" href="css/overlays.css?v=202604150001">
+<link rel="stylesheet" href="css/cards.css?v=202604180300">
+<link rel="stylesheet" href="css/overlays.css?v=202604180300">
 <link rel="stylesheet" href="css/responsive.css?v=202604150001">
 <link rel="stylesheet" href="css/security-hardening.css?v=202604150001">
 </head>
@@ -56,8 +56,28 @@
       <button class="nav-cases-btn" data-action="toggle-cases-panel" title="Saved Cases">
         📁 <span id="casesBadge"></span>
       </button>
-      <div class="nav-user-badge" id="navUserBadge" title="Sign out" data-action="sign-out"></div>
-      <a href="/admin" class="nav-admin-link" id="navAdminLink">⚙ Admin</a>
+      <div class="nav-user-menu" id="navUserMenu">
+        <button class="nav-user-trigger" data-action="toggle-user-menu" id="navUserTrigger" aria-haspopup="menu" aria-expanded="false">
+          <svg class="nav-user-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <circle cx="8" cy="5.5" r="2.5" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M2.5 14c0-3 2.5-5 5.5-5s5.5 2 5.5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <span id="navUserName">─</span>
+          <svg class="nav-user-caret" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+            <path d="M2 4l3 3 3-3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <div class="user-menu-dropdown" id="userMenuDropdown" role="menu">
+          <a href="/admin" class="user-menu-item" id="userMenuAdmin" role="menuitem" hidden>
+            <svg viewBox="0 0 16 16" fill="none" width="14" height="14" aria-hidden="true"><path d="M8 1l1.5 2.5L12 4l-2 2 .5 2.5L8 7.5 5.5 8.5 6 6 4 4l2.5-.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="8" cy="11" r="2.5" stroke="currentColor" stroke-width="1.3"/></svg>
+            Admin Panel
+          </a>
+          <button class="user-menu-item user-menu-item--danger" data-action="sign-out" role="menuitem">
+            <svg viewBox="0 0 16 16" fill="none" width="14" height="14" aria-hidden="true"><path d="M10.5 5.5L13 8l-2.5 2.5M6 8h7M7 3H3.5A1.5 1.5 0 002 4.5v7A1.5 1.5 0 003.5 13H7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Sign out
+          </button>
+        </div>
+      </div>
     </div>
   </nav>
 

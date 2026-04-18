@@ -45,6 +45,7 @@ async function init() {
     if (e.key === 'Escape') {
       const panel = document.getElementById('casesPanel');
       if (panel.classList.contains('visible')) toggleCasesPanel();
+      closeUserMenu();
     }
   });
 }
