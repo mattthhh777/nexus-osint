@@ -801,7 +801,7 @@ function renderExtras() {
     const rDiscord = d.Discord || d.discord || '';
     const rBanned  = d['is_banned'] || false;
 
-    const rblxLogo = `<svg viewBox="0 0 24 24" fill="#fff" width="20" height="20" aria-hidden="true"><path fill-rule="evenodd" transform="rotate(15 12 12)" d="M3.5 3.5h17v17H3.5zM8.5 8.5h7v7H8.5z"/></svg>`;
+    const rblxLogo = `<svg viewBox="0 0 320.4 320.4" fill="#fff" width="20" height="20" aria-hidden="true"><path fill-rule="evenodd" d="M99 56.5 266 99.5 223.2 266.6 56 223.7zM180.2 193.5 193.5 144.6 144.6 131.4 131.4 180.2z"/></svg>`;
 
     parts.push(`<div>
       <div class="rblx-intel-card">
