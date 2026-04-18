@@ -384,15 +384,15 @@
 /* ── Social Profile Cards (Phase 15 + Phase 18 avatar redesign) ── */
 .social-cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
   gap: 10px;
 }
 .social-card {
   background: var(--color-surface-1);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-lg);
-  padding: 12px 12px 10px;
-  display: flex; flex-direction: column; gap: 10px;
+  padding: 10px 10px 8px;
+  display: flex; flex-direction: column; gap: 6px;
   color: inherit;
   transition: all var(--duration-fast) var(--ease-in-out);
 }
@@ -438,11 +438,11 @@
 
 /* Avatar body */
 .social-card-body {
-  display: flex; flex-direction: column; align-items: center; gap: 7px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
 }
-.social-card-avatar-wrap { position: relative; width: 54px; height: 54px; }
+.social-card-avatar-wrap { position: relative; width: 42px; height: 42px; }
 .social-card-avatar {
-  width: 54px; height: 54px; border-radius: 50%;
+  width: 42px; height: 42px; border-radius: 50%;
   border: 2px solid var(--color-border-default);
   object-fit: cover; display: block;
   background: var(--color-surface-2);
@@ -450,7 +450,7 @@
 }
 .social-card:hover .social-card-avatar { border-color: var(--color-accent-border); }
 .social-card-avatar-fallback {
-  width: 54px; height: 54px; border-radius: 50%;
+  width: 42px; height: 42px; border-radius: 50%;
   border: 2px solid var(--color-border-default);
   background: var(--color-surface-2);
   display: none;
@@ -458,9 +458,9 @@
   color: var(--color-text-secondary);
 }
 /* Larger icon inside avatar fallback */
-.social-card-avatar-fallback .social-card-svg { width: 22px; height: 22px; }
+.social-card-avatar-fallback .social-card-svg { width: 18px; height: 18px; }
 .social-card-avatar-fallback .social-card-init {
-  width: 22px; height: 22px; font-size: .58rem; border-radius: 4px;
+  width: 18px; height: 18px; font-size: .52rem; border-radius: 3px;
 }
 
 /* Username */
