@@ -100,6 +100,22 @@
 .btn-sm { padding: 6px 14px; font-size: .78rem; }
 .btn:disabled { opacity: .4; cursor: not-allowed; }
 
+/* Ghost action buttons — uniform secondary actions in result header */
+.btn-action--ghost {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-default);
+  background: var(--color-surface-1); color: var(--color-text-secondary);
+  font-family: var(--font-data); font-size: .72rem; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+  text-transform: uppercase; letter-spacing: .05em;
+  transition: all var(--duration-fast) var(--ease-in-out);
+}
+.btn-action--ghost:hover { border-color: var(--color-accent-border); color: var(--color-accent); background: var(--color-accent-muted); }
+.btn-action--ghost:active { transform: scale(.97); transition-duration: 60ms; }
+.btn-action--ghost.saved,
+.btn-action--ghost.copied { border-color: var(--color-success); color: var(--color-success); background: var(--color-success-muted); }
+
 /* Mode toggle */
 .mode-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .toggle {
