@@ -721,7 +721,7 @@ function renderExtras() {
     const xboxErr = xbox.data?.error || 'Xbox lookup failed — profile not found or API quota exhausted.';
     parts.push(`<div>
       <div class="section-label" style="margin-bottom:8px">Xbox Live</div>
-      <div style="background:var(--amber-lo);border:1px solid rgba(245,166,35,.2);border-radius:6px;padding:10px 14px;font-family:var(--mono);font-size:.76rem;color:var(--amber)">
+      <div style="background:var(--color-accent-muted);border:1px solid var(--color-accent-border);border-radius:6px;padding:10px 14px;font-family:var(--font-data);font-size:.76rem;color:var(--color-accent)">
         ⚠ ${esc(xboxErr)}
       </div>
     </div>`);
