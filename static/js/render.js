@@ -801,46 +801,60 @@ function renderExtras() {
     const rDiscord = d.Discord || d.discord || '';
     const rBanned  = d['is_banned'] || false;
 
-    const rblxLogo = `<svg viewBox="0 0 24 24" fill="#fff" width="18" height="18" aria-hidden="true"><path fill-rule="evenodd" d="M12 1L23 12L12 23L1 12ZM12 8L16 12L12 16L8 12Z"/></svg>`;
+    const rblxLogo = `<svg viewBox="0 0 512 512" fill="#fff" width="20" height="20" aria-hidden="true"><path d="M146.2 0L0 146.2l73.4 292.2L365.8 512 512 365.8 438.6 73.6zm98.1 290.8l-82.6-22.1 22.1-82.6 82.6 22.1z"/></svg>`;
 
     parts.push(`<div>
       <div class="rblx-intel-card">
         <div class="rblx-header">
           <div class="rblx-icon-wrap">${rblxLogo}</div>
-          <span class="rblx-platform-name">ROBLOX</span>
-          <span class="rblx-intel-badge">GAMING INTEL</span>
+          <span class="rblx-platform-name">Roblox Profile</span>
+          <span class="rblx-intel-badge">Gaming</span>
         </div>
-        <div class="rblx-body">
-          <div class="rblx-avatar-col">
-            ${rAvatar
-              ? `<img class="rblx-avatar" src="${rAvatar}" alt="avatar" data-fallback="true">`
-              : `<div class="rblx-avatar-fallback">⬛</div>`}
-            ${rBanned ? `<span class="rblx-banned-chip">BANNED</span>` : ''}
-          </div>
-          <div class="rblx-data-col">
-            <div>
-              <div class="rblx-display-name">${esc(rDisplay)}</div>
-              <div class="rblx-username">@${esc(rName)}</div>
+        <div class="rblx-hero">
+          ${rAvatar
+            ? `<img class="rblx-avatar" src="${rAvatar}" alt="avatar" data-fallback="true">`
+            : `<div class="rblx-avatar-fallback">⬛</div>`}
+          ${rBanned ? `<span class="rblx-banned-chip">BANNED</span>` : ''}
+          <div class="rblx-hero-name">${esc(rDisplay)}</div>
+          <div class="rblx-username">@${esc(rName)}</div>
+        </div>
+        <div class="rblx-details-section">
+          <div class="rblx-section-label">⊙ Account Details</div>
+          <div class="rblx-details-grid">
+            <div class="rblx-detail-item">
+              <span class="rblx-detail-label">Display Name</span>
+              <span class="rblx-detail-val">${esc(rDisplay)}</span>
             </div>
-            <div class="rblx-facts">
-              ${rId ? `<div class="rblx-fact"><span class="rblx-fact-label">USER ID</span><span class="rblx-fact-val">${esc(String(rId))}</span></div>` : ''}
-              ${rJoined ? `<div class="rblx-fact"><span class="rblx-fact-label">JOINED</span><span class="rblx-fact-val">${esc(rJoined)}</span></div>` : ''}
-              ${rDiscord ? `<div class="rblx-fact"><span class="rblx-fact-label">DISCORD</span><span class="rblx-fact-val" style="color:#7289da">${esc(rDiscord)}</span></div>` : ''}
+            <div class="rblx-detail-item">
+              <span class="rblx-detail-label">Username</span>
+              <span class="rblx-detail-val">${esc(rName)}</span>
             </div>
+            ${rId ? `<div class="rblx-detail-item">
+              <span class="rblx-detail-label">User ID</span>
+              <span class="rblx-detail-val">${esc(String(rId))}</span>
+            </div>` : ''}
+            ${rJoined ? `<div class="rblx-detail-item">
+              <span class="rblx-detail-label">Join Date</span>
+              <span class="rblx-detail-val">${esc(rJoined)}</span>
+            </div>` : ''}
+            ${rDiscord ? `<div class="rblx-detail-item" style="grid-column:1/-1">
+              <span class="rblx-detail-label">Discord</span>
+              <span class="rblx-detail-val" style="color:#7289da">${esc(rDiscord)}</span>
+            </div>` : ''}
           </div>
         </div>
         <div class="rblx-history-section">
-          <div class="rblx-section-label">USERNAME HISTORY</div>
+          <div class="rblx-section-label">⊙ Username History</div>
           <div class="rblx-pills">
             ${rOldArr.length
               ? rOldArr.map(u => `<span class="rblx-pill">${esc(u)}</span>`).join('')
-              : `<span class="rblx-pill rblx-pill-none">None</span>`}
+              : `<span class="rblx-pill-none">None</span>`}
           </div>
         </div>
         ${rId ? `<div class="rblx-footer">
           <a class="rblx-view-link" href="https://www.roblox.com/users/${esc(String(rId))}/profile"
              target="_blank" rel="noopener">
-            ↗ View Profile on Roblox
+            ↗ View Roblox Profile
           </a>
         </div>` : ''}
       </div>
