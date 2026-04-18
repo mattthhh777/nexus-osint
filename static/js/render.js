@@ -733,11 +733,13 @@ function renderExtras() {
   // Xbox
   const xbox = currentResult.extras.xbox;
   if (xbox && !xbox.ok) {
-    const xboxErr = xbox.data?.error || 'Xbox lookup failed — profile not found or API quota exhausted.';
+    const xboxErr = xbox.data?.error || 'Profile not found or API quota exhausted.';
     parts.push(`<div>
       <div class="section-label" style="margin-bottom:8px">Xbox Live</div>
-      <div style="background:var(--color-accent-muted);border:1px solid var(--color-accent-border);border-radius:6px;padding:10px 14px;font-family:var(--font-data);font-size:.76rem;color:var(--color-accent)">
-        ⚠ ${esc(xboxErr)}
+      <div class="gaming-card card--error">
+        <div class="gaming-card-header">
+          <div class="gaming-card-title">${esc(xboxErr)}</div>
+        </div>
       </div>
     </div>`);
   } else if (xbox?.ok && xbox.data) {

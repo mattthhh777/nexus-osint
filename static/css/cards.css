@@ -130,6 +130,21 @@
   border-color: var(--color-accent-border);
   background: var(--color-surface-2);
 }
+.gaming-card.card--error {
+  background: var(--color-error-muted);
+  border-color: var(--color-error-border);
+  opacity: 0.75;
+}
+.gaming-card.card--error .gaming-card-title { color: var(--color-error); }
+.gaming-card.card--error::before {
+  content: 'LOOKUP FAILED';
+  display: inline-block;
+  font-family: var(--font-data); font-size: .55rem; font-weight: 700;
+  letter-spacing: .08em; color: var(--color-error);
+  background: var(--color-error-muted); border: 1px solid var(--color-error-border);
+  border-radius: var(--radius-sm); padding: 2px 6px;
+  margin-bottom: 8px;
+}
 .gaming-card-header {
   display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
 }
