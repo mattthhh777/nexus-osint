@@ -91,6 +91,25 @@ function showToast(msg, type) {
   setTimeout(() => t.classList.remove('visible'), 4000);
 }
 
+// ── Timestamp formatter ──
+// Returns "Apr 18, 2026 · 04:40 UTC" or "─" for invalid/empty input.
+// Handles full ISO-8601 strings and truncated "YYYY-MM-DDTHH:MM" from older localStorage data.
+function formatTimestamp(iso) {
+  if (!iso || typeof iso !== 'string') return '─';
+  // If truncated (no seconds/Z), append :00Z to make it parseable as UTC
+  const normalized = iso.length === 16 ? iso + ':00Z' : iso;
+  const d = new Date(normalized);
+  if (isNaN(d.getTime())) return '─';
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+    timeZone: 'UTC',
+  });
+  const parts = fmt.formatToParts(d);
+  const get = t => parts.find(p => p.type === t)?.value || '';
+  return `${get('month')} ${get('day')}, ${get('year')} · ${get('hour')}:${get('minute')} UTC`;
+}
+
 // ── File size formatter ──
 function formatBytes(bytes) {
   if (!bytes) return '0 B';
