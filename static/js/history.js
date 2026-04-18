@@ -13,7 +13,7 @@ function saveHistory() {
     query: currentResult.query,
     risk, rl,
     total: nBreach + nStealer + nSocial,
-    timestamp: currentResult.timestamp?.slice(0,16)||'',
+    timestamp: currentResult.timestamp||'',
   });
   history = history.slice(0, 20);
   localStorage.setItem('nx_history', JSON.stringify(history));
@@ -33,7 +33,7 @@ function renderHistory() {
     return `<div class="history-card" data-action="rerun-search" data-query="${escAttr(h.query)}">
       <div class="history-target">${esc(h.query)}</div>
       <div class="history-meta">
-        <span class="${riskClass}">${h.rl} ${h.risk}</span>${h.total?' · '+h.total+' found':''} · ${esc(h.timestamp)}
+        <span class="${riskClass}">${h.rl} ${h.risk}</span>${h.total?' · '+h.total+' found':''} · ${esc(formatTimestamp(h.timestamp))}
       </div>
     </div>`;
   }).join('');

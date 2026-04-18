@@ -140,7 +140,7 @@ function renderResults() {
   // Header
   document.getElementById('resTarget').textContent = q;
   document.getElementById('resSub').textContent =
-    `${nTotal} results found · ${currentResult.elapsed || 0}s · ${currentResult.timestamp?.slice(0,16) || ''}`;
+    `${nTotal} results found · ${currentResult.elapsed || 0}s · ${formatTimestamp(currentResult.timestamp)}`;
   document.getElementById('riskBadge').textContent = `${risk} — ${rl}`;
   document.getElementById('riskBadge').style.cssText =
     `background:${rc}18;border:1px solid ${rc}44;color:${rc}`;
