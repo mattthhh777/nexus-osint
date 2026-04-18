@@ -801,7 +801,7 @@ function renderExtras() {
     const rDiscord = d.Discord || d.discord || '';
     const rBanned  = d['is_banned'] || false;
 
-    const rblxLogo = `<svg viewBox="0 0 512 512" fill="#fff" width="20" height="20" aria-hidden="true"><path fill-rule="evenodd" d="M146.2 0L0 146.2l73.4 292.2L365.8 512 512 365.8 438.6 73.6zm98.1 290.8l-82.6-22.1 22.1-82.6 82.6 22.1z"/></svg>`;
+    const rblxLogo = `<svg viewBox="0 0 24 24" fill="#fff" width="20" height="20" aria-hidden="true"><path fill-rule="evenodd" transform="rotate(15 12 12)" d="M3.5 3.5h17v17H3.5zM8.5 8.5h7v7H8.5z"/></svg>`;
 
     parts.push(`<div>
       <div class="rblx-intel-card">
@@ -956,7 +956,7 @@ function renderExtras() {
     const discDate  = du?.creation_date ? du.creation_date.slice(0,10) : '';
     const discAvatar= sanitizeImageUrl(du?.avatar_url || '');
 
-    const robloxLogoSvg = `<svg viewBox="0 0 512 512" fill="currentColor" width="14" height="14" aria-hidden="true"><path fill-rule="evenodd" d="M146.2 0L0 146.2l73.4 292.2L365.8 512 512 365.8 438.6 73.6zm98.1 290.8l-82.6-22.1 22.1-82.6 82.6 22.1z"/></svg>`;
+    const robloxLogoSvg = `<svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true"><path fill-rule="evenodd" transform="rotate(15 12 12)" d="M3.5 3.5h17v17H3.5zM8.5 8.5h7v7H8.5z"/></svg>`;
     const discordLogoSvg = `<svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true"><path d="${_SI.discord}"/></svg>`;
 
     parts.push(`<div>
