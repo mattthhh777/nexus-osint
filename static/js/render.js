@@ -154,6 +154,8 @@ function renderResults() {
   badge.style.cssText = `background:${rc}18;border:1px solid ${rc}44;color:${rc}`;
 
   // Stat grid — Phase 17: clickable jump + risk tinting + correct token refs
+  // TECH DEBT: coverage totals not in backend yet — frontend constants until backend exposes them
+  const COVERAGE = { breach: 847, stealer: 12, social: 2500, email: 120 };
   const grid = document.getElementById('statGrid');
   grid.innerHTML = [
     {val:nTotal,   lbl:'Total Found', bar:'var(--color-accent)',   panel:'',             risk:'',
@@ -161,17 +163,21 @@ function renderResults() {
     {val:nBreach,  lbl:'Breaches',    bar:'var(--color-critical)', panel:'panelBreach',
      risk: nBreach>10?'risk-critical':nBreach>0?'risk-high':'',
      note: nBreach>10?'⚠ High risk':nBreach>0?'⚠ Attention':'✓ Clean',
-     nc:   nBreach>10?'var(--color-critical)':nBreach>0?'var(--color-high)':'var(--color-success)'},
+     nc:   nBreach>10?'var(--color-critical)':nBreach>0?'var(--color-high)':'var(--color-success)',
+     coverage:`of ${COVERAGE.breach} DBs`},
     {val:nStealer, lbl:'Stolen Info', bar:'var(--color-high)',     panel:'panelStealer',
      risk: nStealer>0?'risk-critical':'',
      note: nStealer>0?'🚨 Compromised':'✓ Clean',
-     nc:   nStealer>0?'var(--color-critical)':'var(--color-success)'},
+     nc:   nStealer>0?'var(--color-critical)':'var(--color-success)',
+     coverage:`of ${COVERAGE.stealer} logs`},
     {val:nSocial,  lbl:'Social',      bar:'var(--color-info)',     panel:'panelSocial',
      risk: nSocial>0?'risk-found':'',
-     note: `${s?.total_checked||0} checked`},
+     note: `${s?.total_checked||0} checked`,
+     coverage:`of ${COVERAGE.social} sites`},
     {val:nHolehe,  lbl:'Email Svcs',  bar:'#9b59b6',              panel:'panelEmail',
      risk: nHolehe>0?'risk-found':'',
-     note:''},
+     note:'',
+     coverage:`of ${COVERAGE.email} services`},
   ].map((c, i) => {
     const attrs = c.panel
       ? ` data-action="jump-to-panel" data-panel="${c.panel}" role="button" tabindex="0"`
@@ -181,6 +187,7 @@ function renderResults() {
       <div class="stat-card-bar" style="background:${c.bar}"></div>
       <div class="stat-card-val${c.val === 0 ? ' stat-card-val--zero' : ''}">${c.val}</div>
       <div class="stat-card-lbl">${c.lbl}</div>
+      ${c.coverage ? `<div class="stat-card-coverage">${c.val} ${c.coverage}</div>` : ''}
       ${c.note ? `<div class="stat-card-note" style="color:${c.nc||'var(--color-text-tertiary)'};">${c.note}</div>` : ''}
       ${c.panel ? '<div class="stat-card-jump">↓ view</div>' : ''}
     </div>`;

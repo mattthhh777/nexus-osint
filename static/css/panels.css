@@ -223,6 +223,11 @@
   margin-bottom: 6px;
 }
 .stat-card-val--zero { opacity: .35; }
+.stat-card-coverage {
+  font-family: var(--font-data); font-size: .6rem;
+  color: var(--color-text-tertiary); margin-top: 4px;
+  letter-spacing: .02em;
+}
 .stat-card-lbl {
   font-size: .62rem; font-weight: 700; text-transform: uppercase;
   letter-spacing: .1em; color: var(--color-text-tertiary);
