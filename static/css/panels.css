@@ -266,7 +266,11 @@
   background: var(--color-surface-3); border: 1px solid var(--color-border-default);
   border-radius: 4px; padding: 2px 8px; color: var(--color-text-secondary);
 }
-.panel-chevron { font-size: .7rem; color: var(--color-text-tertiary); transition: transform .2s; }
+.panel-chevron {
+  width: 10px; height: 10px; flex-shrink: 0;
+  color: var(--color-text-tertiary);
+  transition: transform var(--duration-fast) var(--ease-in-out);
+}
 .panel.open .panel-chevron { transform: rotate(90deg); }
 .panel-body { display: none; padding: 16px 20px; }
 .panel.open .panel-body {
