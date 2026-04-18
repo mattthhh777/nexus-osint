@@ -171,7 +171,7 @@ function renderResults() {
     return `
     <div class="stat-card animated${c.risk ? ' '+c.risk : ''}"${attrs} style="animation-delay:${i * 0.07}s">
       <div class="stat-card-bar" style="background:${c.bar}"></div>
-      <div class="stat-card-val">${c.val}</div>
+      <div class="stat-card-val${c.val === 0 ? ' stat-card-val--zero' : ''}">${c.val}</div>
       <div class="stat-card-lbl">${c.lbl}</div>
       ${c.note ? `<div class="stat-card-note" style="color:${c.nc||'var(--color-text-tertiary)'};">${c.note}</div>` : ''}
       ${c.panel ? '<div class="stat-card-jump">↓ view</div>' : ''}

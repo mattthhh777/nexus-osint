@@ -222,6 +222,7 @@
   color: var(--color-text-primary); letter-spacing: -.04em; line-height: 1;
   margin-bottom: 6px;
 }
+.stat-card-val--zero { opacity: .35; }
 .stat-card-lbl {
   font-size: .62rem; font-weight: 700; text-transform: uppercase;
   letter-spacing: .1em; color: var(--color-text-tertiary);
