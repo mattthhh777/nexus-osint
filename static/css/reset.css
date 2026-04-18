@@ -18,31 +18,30 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Subtle grid texture — enhanced v3.1 (tighter grid) */
+/* Subtle grid texture — Phase 14 v1.1 */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   background-image:
-    linear-gradient(rgba(255,255,255,.013) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,.013) 1px, transparent 1px);
+    linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
   background-size: 32px 32px;
   pointer-events: none;
   z-index: 0;
 }
 
-/* Dual ambient glow (amber + blue hint) — enhanced v3.1 */
+/* Dual ambient glow — Phase 14 v1.1 (full-page top+bottom depth) */
 body::after {
   content: '';
   position: fixed;
-  top: -200px; left: 50%; transform: translateX(-50%);
-  width: 900px; height: 600px;
-  background: radial-gradient(ellipse at 50% 0%,
-    var(--color-accent-muted) 0%,
-    var(--color-info-muted) 40%,
-    transparent 65%);
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 0%, var(--color-accent-muted) 0%, transparent 45%),
+    radial-gradient(ellipse at 50% 100%, var(--color-info-muted) 0%, transparent 50%);
   pointer-events: none;
   z-index: 0;
+  opacity: 0.6;
 }
 
 #app { position: relative; z-index: 1; min-height: 100vh; width: 100%; }
