@@ -141,9 +141,17 @@ function renderResults() {
   document.getElementById('resTarget').textContent = q;
   document.getElementById('resSub').textContent =
     `${nTotal} results found · ${currentResult.elapsed || 0}s · ${formatTimestamp(currentResult.timestamp)}`;
-  document.getElementById('riskBadge').textContent = `${risk} — ${rl}`;
-  document.getElementById('riskBadge').style.cssText =
-    `background:${rc}18;border:1px solid ${rc}44;color:${rc}`;
+  const breakdown = [
+    nBreach  ? `${nBreach} breach${nBreach>1?'es':''} × 15 = ${nBreach*15}` : null,
+    nStealer ? `${nStealer} stealer${nStealer>1?'s':''} × 20 = ${nStealer*20}` : null,
+    nHolehe  ? `${nHolehe} email svc${nHolehe>1?'s':''} × 3 = ${nHolehe*3}` : null,
+    nSocial  ? `${nSocial} social${nSocial>1?'s':''} (no weight)` : null,
+  ].filter(Boolean).join(' · ') || 'No signals detected';
+  const badge = document.getElementById('riskBadge');
+  badge.textContent = `${risk} — ${rl}`;
+  badge.setAttribute('data-tooltip', breakdown);
+  badge.setAttribute('title', breakdown);
+  badge.style.cssText = `background:${rc}18;border:1px solid ${rc}44;color:${rc}`;
 
   // Stat grid — Phase 17: clickable jump + risk tinting + correct token refs
   const grid = document.getElementById('statGrid');

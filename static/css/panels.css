@@ -267,6 +267,22 @@
   background: var(--color-surface-3); border: 1px solid var(--color-border-default);
   border-radius: 4px; padding: 2px 8px; color: var(--color-text-secondary);
 }
+
+/* Generic tooltip — any element with data-tooltip gets hover card */
+[data-tooltip] { position: relative; cursor: help; }
+[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute; top: calc(100% + 8px); right: 0;
+  min-width: 240px; max-width: 380px;
+  background: var(--color-surface-glass); backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border-default); border-radius: var(--radius-md);
+  padding: 8px 12px; font-family: var(--font-data); font-size: .7rem;
+  color: var(--color-text-secondary); line-height: 1.5;
+  box-shadow: var(--shadow-md);
+  z-index: calc(var(--z-overlay) + 1); pointer-events: none;
+  white-space: normal;
+}
+
 .panel-chevron {
   width: 10px; height: 10px; flex-shrink: 0;
   color: var(--color-text-tertiary);
