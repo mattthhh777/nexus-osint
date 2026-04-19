@@ -1,531 +1,339 @@
-# Testing
+# Testing Patterns
 
-**Analysis Date:** 2026-03-25
+**Analysis Date:** 2026-04-19
 
-## Current State: No Tests Exist
+## Test Framework
 
-**Test coverage: 0%.** There are no test files, no test framework configured, no test dependencies installed, and no test directories in the project.
+**Runner:**
+- pytest 8.0+ with pytest-asyncio 0.23+
+- Config: `pytest.ini` at project root (minimal, 5 lines)
 
-**Evidence:**
-- `requirements.txt` contains zero test packages (no pytest, no httpx test client, no coverage, no factory-boy)
-- No `conftest.py`, `pytest.ini`, `pyproject.toml`, `setup.cfg`, or `tox.ini` exists
-- No `tests/` directory, no `*_test.py` or `test_*.py` files anywhere in the tree
-- No frontend test tooling (no vitest, jest, playwright, cypress, or similar)
-- No CI/CD pipeline that runs tests
-- No pre-commit hooks that validate code
+**Assertion Library:**
+- pytest built-in assertions (no external assertion library)
+- Pattern: `assert condition`, `assert value == expected`, `assert row is not None`
 
-**Only automated check:** Docker `HEALTHCHECK` in `Dockerfile` (line 25) runs `curl -f http://localhost:8000/health` every 30 seconds. The `/health` endpoint (defined at `api/main.py` line 1259) returns `{"status": "ok", "version": "3.0.0"}` unconditionally -- it does not verify database connectivity, OathNet reachability, or any other dependency.
-
-**Current testing approach:** Manual browser-based testing only.
-
-## Test Framework Recommendation
-
-**Runner:** pytest 8.x
-**Config file to create:** `pyproject.toml` (add `[tool.pytest.ini_options]` section)
-**Async support:** pytest-asyncio (required for aiosqlite and FastAPI async endpoints)
-**HTTP testing:** `httpx` is already in `requirements.txt` -- use `httpx.AsyncClient` with FastAPI's `ASGITransport`
-**Mocking:** unittest.mock (stdlib) + `responses` or `respx` for HTTP mocking
-**Coverage:** pytest-cov
-
-**Recommended test dependencies to add to `requirements.txt`:**
-```
-pytest==8.3.4
-pytest-asyncio==0.24.0
-pytest-cov==6.0.0
-respx==0.22.0
-```
-
-**Run commands (once configured):**
+**Run Commands:**
 ```bash
-pytest                        # Run all tests
-pytest -x                     # Stop on first failure
-pytest --cov=api --cov=modules --cov-report=term-missing  # Coverage
-pytest -k "test_auth"         # Run specific test group
-pytest tests/unit/            # Run only unit tests
+pytest                    # Run all tests in tests/
+pytest -v                 # Verbose output (show each test)
+pytest -k test_db         # Run tests matching pattern
+pytest --tb=short         # Short traceback format
+pytest -x                 # Stop on first failure
+pytest --co -q            # Collect tests without running
 ```
+
+**Current Test Count:** 62 tests collected
 
 ## Test File Organization
 
-**Recommended structure:**
+**Location:**
+- Tests co-located in `tests/` directory (separate from `api/`, `modules/`, `static/`)
+- Subdirectories by category, not by layer
+
+**Directory Structure:**
 ```
 tests/
-  conftest.py                 # Shared fixtures: test client, mock OathNet, temp DB
-  unit/
-    test_auth.py              # JWT creation, decode, verify, expiry
-    test_rate_limiter.py      # SQLite-backed rate limiter
-    test_validators.py        # SearchRequest pydantic validators
-    test_detect_type.py       # Query type detection regex
-    test_oathnet_client.py    # OathnetClient methods with mocked HTTP
-    test_oathnet_models.py    # Dataclass properties (risk_score, breach_count)
-    test_sherlock_wrapper.py  # Platform checking logic with mocked HTTP
-    test_password_hashing.py  # bcrypt hash/verify roundtrip
-  integration/
-    test_search_endpoint.py   # Full /api/search SSE flow
-    test_login_flow.py        # /api/login + /api/me roundtrip
-    test_admin_endpoints.py   # /api/admin/* with auth
-    test_health.py            # /health returns expected shape
+├── conftest.py              # Shared fixtures (pytest session/function scope)
+├── test_db.py               # DatabaseManager unit tests (5 tests)
+├── test_db_stream.py        # DatabaseManager streaming read tests (5 tests)
+├── test_endpoints.py        # FastAPI endpoint integration tests (4 tests)
+├── test_oathnet_client.py   # OathnetClient async client unit tests (7 tests)
+├── test_orchestrator.py     # TaskOrchestrator concurrent execution tests (6 tests)
+├── integration/
+│   ├── __init__.py
+│   └── test_rate_limiting.py  # slowapi rate limiter integration tests (7 tests)
+└── unit/
+    ├── __init__.py
+    └── test_security_gates.py  # Security validation & capacity gate tests (21 tests)
 ```
 
-**Naming convention:** `test_{module}.py` files, `test_{behavior}` functions.
+**Naming:**
+- Test files: `test_<module>.py` (e.g., `test_db.py` for `api/db.py`)
+- Test functions: `test_<scenario>` (e.g., `test_wal_mode`, `test_write_serialization`)
+- Async test functions: `async def test_<scenario>` (pytest-asyncio detects automatically via `asyncio_mode = auto`)
 
-**Co-location:** Tests live in a separate `tests/` directory (not co-located) because the source code is split across `api/` and `modules/` with no unified `src/` root.
+## Test Structure
 
-## What MUST Be Tested: Priority Map
-
-### P0 -- Security-Critical (test first)
-
-**1. JWT Authentication (`api/main.py` lines 252-270)**
-
-Functions: `_create_token()`, `_decode_token()`, `get_current_user()`, `get_admin_user()`
-
-Test cases:
+**Suite Organization (from `tests/test_db.py`):**
 ```python
-# tests/unit/test_auth.py
-
-import time
-from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
-from jose import jwt
-
-def test_create_token_contains_required_claims():
-    """Token must contain sub, role, exp, iat."""
-    token = _create_token("admin", "admin")
-    payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-    assert payload["sub"] == "admin"
-    assert payload["role"] == "admin"
-    assert "exp" in payload
-    assert "iat" in payload
-
-def test_decode_token_rejects_expired():
-    """Expired tokens must raise HTTPException 401."""
-    expired_payload = {
-        "sub": "admin", "role": "admin",
-        "exp": datetime.now(timezone.utc) - timedelta(hours=1),
-        "iat": datetime.now(timezone.utc) - timedelta(hours=25),
-    }
-    token = jwt.encode(expired_payload, JWT_SECRET, algorithm="HS256")
-    with pytest.raises(HTTPException) as exc:
-        _decode_token(token)
-    assert exc.value.status_code == 401
-
-def test_decode_token_rejects_wrong_secret():
-    """Token signed with wrong key must be rejected."""
-    token = jwt.encode({"sub": "admin", "role": "admin", "exp": 9999999999}, "wrong-secret", algorithm="HS256")
-    with pytest.raises(HTTPException):
-        _decode_token(token)
-
-def test_get_admin_user_rejects_non_admin():
-    """Non-admin role must get 403."""
-    # Use TestClient with a user-role token
-    pass  # Integration test with httpx.AsyncClient
-```
-
-**2. Password Hashing (`api/main.py` lines 204-218)**
-
-Functions: `_safe_hash()`, `_safe_verify()`
-
-Test cases:
-```python
-# tests/unit/test_password_hashing.py
-
-def test_hash_verify_roundtrip():
-    """Hashed password must verify correctly."""
-    hashed = _safe_hash("mypassword123")
-    assert _safe_verify("mypassword123", hashed) is True
-
-def test_wrong_password_fails_verify():
-    hashed = _safe_hash("correct")
-    assert _safe_verify("wrong", hashed) is False
-
-def test_hash_is_not_plaintext():
-    hashed = _safe_hash("secret")
-    assert "secret" not in hashed
-```
-
-**3. Rate Limiter (`api/main.py` lines 132-163)**
-
-Functions: `_init_rate_table()`, `_check_rate()`
-
-Test cases:
-```python
-# tests/unit/test_rate_limiter.py
-
-@pytest.mark.asyncio
-async def test_rate_limiter_allows_within_limit(tmp_path):
-    """Requests within limit return True."""
-    # Override AUDIT_DB to tmp_path / "test.db"
-    for i in range(5):
-        assert await _check_rate("test:ip", 5, 60) is True
-
-@pytest.mark.asyncio
-async def test_rate_limiter_blocks_over_limit(tmp_path):
-    """6th request in window of 5 returns False."""
-    for i in range(5):
-        await _check_rate("test:ip", 5, 60)
-    assert await _check_rate("test:ip", 5, 60) is False
-
-@pytest.mark.asyncio
-async def test_rate_limiter_fail_closed_on_db_error():
-    """If DB is unreachable, rate limiter returns False (fail-closed)."""
-    # Corrupt or remove DB file, verify returns False
-    pass
-```
-
-**4. Login Rate Limiting (`api/main.py` line 409)**
-
-The login endpoint limits to 5 attempts per IP per 60 seconds. Test that the 6th attempt returns HTTP 429.
-
-### P1 -- Core Business Logic
-
-**5. Input Sanitization (`api/main.py` lines 71-101)**
-
-Model: `SearchRequest` with `sanitize_query`, `validate_mode`, `validate_sf_mode` validators
-
-Test cases:
-```python
-# tests/unit/test_validators.py
-
-def test_query_strips_whitespace():
-    req = SearchRequest(query="  test@email.com  ")
-    assert req.query == "test@email.com"
-
-def test_query_rejects_empty():
-    with pytest.raises(ValidationError):
-        SearchRequest(query="")
-
-def test_query_rejects_too_short():
-    with pytest.raises(ValidationError):
-        SearchRequest(query="a")
-
-def test_query_rejects_too_long():
-    with pytest.raises(ValidationError):
-        SearchRequest(query="a" * 257)
-
-def test_query_strips_null_bytes():
-    req = SearchRequest(query="test\x00user")
-    assert "\x00" not in req.query
-
-def test_query_strips_sql_injection_chars():
-    req = SearchRequest(query="test'; DROP TABLE--")
-    assert ";" not in req.query
-    assert "'" not in req.query
-
-def test_mode_defaults_invalid_to_automated():
-    req = SearchRequest(query="test", mode="invalid")
-    assert req.mode == "automated"
-
-def test_spiderfoot_mode_defaults_invalid_to_passive():
-    req = SearchRequest(query="test", spiderfoot_mode="aggressive")
-    assert req.spiderfoot_mode == "passive"
-```
-
-**6. Query Type Detection (`api/main.py` lines 435-443)**
-
-Function: `detect_type()`
-
-Test cases:
-```python
-# tests/unit/test_detect_type.py
-
-@pytest.mark.parametrize("input,expected", [
-    ("user@example.com", "email"),
-    ("192.168.1.1", "ip"),
-    ("example.com", "domain"),
-    ("123456789012345678", "discord_id"),   # 18 digits
-    ("+14155551234", "phone"),
-    ("7654321", "steam_id"),                # 7 digits
-    ("johndoe", "username"),
-    ("john.doe", "username"),               # dot not a domain
-    ("john_doe123", "username"),
-])
-def test_detect_type(input, expected):
-    assert detect_type(input) == expected
-```
-
-**7. OathNet Client (`modules/oathnet_client.py`)**
-
-Class: `OathnetClient` -- all methods use `requests.Session` which must be mocked.
-
-Test cases:
-```python
-# tests/unit/test_oathnet_client.py
-# Use respx or responses to mock HTTP calls
-
-def test_client_rejects_empty_api_key():
-    with pytest.raises(ValueError, match="cannot be empty"):
-        OathnetClient(api_key="")
-
-def test_search_breach_parses_results(mock_oathnet):
-    """Mock /service/search-breach response, verify BreachRecord parsing."""
-    client = OathnetClient(api_key="test-key")
-    result = client.search_breach("test@example.com")
-    assert result.success is True
-    assert result.breach_count > 0
-    assert result.breaches[0].email == "test@example.com"
-
-def test_search_breach_handles_401(mock_oathnet_401):
-    client = OathnetClient(api_key="bad-key")
-    result = client.search_breach("test@example.com")
-    assert result.success is False
-    assert "401" in result.error
-
-def test_search_breach_handles_timeout(mock_oathnet_timeout):
-    client = OathnetClient(api_key="test-key", timeout=1)
-    result = client.search_breach("test@example.com")
-    assert result.success is False
-    assert "timed out" in result.error.lower()
-
-def test_handle_429_rate_limit():
-    """HTTP 429 from OathNet returns descriptive error."""
-    pass
-
-def test_parse_meta_extracts_quota():
-    data = {"_meta": {"user": {"plan": "pro"}, "lookups": {"used_today": 5, "left_today": 95, "daily_limit": 100}}}
-    meta = OathnetClient._parse_meta(data)
-    assert meta.plan == "pro"
-    assert meta.used_today == 5
-    assert meta.left_today == 95
-
-def test_risk_score_capped_at_100():
-    result = OathnetResult()
-    result.breaches = [BreachRecord()] * 10   # 10 * 15 = 150 -> capped at 100
-    assert result.risk_score == 100
-
-def test_risk_score_combines_sources():
-    result = OathnetResult()
-    result.breaches = [BreachRecord()] * 2       # 30
-    result.stealers = [StealerRecord()] * 1      # 20
-    result.holehe_domains = ["a.com", "b.com"]   # 6
-    assert result.risk_score == 56
-```
-
-**8. Sherlock Wrapper (`modules/sherlock_wrapper.py`)**
-
-Functions: `_check_platform()`, `_run_async_checks()`, `search_username()`
-
-Test cases:
-```python
-# tests/unit/test_sherlock_wrapper.py
-# Use aiohttp mocking (aioresponses)
-
-@pytest.mark.asyncio
-async def test_check_platform_status_code_found():
-    """Platform returning 200 with status_code claim -> found=True."""
-    pass
-
-@pytest.mark.asyncio
-async def test_check_platform_text_absent_found():
-    """Page without 'Sorry' text and status 200 -> found=True."""
-    pass
-
-@pytest.mark.asyncio
-async def test_check_platform_timeout():
-    """Timeout -> error='timeout', found=False."""
-    pass
-
-def test_search_username_strips_at_sign():
-    """Input '@johndoe' should search 'johndoe'."""
-    # Mock all HTTP, verify username passed without @
-    pass
-
-def test_sherlock_result_risk_score():
-    r = SherlockResult()
-    r.found = [PlatformResult(found=True)] * 10
-    assert r.risk_score == 40  # 10 * 4 = 40
-    r.found = [PlatformResult(found=True)] * 20
-    assert r.risk_score == 60  # capped at 60
-```
-
-### P2 -- Integration Tests
-
-**9. Search SSE Endpoint (`api/main.py` line 494)**
-
-The `/api/search` endpoint returns an SSE stream. Test the full flow.
-
-```python
-# tests/integration/test_search_endpoint.py
-
-@pytest.mark.asyncio
-async def test_search_returns_sse_stream(auth_client, mock_oathnet):
-    """POST /api/search returns text/event-stream with start and done events."""
-    async with auth_client.stream(
-        "POST", "/api/search",
-        json={"query": "test@example.com"},
-    ) as resp:
-        assert resp.status_code == 200
-        assert "text/event-stream" in resp.headers["content-type"]
-        events = []
-        async for line in resp.aiter_lines():
-            if line.startswith("data: "):
-                events.append(json.loads(line[6:]))
-        assert events[0]["type"] == "start"
-        assert events[-1]["type"] == "done"
-
-@pytest.mark.asyncio
-async def test_search_requires_auth(anon_client):
-    """POST /api/search without token returns 401."""
-    resp = await anon_client.post("/api/search", json={"query": "test"})
-    assert resp.status_code == 401
-
-@pytest.mark.asyncio
-async def test_search_rate_limited(auth_client):
-    """21st search in 60s returns 429."""
-    for i in range(20):
-        await auth_client.post("/api/search", json={"query": f"test{i}"})
-    resp = await auth_client.post("/api/search", json={"query": "test_over"})
-    assert resp.status_code == 429
-```
-
-**10. Login Flow (`api/main.py` lines 405-424)**
-
-```python
-# tests/integration/test_login_flow.py
-
-@pytest.mark.asyncio
-async def test_login_returns_jwt(client, test_users):
-    resp = await client.post("/api/login", json={"username": "admin", "password": "testpass"})
-    assert resp.status_code == 200
-    data = resp.json()
-    assert "access_token" in data
-    assert data["username"] == "admin"
-    assert data["role"] == "admin"
-
-@pytest.mark.asyncio
-async def test_login_invalid_password(client, test_users):
-    resp = await client.post("/api/login", json={"username": "admin", "password": "wrong"})
-    assert resp.status_code == 401
-
-@pytest.mark.asyncio
-async def test_me_endpoint_with_valid_token(auth_client):
-    resp = await auth_client.get("/api/me")
-    assert resp.status_code == 200
-    assert resp.json()["username"] == "admin"
-```
-
-**11. Admin Endpoints (`api/main.py` lines 916-1052)**
-
-Test that `/api/admin/stats`, `/api/admin/logs`, `/api/admin/users` require admin role and return expected shapes.
-
-### P3 -- Frontend (Lower Priority)
-
-**Frontend testing is deferred** because the frontend is vanilla JS with DOM manipulation (no framework). If frontend tests are added later:
-
-**Recommended tool:** Playwright (end-to-end)
-
-**Testable frontend modules:**
-- `static/js/auth.js` -- `apiFetch()` 401 handling, `checkAuth()` flow, `submitAuth()` form submission
-- `static/js/search.js` -- `startSearch()` SSE parsing, `handleEvent()` event routing
-- `static/js/render.js` -- `renderResults()` DOM output for various result shapes
-- `static/js/utils.js` -- `detectType()` (mirrors backend `detect_type()`), `esc()` XSS escaping, `riskLabel()` score thresholds
-- `static/js/export.js` -- `writeClipboard()` fallback logic
-- `static/js/cases.js` -- localStorage CRUD for saved cases
-- `static/js/history.js` -- localStorage search history
-
-**Pure-function candidates extractable for unit testing (no DOM):**
-- `detectType()` in `static/js/utils.js` line 11 -- identical regex logic to backend
-- `riskLabel()` in `static/js/utils.js` line 34 -- score-to-label mapping
-- `esc()` in `static/js/utils.js` line 42 -- HTML escaping
-- `formatBytes()` in `static/js/utils.js` line 69 -- byte formatting
-
-## Shared Test Fixtures
-
-```python
-# tests/conftest.py
-
-import asyncio
-import json
-import os
-import tempfile
-from pathlib import Path
-
 import pytest
 import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
 
-# Override paths BEFORE importing app
-@pytest.fixture(autouse=True)
-def isolate_data_dir(tmp_path, monkeypatch):
-    """Redirect DATA_DIR, USERS_FILE, AUDIT_DB to temp directory."""
-    monkeypatch.setattr("api.main.DATA_DIR", tmp_path)
-    monkeypatch.setattr("api.main.USERS_FILE", tmp_path / "users.json")
-    monkeypatch.setattr("api.main.AUDIT_DB", tmp_path / "audit.db")
-    monkeypatch.setenv("JWT_SECRET", "test-secret-key-for-testing")
-    monkeypatch.setenv("OATHNET_API_KEY", "test-oathnet-key")
+@pytest.mark.asyncio
+async def test_wal_mode(tmp_db: DatabaseManager) -> None:
+    """Docstring describing what is tested."""
+    # Arrange: setup test preconditions (fixtures already set up)
+    row = await tmp_db.read_one("PRAGMA journal_mode")
+    
+    # Act: execute the code being tested
+    value = list(row.values())[0]
+    
+    # Assert: verify the result
+    assert value == "wal", f"Expected WAL mode, got {value!r}"
+```
 
-@pytest.fixture
-def test_users(isolate_data_dir, tmp_path):
-    """Create a test users.json with admin user (password: testpass)."""
-    from api.main import _safe_hash
-    users = {
-        "admin": {
-            "password_hash": _safe_hash("testpass"),
-            "role": "admin",
-            "created_at": "2026-01-01T00:00:00Z",
-            "active": True,
-        }
+**Patterns:**
+- Setup: via pytest fixtures (see below)
+- Teardown: automatic via fixture cleanup (e.g., `await manager.shutdown()`)
+- Assertion: pytest `assert` statements with descriptive messages
+- Helpers: module-level async functions prefixed with `_` (e.g., `async def _fast_module()`)
+
+## Mocking
+
+**Framework:** respx for mocking httpx.AsyncClient
+
+**Patterns (from `tests/test_oathnet_client.py`):**
+```python
+import respx
+import httpx
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_search_breach_returns_breach_records(client: OathnetClient) -> None:
+    """Mock httpx.AsyncClient calls — no real network traffic."""
+    mock_response = {
+        "success": True,
+        "data": {
+            "results_found": 2,
+            "results": [
+                {
+                    "dbname": "TestDB",
+                    "email": "test@example.com",
+                    # ... fields ...
+                },
+            ],
+        },
     }
-    (tmp_path / "users.json").write_text(json.dumps(users))
-    return users
-
-@pytest_asyncio.fixture
-async def client():
-    """Unauthenticated async test client."""
-    from api.main import app, startup
-    await startup()
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as c:
-        yield c
-
-@pytest_asyncio.fixture
-async def auth_client(client, test_users):
-    """Authenticated async test client with admin JWT."""
-    resp = await client.post("/api/login", json={"username": "admin", "password": "testpass"})
-    token = resp.json()["access_token"]
-    client.headers["Authorization"] = f"Bearer {token}"
-    yield client
+    # Mock the specific endpoint
+    respx.get(f"{OATHNET_BASE_URL}/service/search-breach").mock(
+        return_value=httpx.Response(200, json=mock_response)
+    )
+    
+    # Now call the client — it uses the mocked response
+    result = await client.search_breach("test@example.com")
+    assert result.success is True
 ```
 
-## Mocking Strategy
+**When to Use:**
+- HTTPx calls: always mock with respx (no real API traffic in tests)
+- Database calls: use in-memory or temp SQLite (see fixtures below)
+- File I/O: use `tmp_path` fixture for temp directories
 
-**What to mock:**
-- All HTTP calls to OathNet API (`requests.Session.get/post` in `modules/oathnet_client.py`) -- use `respx` or `responses`
-- All HTTP calls to external platforms in `modules/sherlock_wrapper.py` -- use `aioresponses`
-- `time.time()` when testing rate limiter window expiry
-- File system paths (`DATA_DIR`, `USERS_FILE`, `AUDIT_DB`) -- redirect to `tmp_path`
+**What NOT to Mock:**
+- Async database operations (test the real SQLite with temp files)
+- The orchestrator's semaphore behavior (test the actual concurrent execution)
+- Error handling in endpoints (test real exception paths, not mocks)
 
-**What NOT to mock:**
-- SQLite operations (use real temp databases via `tmp_path`)
-- Pydantic validation (test real validators)
-- JWT encode/decode (test with real `python-jose`)
-- FastAPI request handling (use real `httpx.AsyncClient` with `ASGITransport`)
+## Fixtures and Factories
 
-## Coverage Targets
+**Test Data (from `tests/conftest.py`):**
+```python
+@pytest_asyncio.fixture
+async def tmp_db(tmp_path: Path) -> DatabaseManager:
+    """
+    Yield a fully started DatabaseManager backed by a temp file.
+    Shutdown is called automatically after each test.
+    """
+    db_path = tmp_path / "test_audit.db"
+    manager = DatabaseManager(db_path=db_path)
+    await manager.startup()
+    yield manager
+    await manager.shutdown()
+```
 
-**No coverage is enforced currently.** Recommended initial targets:
+**Fixture Scope:**
+- `session`: `event_loop_policy` (sets asyncio event loop policy once per session)
+- `function`: `tmp_db` (fresh database for each test)
 
-| Area | Target | Rationale |
-|------|--------|-----------|
-| `api/main.py` auth functions | 90% | Security-critical path |
-| `api/main.py` validators | 100% | Input sanitization must be complete |
-| `api/main.py` rate limiter | 90% | Abuse prevention |
-| `modules/oathnet_client.py` | 80% | Core business logic, HTTP edge cases |
-| `modules/sherlock_wrapper.py` | 70% | Many platform definitions, test engine not each site |
-| Overall | 60% | Starting target for a project with 0% today |
+**Location:**
+- Shared fixtures: `tests/conftest.py` (imported automatically by pytest)
+- Module-specific fixtures: in test file itself (e.g., `client` fixture in `test_oathnet_client.py`)
 
-## Docker Integration
+**Factory Pattern (for test helpers):**
+```python
+# From test_orchestrator.py
+async def _fast_module(name: str, value: Any = None, *, delay: float = 0.0) -> Any:
+    """Simulate a module that completes quickly after an optional sleep."""
+    if delay:
+        await asyncio.sleep(delay)
+    return value if value is not None else f"result_{name}"
 
-The existing `Dockerfile` healthcheck (`HEALTHCHECK` at line 25) is the only automated check in production. To run tests in Docker:
+async def _failing_module(exc: Exception) -> None:
+    """Simulate a module that raises an exception."""
+    raise exc
+```
 
+## Coverage
+
+**Requirements:** No explicit minimum enforced (coverage tool not configured)
+
+**View Coverage:**
 ```bash
-# Add to Dockerfile (or separate test stage):
-RUN pip install pytest pytest-asyncio pytest-cov respx
+pytest --cov=api --cov=modules --cov-report=html
+```
+(pytest-cov plugin not currently in requirements, but would work if installed)
 
-# Run tests:
-docker exec nexus_osint pytest tests/ -v
+**Current Status:**
+- 62 tests across unit, integration, and component layers
+- Test suite covers: database (WAL + write queue), orchestrator (semaphore + concurrent execution), authentication, endpoints, rate limiting, security gates
+- Known gaps: frontend (no Playwright/Cypress), full end-to-end flows beyond /api/search, some error paths in wrappers (sherlock, spiderfoot)
+
+## Test Types
+
+**Unit Tests:**
+- Scope: Single function or small component in isolation
+- Example: `test_wal_mode()` — tests PRAGMA journal_mode is active after startup
+- Example: `test_init_creates_async_client()` — tests OathnetClient initializes httpx.AsyncClient with correct headers
+- Mocking: respx for network, fixtures for database
+- Location: `tests/unit/`, `tests/test_*.py` (most tests are unit)
+
+**Integration Tests:**
+- Scope: Multiple components working together (e.g., FastAPI + database + authentication)
+- Example: `test_full_nexus_flow()` — login → admin stats (requires session cookie + DB)
+- Example: `test_login_429_after_five_attempts()` — authentication + slowapi rate limiter
+- Setup: Dependency override to inject test fixtures into FastAPI app
+- Location: `tests/integration/`, `tests/test_endpoints.py`
+
+**E2E Tests:**
+- Not formalized in codebase (no Playwright, no real browser automation)
+- Closest equivalent: `test_full_nexus_flow()` which simulates browser-like behavior (credentials, cookies)
+
+## Common Patterns
+
+**Async Testing (via pytest-asyncio):**
+```python
+# ✅ Decorator + async def
+@pytest.mark.asyncio
+async def test_write_serialization(tmp_db: DatabaseManager) -> None:
+    """Fire 50 concurrent writes — all must succeed."""
+    insert_sql = "INSERT INTO quota_log (...) VALUES (...)"
+    
+    # Create 50 concurrent tasks
+    tasks = [
+        tmp_db.write_await(insert_sql, params)
+        for i in range(50)
+    ]
+    
+    # Wait for all — if any fails, gather() raises
+    await asyncio.gather(*tasks)
+    
+    # Verify result
+    rows = await tmp_db.read_all("SELECT COUNT(*) as cnt FROM quota_log")
+    assert rows[0]["cnt"] == 50
 ```
 
-Alternatively, run tests outside Docker since the app has no Docker-specific dependencies beyond file paths (which are overridden in fixtures via `monkeypatch`).
+**Sync Test with Async Fixtures:**
+```python
+# ✅ Sync test can use async fixtures (pytest-asyncio manages event loop)
+def test_init_creates_async_client(client: OathnetClient) -> None:
+    """Fixture 'client' is async fixture, test is sync."""
+    assert isinstance(client._client, httpx.AsyncClient)
+```
+
+**Error Testing:**
+```python
+@pytest.mark.asyncio
+async def test_module_error_delivered_to_queue():
+    """Module exception must be delivered to result queue, not raised."""
+    orchestrator = TaskOrchestrator()
+    test_exc = ValueError("Test error")
+    
+    orchestrator.submit("failing_mod", _failing_module(test_exc), is_oathnet=False)
+    
+    results = {}
+    async for name, result in orchestrator.results():
+        results[name] = result
+    
+    # Exception is in result dict, not raised
+    assert isinstance(results["failing_mod"], ValueError)
+    assert str(results["failing_mod"]) == "Test error"
+```
+
+**JWT/Token Testing:**
+```python
+@pytest.mark.asyncio
+async def test_jwt_roundtrip():
+    """Create, encode, decode token — verify all claims intact."""
+    token = _create_token("alice", "admin")
+    assert isinstance(token, str) and len(token) > 20
+    
+    decoded = _decode_token(token)
+    assert decoded["sub"] == "alice"
+    assert decoded["role"] == "admin"
+    assert "exp" in decoded
+    assert "iat" in decoded
+    assert "jti" in decoded
+    
+    # Tamper test: flip last 4 chars — must raise 401
+    tampered = token[:-4] + "AAAA"
+    with pytest.raises(HTTPException) as exc_info:
+        _decode_token(tampered)
+    assert exc_info.value.status_code == 401
+```
+
+**Database Write Testing (with wait):**
+```python
+@pytest.mark.asyncio
+async def test_startup_shutdown_persists(tmp_path: Path) -> None:
+    """Data written before shutdown must be readable after restart."""
+    db_path = tmp_path / "persist_test.db"
+    
+    # First manager: write and shutdown
+    mgr1 = DatabaseManager(db_path=db_path)
+    await mgr1.startup()
+    await mgr1.write_await(
+        "INSERT INTO searches (...) VALUES (...)",
+        ("2026-01-01T00:00:00Z", "testuser", "127.0.0.1", "test_query", ...),
+    )
+    await mgr1.shutdown()
+    
+    # Second manager: verify persistence
+    mgr2 = DatabaseManager(db_path=db_path)
+    await mgr2.startup()
+    row = await mgr2.read_one("SELECT username FROM searches WHERE query = ?", ("test_query",))
+    await mgr2.shutdown()
+    
+    assert row is not None
+    assert row["username"] == "testuser"
+```
+
+## Configuration
+
+**pytest.ini (5 lines):**
+```ini
+[pytest]
+asyncio_mode = auto
+asyncio_default_fixture_loop_scope = function
+testpaths = tests
+pythonpath = . api
+```
+
+**Meaning:**
+- `asyncio_mode = auto`: pytest-asyncio auto-detects `@pytest.mark.asyncio` without needing `asyncio_fixture_loop` everywhere
+- `asyncio_default_fixture_loop_scope = function`: each async fixture gets its own event loop (not shared across tests)
+- `testpaths = tests`: only look for tests in `tests/` directory
+- `pythonpath = . api`: modules importable as `from api.db import db` (not relative imports)
+
+## Test Execution & CI
+
+**Local Execution:**
+```bash
+pytest                      # Run all 62 tests
+pytest -v --tb=short       # Verbose, short tracebacks
+pytest tests/unit/         # Run only unit tests
+pytest -k "test_db"        # Run tests matching "test_db"
+```
+
+**GitHub Actions / CI:**
+- Not visible in current codebase (no `.github/workflows/`)
+- Manual testing cycle: developer runs `pytest` before commit
+
+**Before Phase 15 Execution:**
+- Requirement: test suite must pass with exit code 0
+- Baseline: 62 tests passing (current state)
+- Refactor constraint: must preserve all 62 tests (no tests removed)
+- New tests: may be added if new functionality requires it
 
 ---
 
-*Testing analysis: 2026-03-25*
+*Testing analysis: 2026-04-19*

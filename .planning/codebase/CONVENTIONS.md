@@ -1,194 +1,280 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-03-25
+**Analysis Date:** 2026-04-19
 
 ## Naming Patterns
 
-**Python Files:**
-- Module files use `snake_case`: `oathnet_client.py`, `sherlock_wrapper.py`, `report_generator.py`, `spiderfoot_wrapper.py`
-- Private helpers prefix with `_`: `_load_users`, `_save_users`, `_safe_hash`, `_safe_verify`, `_init_audit_db`, `_log_search`, `_stream_search`, `_serialize_breaches`
-- Constants and config in `UPPER_SNAKE_CASE`: `OATHNET_BASE_URL`, `JWT_SECRET`, `MODULE_TIMEOUTS`, `DATA_DIR`, `AUDIT_DB`
-- Dataclasses use `PascalCase`: `BreachRecord`, `StealerRecord`, `OathnetResult`, `OathnetMeta`, `SherlockResult`, `PlatformResult`
-- Pydantic models use `PascalCase`: `LoginRequest`, `SearchRequest`
+**Files:**
+- Python modules: `snake_case.py` (e.g., `oathnet_client.py`, `spiderfoot_wrapper.py`)
+- JavaScript modules: `camelCase.js` (e.g., `searchHistory.js`, `renderUtils.js`)
+- Private modules in Python: prefix with underscore (e.g., `_bcrypt_lib` for internal imports)
+- Test files: `test_*.py` or `*_test.py` pattern
 
-**JavaScript Files:**
-- Files use `camelCase.js`: `auth.js`, `cases.js`, `export.js`, `history.js`, `panels.js`, `render.js`, `search.js`, `state.js`, `utils.js`
-- Functions use `camelCase`: `startSearch`, `handleEvent`, `renderResults`, `buildCatChips`, `toggleMod`, `showToast`, `detectType`
-- Module-level state variables use `camelCase`: `authToken`, `authUser`, `currentResult`, `selectedMods`, `activeCat`
-- Constants use `UPPER_SNAKE_CASE`: `CATEGORIES`, `MOD_LABELS`, `TYPE_LABELS`, `BREACH_PAGE_SIZE`
-- localStorage keys use `nx_` prefix: `nx_token`, `nx_user`, `nx_history`, `nx_cases`
+**Functions:**
+- Python async/sync: `snake_case` (e.g., `async def startup()`, `def _validate_jwt_secret()`)
+- JavaScript: `camelCase` (e.g., `startSearch()`, `setMode()`, `buildCatChips()`)
+- Private/internal Python functions: prefix with underscore (e.g., `_create_token()`, `_decode_token()`)
+- Private/internal JavaScript: underscore prefix or inline closures (e.g., `_table_exists()`, nested helpers in larger functions)
 
-**CSS Classes:**
-- BEM-flavored kebab-case: `.discord-card`, `.discord-card-inner`, `.discord-avatar`, `.search-container`, `.search-input`, `.nav-logo-mark`
-- State modifiers are bare class additions: `.active`, `.visible`, `.done`, `.error`, `.online`, `.copied`, `.saved`
-- Panel/section IDs use `camelCase`: `casesPanel`, `scanModules`, `sfOptions`, `modChips`, `catChips`
+**Variables:**
+- Python: `snake_case` (e.g., `max_concurrent`, `current_oathnet`, `db_path`)
+- JavaScript: `camelCase` (e.g., `authUser`, `selectedMods`, `currentResult`)
+- Constants (both languages): `UPPER_SNAKE_CASE` (e.g., `GLOBAL_CONCURRENCY_LIMIT`, `JWT_EXPIRE_HOURS`, `TYPE_LABELS`)
+
+**Types/Classes:**
+- Python dataclasses: `PascalCase` (e.g., `BreachRecord`, `OathnetResult`, `DatabaseManager`)
+- Python Pydantic models: `PascalCase` (e.g., `SearchRequest`)
+- Python enums: `PascalCase` (e.g., `DegradationMode`)
+- JavaScript: no class-based code in this codebase (module-scoped functions + object literals)
 
 ## Code Style
 
-**Python Formatting:**
-- No formatter config found (no `pyproject.toml`, `.flake8`, `setup.cfg`). Style is manually consistent.
-- 4-space indentation throughout
-- Trailing inline alignment for constants and short multi-assignments using spaces:
-  ```python
-  SPIDERFOOT_URL  = os.getenv("SPIDERFOOT_URL", "http://spiderfoot:5001")
-  APP_PASSWORD    = os.getenv("APP_PASSWORD", "")
-  LOG_LEVEL       = os.getenv("LOG_LEVEL", "WARNING")
-  ```
-- Max line length approximately 100–120 characters in practice (not enforced)
-- Section headers use `# ── Section Name ──────────...` style banners consistently
+**Formatting:**
+- Python: PEP 8 style, implicit via linting (no explicit formatter tool configured, but patterns suggest standard)
+- JavaScript: 2-space indentation, no semicolons (observed in existing code)
+- Line length: Python modules typically stay under 120 chars; JavaScript varies but generally concise
 
-**JavaScript Formatting:**
-- 2-space indentation throughout
-- Single quotes for strings: `'nx_token'`, `'auto'`, `'passive'`
-- Template literals for HTML generation
-- Arrow functions for simple callbacks: `e => { ... }`, `c => c.classList.remove('active')`
-- Section headers use `// ══════════════...` banners at file level and `// ── subsection ──` inline
-
-**CSS Formatting:**
-- 2-space indentation
-- Section banners: `/* ══════════... */` at top of each file
-- Values use `var(--token)` for all design tokens from `tokens.css`
-- Inline values only for one-off colors not in the token system
+**Linting:**
+- No explicit `.eslintrc` or `.prettierrc` in codebase
+- Python exception handling enforces specific patterns (see "Error Handling" section)
+- JavaScript validation happens via manual type-checking in utility functions (e.g., `typeof url !== 'string'`)
 
 ## Import Organization
 
-**Python Order:**
-1. `from __future__ import annotations` (modules using forward refs)
-2. Standard library imports (alphabetical within group)
-3. Third-party imports
-4. Local imports (deferred inside functions where possible — e.g., `from modules.oathnet_client import OathnetClient` inside `_stream_search`)
+**Order (Python):**
+1. `from __future__ import annotations` (always first if present)
+2. Standard library imports (`asyncio`, `logging`, `os`, etc.)
+3. Third-party imports (`httpx`, `pydantic`, `fastapi`, etc.)
+4. Local imports (`from api.db import db`, `from modules.oathnet_client import oathnet_client`)
+5. Exception handling imports grouped near top (e.g., JWT exceptions in `api/main.py` lines 37-41)
 
-Example from `api/main.py`:
+**Observed Pattern (from `api/main.py`):**
 ```python
+from __future__ import annotations  # if PEP 563 deferred evaluation needed
+
 import asyncio
 import hashlib
 import json
 import logging
-import os
-import re
-import sqlite3
-import time
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from typing import AsyncGenerator, Optional, Union
+# ... more stdlib ...
 
-import aiosqlite
 import httpx
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
+from fastapi import Depends, FastAPI, HTTPException
+# ... more third-party ...
+
+from api.db import db as _db
+from api.orchestrator import get_orchestrator, DegradationMode
+from modules.oathnet_client import oathnet_client
 ```
 
-**JavaScript — No module system.** All JS files are loaded via `<script>` tags. State is shared through globally scoped `let` variables declared at file top. No `import`/`export` syntax used anywhere.
+**Path Aliases:**
+- No explicit `pathlib` aliases configured in `pyproject.toml` or `setup.cfg`
+- Module imports use relative paths from project root (e.g., `from api.db import db`)
 
 ## Error Handling
 
-**Python — Backend:**
-- Route handlers use `HTTPException` with explicit `status_code` and `detail` string:
-  ```python
-  raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated", headers={"WWW-Authenticate": "Bearer"})
-  raise HTTPException(status_code=429, detail="Rate limit exceeded. Max 20 searches/minute.")
-  ```
-- Module-level helper functions swallow exceptions and return safe defaults with a `logger.warning` or `logger.error` call:
-  ```python
-  except Exception as exc:
-      logger.warning("Quota save failed: %s", exc)
-  ```
-- SSE stream handlers catch per-module exceptions and yield `module_error` events rather than crashing the stream:
-  ```python
-  except Exception as exc:
-      logger.error("Sherlock failed: %s", exc)
-      yield event({"type": "module_error", "module": "sherlock", "error": str(exc)})
-  ```
-- Rate limiter uses fail-closed on DB errors: `return False  # fail closed — prevent abuse if DB unavailable`
-- External API calls in `OathnetClient` use `(bool, dict)` return tuples — never raise:
-  ```python
-  def _get(self, endpoint, params=None) -> tuple[bool, dict]:
-      ...
-      except requests.exceptions.ConnectionError as exc:
-          return False, {"error": f"Cannot reach OathNet API..."}
-  ```
-- Per-module timeouts via `with_timeout()` wrapper — returns `(default, timed_out: bool)` rather than raising:
-  ```python
-  result, timed_out = await with_timeout(asyncio.to_thread(client.holehe, query), "holehe")
-  ```
+**Pattern (from CLAUDE.md — strictly enforced):**
 
-**JavaScript — Frontend:**
-- `apiFetch()` centralizes 401 handling: clears token, forces re-login, throws
-- All `fetch` calls are wrapped in `try/catch`; errors shown via `showToast()`
-- Empty `catch(e) {}` is used for non-critical flows (e.g., `checkAuth` probe requests)
-- SSE event parsing uses silent `try/catch` per line: `try { evt = JSON.parse(...) } catch(e) {}`
+**In FastAPI endpoints (HTTPException required):**
+```python
+# ✅ CORRECT
+@router.get("/scan/{target}")
+async def run_scan(target: str):
+    try:
+        result = await orchestrator.run(target)
+        return result
+    except ValueError as e:
+        # Input validation failed — 400
+        raise HTTPException(status_code=400, detail=str(e))
+    except asyncio.TimeoutError:
+        # Timeout — 504
+        logger.warning("Scan timeout | target_hash={}", hash(target))
+        raise HTTPException(status_code=504, detail="Scan timed out")
+    except aiosqlite.Error as e:
+        # DB error — 503
+        logger.error("DB error: {}", type(e).__name__)
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    except Exception as e:
+        # Unexpected — 500, log fully, never expose details
+        logger.exception("Unhandled error in scan endpoint")
+        raise HTTPException(status_code=500, detail="Internal error")
+```
+
+**In async agents (let TaskGroup handle cancellation):**
+```python
+# ✅ CORRECT — inside _guarded() in api/orchestrator.py
+async def _guarded(...) -> None:
+    try:
+        # agent work here
+    except asyncio.CancelledError:
+        # Task was cancelled by orchestrator
+        logger.info("Module '%s' was cancelled", name)
+    except Exception as exc:
+        # Module failed — push to result queue, don't raise
+        logger.warning("Module '%s' failed: %s", name, type(exc).__name__)
+        await self._result_queue.put((name, exc))
+```
+
+**Errors NOT to catch (let them propagate):**
+- `asyncio.CancelledError` in TaskGroup contexts (mark explicitly if caught: `noqa: BLE001`)
+- Generic `except Exception` outside of documented guard functions (marked with `noqa: BLE001` + comment)
+- Errors in background loops (watchdog) use `logger.exception()` to log but continue
+
+**Observable enforcement in codebase:**
+- `api/watchdog.py:123` — catch-all in background loop marked `# noqa: BLE001 — documented background-loop guard`
+- `api/orchestrator.py:249` — module error handler in `_guarded()` marked `# noqa: BLE001` with explanatory comment
+- All endpoint handlers convert to HTTPException with specific status codes
 
 ## Logging
 
-**Framework:** Python `logging` module (`logging.getLogger("nexusosint")`)
+**Framework:** Python standard `logging` module (no loguru, no structlog)
 
-**Level Configuration:** Set via `LOG_LEVEL` env var, defaults to `WARNING` in production
+**Configuration:**
+- Configured in `api/main.py:120-121`: `logging.basicConfig()` + module-level logger
+- Logger per module: `logger = logging.getLogger(__name__)`
+- Log level from env: `LOG_LEVEL` env var (default: `WARNING`)
 
 **Patterns:**
-- Use `%s` format args, never f-strings in logger calls: `logger.warning("Quota save failed: %s", exc)`
-- `logger.info` for startup events
-- `logger.warning` for recoverable failures (timeouts, DB errors, API errors)
-- `logger.error` for unexpected exceptions in business logic
-- JavaScript has no structured logging — user-visible errors go to `showToast()`; debug info is silent
+
+**Info level (startup/shutdown):**
+```python
+logger.info("DatabaseManager started — WAL mode active, writer task running")
+logger.info("NexusOSINT v3.0 started — %d allowed origins, tracemalloc active", len(origins))
+```
+
+**Warning level (recoverable issues):**
+```python
+logger.warning("DatabaseManager.startup() called more than once — ignoring")
+logger.warning("DB write queue at %d/1000 — approaching capacity", qsize)
+logger.warning("Module '%s' failed: %s", name, type(exc).__name__)
+```
+
+**Error level (failed operations, always include reason):**
+```python
+logger.error("DB write error — sql=%r params=%r error=%s", sql, params, exc)
+logger.error("DB write queue full (maxsize=1000) — dropping write: sql=%r", sql)
+```
+
+**Exception level (with traceback):**
+```python
+logger.exception("Unhandled error in scan endpoint")  # includes traceback
+```
+
+**Never log:**
+- User data directly (hash instead: `logger.warning("... target_hash={}", hash(target))`)
+- Raw passwords or API keys
+- Full query strings from untrusted sources (summarize instead)
+
+**JavaScript logging:**
+- Uses native `console.warn()` / `console.error()` sparingly
+- Example: `console.warn('[NexusOSINT] URL bloqueada (protocolo inválido):', url.slice(0, 80));` (in `utils.js`)
+- No structured logging in frontend; warnings are security/validation related only
 
 ## Comments
 
-**Python:**
-- Module docstrings at file top with version info and key design decisions (all modules use this)
-- Inline comments for non-obvious logic: `# fail closed — prevent abuse if DB unavailable`
-- Section banners `# ── Section Name ───...` replace large block comments — used consistently throughout `main.py`
-- Function docstrings on public/dependency functions: `"""Dependency: validates JWT and returns user payload."""`
-- Portuguese comments appear in `spiderfoot_wrapper.py` and `report_generator.py` (localization inconsistency)
+**When to Comment:**
+- Module docstrings: Always (see `api/db.py:1-20`, `api/orchestrator.py:1-31`)
+- Function docstrings: For public APIs and complex logic
+- Inline comments: For non-obvious decisions (e.g., semaphore acquisition order to prevent deadlock)
+- Section separators: ASCII dividers for major subsections (e.g., `# ── Lifecycle ─────────────────────`)
 
-**JavaScript:**
-- Section banners `// ══════════ SECTION NAME ══════════` at file top
-- Subsection banners `// ── subsection ──` inline
-- Inline comments for non-obvious logic: `// Token expired — force re-login`
-- No JSDoc usage anywhere
+**JSDoc/TSDoc:**
+- Not used (Python docstrings are standard, JavaScript is untyped vanilla)
+- Docstring format: reStructuredText style (not Google/NumPy style)
 
-**CSS:**
-- Section banners `/* ══════════ SECTION ══════════ */`
-- Inline comments for version notes: `/* Nav: refined glassmorphism (enhanced v3.1) */`
+**Example (from `api/db.py`):**
+```python
+"""
+Manages a single persistent SQLite connection with WAL mode and
+serialized writes via asyncio.Queue.
+"""
+
+def __init__(self, db_path: Optional[Path] = None) -> None:
+    """Initialize the database manager.
+    
+    Args:
+        db_path: path to SQLite file
+    """
+```
 
 ## Function Design
 
-**Python:**
-- Private helpers prefixed with `_`, kept small and single-purpose
-- Async functions used for all I/O; sync functions for pure computation
-- Dataclass-based return types preferred over raw dicts in modules (`OathnetResult`, `SherlockResult`)
-- Route handlers are thin — delegate to private generator/helper functions
-- `_stream_search` is the largest function (~400 lines) — a known complexity issue
+**Size:** Typical range 20-80 lines; larger functions break into helpers
+- Example: `api/orchestrator.py` `_run_module()` is ~25 lines
+- Example: `api/main.py` `_stream_search()` is ~200 lines (largest, includes inline helper)
 
-**JavaScript:**
-- Functions are imperative and DOM-manipulating, typically 5–30 lines
-- Global state (`currentResult`, `history`, `cases`, `selectedMods`) is mutated directly
-- Event handler functions follow `verbNoun` naming: `startSearch`, `saveCase`, `deleteCase`, `toggleMod`, `loadCase`
-- HTML generation uses template literal strings, not DOM API: `` ` <div class="${cls}">${content}</div>` ``
+**Parameters:** Type hints always present in Python
+```python
+async def run_scan(self, target: str, timeout_s: int = 30) -> OathnetResult:
+```
+
+**Return Values:** 
+- Functions return typed values (dataclasses, dict, or None)
+- Example: `async def read_one(...) -> Optional[aiosqlite.Row]`
+- Example: `def risk_score(self) -> int`
+
+**Async/await:**
+- All I/O bound operations use `async def`
+- Pure logic functions stay synchronous
+- Example: `async def startup()` (I/O), `def detect_type(q)` (pure logic)
 
 ## Module Design
 
-**Python:**
-- Each module in `modules/` is a self-contained class or function set with its own dataclasses
-- No barrel `__init__.py` re-exports — imports are direct: `from modules.oathnet_client import OathnetClient`
-- `api/main.py` imports modules inline inside `_stream_search` to avoid circular import issues
+**Exports:**
+- No explicit `__all__` in most modules; public APIs implied by docstrings
+- Singletons exposed: `oathnet_client` (module-level instance in `modules/oathnet_client.py`), `get_orchestrator()` (function in `api/orchestrator.py`)
+- Private internals: prefix with underscore (e.g., `_db`, `_oathnet_sem`)
 
-**JavaScript:**
-- No module system — global namespace only
-- Each `.js` file groups related functions under a section banner
-- Cross-file calls are direct function calls (e.g., `render.js` calls `riskLabel()` from `utils.js`)
-- Shared state lives in `state.js` (global `let` vars) and `auth.js` (`authToken`, `authUser`)
+**Barrel Files:**
+- Not used in this codebase (each module explicitly imported by name)
+- Example: `from api.db import db` (not `from api import db`)
 
-## CSS Design Tokens
+## JavaScript-Specific Patterns
 
-**Token file:** `static/css/tokens.css` — all design values defined as CSS custom properties on `:root`
+**Event Handling:**
+- DOM event handlers use data attributes: `data-action="select-cat"`, `data-name="..."` (seen in `search.js`)
+- Handler naming: `on<Action>` or just action name (e.g., `selectCat()`, `toggleMod()`)
+- Event delegation via `querySelectorAll()` + `forEach()` loops
 
-**Token namespacing:**
-- Semantic tokens: `--color-bg-base`, `--color-accent`, `--color-critical`, `--color-text-primary`
-- Legacy aliases retained for backward compat: `--bg`, `--amber`, `--red`, `--text`, `--mono`
-- Always prefer semantic token names in new code; legacy aliases still used in existing CSS
+**State Management:**
+- Global variables at module scope (e.g., `let authUser = null;`, `let mode = 'auto';`)
+- No explicit state library; DOM is single source of truth for UI state
+- Derived state via utility functions (e.g., `detectType()` computes query type from string)
 
-**Token categories:** surfaces, borders, accent (amber), severity (critical/high/medium/low), semantic (success/info), text, typography, spacing (base-8 scale), radius, shadows, transitions, z-index
+**Error Handling (Frontend):**
+```javascript
+try {
+    const evt = JSON.parse(line.slice(6));
+    handleEvent(evt);
+} catch(e) {}  // Silent on parse errors (malformed SSE lines)
+```
+- Most errors are logged to toast notifications via `showToast()`
+- Network errors trigger redirect to auth screen (in `auth.js`)
+
+**HTML Escaping:**
+- Required in all user-facing output
+- Utility functions: `esc()` for text content, `escAttr()` for attributes, `sanitizeUrl()` for hrefs
+- Example: `` `data-name="${esc(name)}"` `` in template literals
+
+**Fetch Patterns:**
+- Uses `apiFetch()` wrapper (defined in `auth.js`) which:
+  - Sets `credentials: 'include'` for httpOnly cookies
+  - Handles 401 by clearing session and showing auth screen
+  - Adds standard headers via `authHeaders()`
+
+## Type Hints
+
+**Usage (Python):**
+- All function parameters and return types annotated
+- Example: `async def read_one(self, sql: str, params: tuple = ()) -> Optional[aiosqlite.Row]:`
+- Generic types via `typing` module: `list[BreachRecord]`, `dict[str, Any]`, `Optional[str]`
+- `from __future__ import annotations` used for forward references
+
+**Not enforced for:**
+- Local variables (inferred from assignment)
+- Lambda functions (rarely used)
 
 ---
 
-*Convention analysis: 2026-03-25*
+*Convention analysis: 2026-04-19*
