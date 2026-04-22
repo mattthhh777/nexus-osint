@@ -273,4 +273,96 @@ Phase 03 (F1 Audit) ──► Phase 04 (F2 SQLite) ──► Phase 05 (F3 Async)
 
 ---
 
-*Roadmap created: 2026-03-30 | Last updated: 2026-04-02*
+## Milestone v4.1 — Results UX: Data completeness & presentation
+
+**Started:** 2026-04-15
+**Backfilled into roadmap:** 2026-04-19 (phases 12–14 existed on disk but were not registered)
+
+### Phase 12: v4.1 Pre-gate — commit deployed files + delete backup zips + CSP fix
+
+| Field | Value |
+|-------|-------|
+| **Status** | **Complete** |
+| **Completed** | 2026-04-15 |
+| **Depends on** | Phase 11 |
+| **Effort** | 1 session |
+| **Risk** | LOW |
+
+**Sub-tasks:** commit files already deployed to VPS, delete `css.zip` / `js.zip` emergency backups (D-08), fix CSP typo `form-ancestors` → `frame-ancestors` in `/js/` block (introduced Phase 09-04).
+
+**Key files:** `nginx.conf`, deployed static/ files, `.planning/PROJECT.md`, `.planning/STATE.md`
+
+**Verification:** ✅ CSP frame-ancestors active; backups removed; PROJECT.md updated with v4.1 scope.
+
+**Plans:** Pre-gate work — no PLAN files (gate work only)
+
+---
+
+### Phase 13: v4.1 Data Instrumentation — admin endpoint for breach extra_fields discovery
+
+| Field | Value |
+|-------|-------|
+| **Status** | **Complete** |
+| **Completed** | 2026-04-15 |
+| **Depends on** | Phase 12 |
+| **Effort** | 1 session |
+| **Risk** | LOW |
+| **Tests** | 62/62 passed |
+
+**Sub-tasks:** in-memory `_seen_breach_extra_keys: set[str]` accumulator in `_serialize_breaches()`, admin-only `GET /api/admin/breach-extra-keys` endpoint (Depends(get_admin_user) + RL_ADMIN_LIMIT).
+
+**Key files:** `api/main.py`
+
+**Architecture decision:** in-memory set over new SQLite table — `extra_fields` never persisted, container lifetime sufficient for sampling, zero migration risk, zero write-queue pressure. Safe under GIL without explicit lock.
+
+**Security:** only key names stored (never values); admin-only gate; no PII leakage path.
+
+**Verification:** ✅ Endpoint returns sorted key list + count. Consumed by Phase 14 whitelist.
+
+**Plans:** 1/1 plan complete
+- [x] 13-01-SUMMARY.md — Instrumentation endpoint + whitelist seed for Phase 14
+
+---
+
+### Phase 14: Visual Polish — surgical redesign of 12 friction points
+
+| Field | Value |
+|-------|-------|
+| **Status** | **Complete** |
+| **Completed** | 2026-04-18 |
+| **Depends on** | Phase 13 |
+| **Effort** | 1 session (13 steps + regression sweep) |
+| **Risk** | MED (frontend-only but 12 surgical touchpoints) |
+
+**Goal:** elevate the UI from "good open-source" to "commercial intel tool" parity (Dehashed / SpyCloud / Hunter.io), without rewriting components.
+
+**Non-goals:** new features, framework migration, backend changes, brand repaint, CSP changes.
+
+**Key files:** `static/css/tokens.css`, `static/css/components.css`, `static/css/reset.css`, `static/css/layout.css`, `static/js/render.js`, `static/js/utils.js`, `api/modules/xbox_module.py` (error payload passthrough)
+
+**Canonical amber confirmed:** `#f0a030` (Meridian `--color-accent`). `#f59e0b` from original brief does not exist in codebase — discarded.
+
+**Plans:** 1/1 complete
+- [x] 14-01-PLAN.md — Surgical redesign of 12 friction points (13 steps, all committed)
+
+---
+
+### Phase 15: Refactor main.py into layered architecture (routes → services → repositories → models → core/utils)
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 14
+**Plans:** 0 plans
+
+**Scope:** audit current `main.py` monolith, propose layered architecture with clear import rules, define safe migration order (zero breaking changes), identify risks.
+
+**Deliverable for execution:** final directory structure, granular reversible refactor checklist, inter-layer import contract, per-step "done" criteria.
+
+**Constraints:** zero breaking changes during migration; FastAPI + SQLite + Docker compatibility preserved; each step reversible via git.
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 15 to break down)
+
+---
+
+*Roadmap created: 2026-03-30 | Last updated: 2026-04-19 (backfill v4.1 phases 12–14 + add Phase 15 architectural refactor)*

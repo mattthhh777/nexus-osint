@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.1.0
+milestone: v4.1
 milestone_name: Results UX — Data completeness & presentation
-status: MILESTONE COMPLETE — v4.1 Results UX all 8 phases done
-stopped_at: Phase 19 micro-polish complete (2026-04-15)
-last_updated: "2026-04-15T23:59:00.000Z"
+status: Ready for Phase 15
+stopped_at: Phase 14 complete (13 steps + regression sweep committed). Phase 15 CONTEXT.md + 15-01-PLAN.md ready.
+last_updated: "2026-04-22T12:30:00.000Z"
 progress:
-  total_phases: 8
-  completed_phases: 8
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 15
+  completed_phases: 14
+  total_plans: 19
+  completed_plans: 19
 ---
 
 # Project State
@@ -20,16 +20,12 @@ See: .planning/PROJECT.md (updated 2026-04-15 — milestone v4.1)
 
 **Core value:** From the same scan, show 2× more data without additional backend cost — rendering what already arrives in the pipeline.
 
-**Current focus:** Phase 17 — Summary Hero (4 stat cards at results top)
+**Current focus:** Phase 14 — visual-polish
 
 ## Current Position
 
-Phase 12 (v41-pregate) — **COMPLETE**
-- ✅ Deleted static/css.zip + static/js.zip (emergency backup artifacts)
-- ✅ Committed 7 deployed-but-unversioned files (nginx.conf, 4× CSS, index.html, auth.js)
-- ✅ Fixed security bug: form-ancestors → frame-ancestors in nginx /js/ CSP block
-
-Phase 13 (v41-data-instrument) — **COMPLETE**
+Phase: 15 (refactor-main-py-layers) — READY TO EXECUTE
+Plan: 1 of N (15-01-PLAN.md ready — Wave 1: extract Pydantic schemas)
 
 ## Phase Map
 
@@ -76,6 +72,9 @@ not a data-availability issue. Phase 13 discovers real extra keys; Phase 14 rend
 
 - v4.0.0 complete: all 10 phases, 22 plans
 - v4.1.0 started: Phase 12 pre-gate complete (2026-04-15)
+- 2026-04-19: Backfilled phases 12 (pre-gate), 13 (data-instrument), 14 (visual-polish) into ROADMAP.md — previously only on disk, not registered
+- 2026-04-19: Phase 15 added — "Refactor main.py into layered architecture (routes → services → repositories → models → core/utils)". Zero breaking changes constraint. Directory: `.planning/phases/15-refactor-main-py-layers/`
+- 2026-04-19: NOTE — STATE.md Phase Map (lines 32–42) lists phases 15–19 as COMPLETE (v41-social-cards, v41-inline-filters, v41-summary-hero, v41-social-avatars, v41-micro-polish), but none of those directories exist; all work happened inside Phase 14 "steps" per git log. Phase Map is aspirational/stale — does NOT represent current roadmap truth. See ROADMAP.md for canonical phase numbering.
 
 ### Blockers/Concerns
 
@@ -85,7 +84,7 @@ not a data-availability issue. Phase 13 discovers real extra keys; Phase 14 rend
 
 ## Session Continuity
 
-Last session: 2026-04-15 Opus planning + Sonnet pre-gate
-Stopped at: Phase 12 complete, PROJECT.md + STATE.md updated
+Last session: 2026-04-22 resume — Phase 14 closed, Phase 15 ready
+Stopped at: Phase 14 SUMMARY written, ROADMAP + STATE updated. 15-01-PLAN.md (Wave 1) awaiting execution.
 Resume file: None
-Next action: Phase 13 — create .planning/phases/13-v41-data-instrument/ and plan the admin endpoint
+Next action: `/gsd:execute-phase 15` — Wave 1: extract Pydantic models to `api/schemas.py`. Gate: 62/62 tests green after.
