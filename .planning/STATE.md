@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.1
-milestone_name: Results UX — Data completeness & presentation
-status: Ready for Phase 15
-stopped_at: Phase 14 complete (13 steps + regression sweep committed). Phase 15 CONTEXT.md + 15-01-PLAN.md ready.
-last_updated: "2026-04-22T12:30:00.000Z"
+milestone: v3.0.0
+milestone_name: — Complete)
+status: Phase complete — ready for verification
+stopped_at: "Completed 15-01-PLAN.md: api/schemas.py extraction complete; docker smoke blocked (Docker Desktop not running)"
+last_updated: "2026-04-22T12:41:46.234Z"
 progress:
-  total_phases: 15
-  completed_phases: 14
-  total_plans: 19
-  completed_plans: 19
+  total_phases: 9
+  completed_phases: 7
+  total_plans: 18
+  completed_plans: 18
 ---
 
 # Project State
@@ -20,12 +20,12 @@ See: .planning/PROJECT.md (updated 2026-04-15 — milestone v4.1)
 
 **Core value:** From the same scan, show 2× more data without additional backend cost — rendering what already arrives in the pipeline.
 
-**Current focus:** Phase 14 — visual-polish
+**Current focus:** Phase 15 — refactor-main-py-layers
 
 ## Current Position
 
-Phase: 15 (refactor-main-py-layers) — READY TO EXECUTE
-Plan: 1 of N (15-01-PLAN.md ready — Wave 1: extract Pydantic schemas)
+Phase: 15 (refactor-main-py-layers) — EXECUTING
+Plan: 1 of 1
 
 ## Phase Map
 
@@ -53,6 +53,9 @@ Plan: 1 of N (15-01-PLAN.md ready — Wave 1: extract Pydantic schemas)
 - D-07: CLAUDE.md compliance absorbed into DoD of each component phase
 - D-08: css.zip + js.zip deleted (VPS permission incident backups)
 - CSP fix: form-ancestors → frame-ancestors (typo Phase 09-04, fixed Phase 12)
+- Phase 15 D-01: schemas.py is LEAF — only re + pydantic imports, zero api/* or modules/* (enforces import contract)
+- Phase 15 D-02: import re kept in main.py (used in detect_type + other guards; cannot remove)
+- Phase 15 baseline: test_full_nexus_flow was pre-existing failure (61/62 before Phase 15, not introduced by refactor)
 
 ### Critical Architecture Insight (F2 pre-check result, Opus session 2026-04-15)
 
@@ -84,7 +87,7 @@ not a data-availability issue. Phase 13 discovers real extra keys; Phase 14 rend
 
 ## Session Continuity
 
-Last session: 2026-04-22 resume — Phase 14 closed, Phase 15 ready
-Stopped at: Phase 14 SUMMARY written, ROADMAP + STATE updated. 15-01-PLAN.md (Wave 1) awaiting execution.
+Last session: 2026-04-22T12:41:46.222Z
+Stopped at: Completed 15-01-PLAN.md: api/schemas.py extraction complete; docker smoke blocked (Docker Desktop not running)
 Resume file: None
-Next action: `/gsd:execute-phase 15` — Wave 1: extract Pydantic models to `api/schemas.py`. Gate: 62/62 tests green after.
+Next action: Run docker smoke (Docker Desktop must be started first) then proceed to 15-02-PLAN.md (deps.py extraction). See 15-01-SUMMARY.md for docker smoke commands.

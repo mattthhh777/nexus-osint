@@ -352,7 +352,7 @@ Phase 03 (F1 Audit) ──► Phase 04 (F2 SQLite) ──► Phase 05 (F3 Async)
 **Goal:** [To be planned]
 **Requirements**: TBD
 **Depends on:** Phase 14
-**Plans:** 0 plans
+**Plans:** 1/1 plans complete
 
 **Scope:** audit current `main.py` monolith, propose layered architecture with clear import rules, define safe migration order (zero breaking changes), identify risks.
 
@@ -361,7 +361,7 @@ Phase 03 (F1 Audit) ──► Phase 04 (F2 SQLite) ──► Phase 05 (F3 Async)
 **Constraints:** zero breaking changes during migration; FastAPI + SQLite + Docker compatibility preserved; each step reversible via git.
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 15 to break down)
+- [x] TBD (run /gsd:plan-phase 15 to break down) (completed 2026-04-22)
 
 ---
 
