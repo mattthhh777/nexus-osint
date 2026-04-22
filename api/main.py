@@ -40,7 +40,7 @@ except ImportError:
     # Fallback para versões ou ambientes específicos
     from jwt import InvalidTokenError as JWTError
 import bcrypt as _bcrypt_lib
-from pydantic import BaseModel, ValidationError, field_validator
+from pydantic import ValidationError
 from starlette.middleware.base import BaseHTTPMiddleware
 import ipaddress
 
@@ -50,6 +50,7 @@ import aiosqlite
 import psutil
 from cachetools import TTLCache
 from api.db import db as _db  # single-connection DatabaseManager (WAL + write queue)
+from api.schemas import LoginRequest, SearchRequest  # I/O models — defined in leaf module
 from api.orchestrator import get_orchestrator, DegradationMode  # Phase 10: singleton + degradation
 from api.watchdog import memory_watchdog_loop  # Phase 10: memory pressure watchdog
 from modules.oathnet_client import oathnet_client  # async singleton — one TCP/TLS pool
@@ -147,44 +148,8 @@ def _set_cached(endpoint: str, query: str, data) -> None:
 
 
 # ── Models ────────────────────────────────────────────────────────────────────
-
-class LoginRequest(BaseModel):
-    username: str
-    password: str
-
-class SearchRequest(BaseModel):
-    query: str
-    mode: str = "automated"
-    modules: list[str] = []
-    spiderfoot_mode: str = "passive"
-
-    @field_validator("query")
-    @classmethod
-    def sanitize_query(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("Query cannot be empty")
-        if len(v) < 2:
-            raise ValueError("Query too short (min 2 chars)")
-        if len(v) > 256:
-            raise ValueError("Query too long (max 256 chars)")
-        # Strip null bytes and control characters
-        v = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", v)
-        # Strip SQL injection patterns (defense in depth — OathNet handles its own)
-        v = re.sub(r"[;\x27\x22\x5c]", "", v)
-        return v
-
-    @field_validator("mode")
-    @classmethod
-    def validate_mode(cls, v: str) -> str:
-        return v if v in ("automated", "manual") else "automated"
-
-    @field_validator("spiderfoot_mode")
-    @classmethod
-    def validate_sf_mode(cls, v: str) -> str:
-        return v if v in ("passive", "footprint", "investigate") else "passive"
-
-
+# LoginRequest and SearchRequest are defined in api/schemas.py (leaf module).
+# Imported above via: from api.schemas import LoginRequest, SearchRequest
 
 # ── In-memory rate limiter ────────────────────────────────────────────────────
 # ── Persistent rate limiting via SQLite ──────────────────────────────────────
