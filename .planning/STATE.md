@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.1.0
-milestone_name: Low-Resource Agent Architecture & Hardening
-status: Phase 15 EXECUTING — Plan 02 pending (deps.py extraction)
-stopped_at: "15-02-PLAN.md committed; plan ready to execute — /gsd:execute-phase 15"
-last_updated: "2026-04-24T10:40:00.000Z"
+milestone: v3.0.0
+milestone_name: — Complete)
+status: Executing Phase 15
+stopped_at: 15-02-PLAN.md commitado (452721a); STATE atualizado. Pronto para executar Plan 02.
+last_updated: "2026-04-24T10:43:08.319Z"
 progress:
-  total_phases: 9
-  completed_phases: 7
-  total_plans: 19
-  completed_plans: 18
+  total_phases: 13
+  completed_phases: 8
+  total_plans: 21
+  completed_plans: 21
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-04-15 — milestone v4.1)
 ## Current Position
 
 Phase: 15 (refactor-main-py-layers) — EXECUTING
-Plan: 1 of 1
+Plan: 1 of 2
 
 ## Phase Map
 
@@ -87,10 +87,10 @@ not a data-availability issue. Phase 13 discovers real extra keys; Phase 14 rend
 
 ## Session Continuity
 
-Last session: 2026-04-24T10:40:00Z
-Stopped at: 15-02-PLAN.md commitado (452721a); STATE atualizado. Pronto para executar Plan 02.
+Last session: 2026-04-24T13:35:00Z
+Stopped at: Plan 02 completo — api/deps.py criado (bce9d7c) + main.py limpo (a6f6f19) + SUMMARY escrito. 61/61 testes verdes.
 Resume file: None
-Next action: /gsd:execute-phase 15 — extrair deps.py de api/main.py (5 símbolos, gate 61/61 testes).
+Next action: Plan 03 — introduzir app.state.db/orchestrator + get_db()/get_orchestrator() em deps.py.
 
 ### Hotfix Interleaved — 2026-04-23 → 2026-04-24 [MERGED ✅]
 
@@ -99,6 +99,7 @@ deploy em `hotfix/v4.1-security-2026-04-23`. Detalhes completos em
 `.planning/hotfixes/2026-04-23-security-high.md`.
 
 3 commits atômicos (fast-forward merged em master 2026-04-24):
+
 - `23af34b` HIGH#1: remove `ports: 8000:8000` (Docker-UFW bypass)
 - `6eaddff` HIGH#2: `real_ip_header CF-Connecting-IP` + `--proxy-headers` (rate limit shared bucket)
 - `d4f9936` HIGH#3: `PyJWT 2.9.0 → 2.12.1` (GHSA-752w-5fwx-jx9f crit header)
