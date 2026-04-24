@@ -87,7 +87,24 @@ not a data-availability issue. Phase 13 discovers real extra keys; Phase 14 rend
 
 ## Session Continuity
 
-Last session: 2026-04-22T12:41:46.222Z
-Stopped at: Completed 15-01-PLAN.md: api/schemas.py extraction complete; docker smoke blocked (Docker Desktop not running)
+Last session: 2026-04-24T03:05:18Z
+Stopped at: Hotfix security 2026-04-23 deployed em produção — 3 HIGH findings corrigidos fora do escopo Phase 15
 Resume file: None
-Next action: Run docker smoke (Docker Desktop must be started first) then proceed to 15-02-PLAN.md (deps.py extraction). See 15-01-SUMMARY.md for docker smoke commands.
+Next action: decidir merge da branch hotfix/v4.1-security-2026-04-23 em master, depois retomar Phase 15 Plan 02 (deps.py).
+
+### Hotfix Interleaved — 2026-04-23 → 2026-04-24
+
+Source: `codex security review.md` (2026-04-23 10:42) → validação cruzada +
+deploy em `hotfix/v4.1-security-2026-04-23`. Detalhes completos em
+`.planning/hotfixes/2026-04-23-security-high.md`.
+
+3 commits atômicos:
+- `23af34b` HIGH#1: remove `ports: 8000:8000` (Docker-UFW bypass)
+- `6eaddff` HIGH#2: `real_ip_header CF-Connecting-IP` + `--proxy-headers` (rate limit shared bucket)
+- `d4f9936` HIGH#3: `PyJWT 2.9.0 → 2.12.1` (GHSA-752w-5fwx-jx9f crit header)
+
+Deploy validado 2026-04-24T03:05:18Z: porta 8000 inacessível, `/health` via
+443 OK, logs nginx mostrando IP real pós-reload, 61/61 testes verdes.
+
+Branch ainda não merged em master — operador decide. Backups de imagem
+no VPS: `nexus-osint-nexus:pre-hotfix-20260423-backup`.
