@@ -31,7 +31,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse, RedirectResponse
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
 import jwt
 try:
@@ -51,6 +51,14 @@ import psutil
 from cachetools import TTLCache
 from api.db import db as _db  # single-connection DatabaseManager (WAL + write queue)
 from api.schemas import LoginRequest, SearchRequest  # I/O models — defined in leaf module
+from api.deps import (  # auth dependency providers — extracted in Phase 15 Plan 02
+    security,
+    get_client_ip,
+    _decode_token,
+    _check_blacklist,
+    get_current_user,
+    get_admin_user,
+)
 from api.orchestrator import get_orchestrator, DegradationMode  # Phase 10: singleton + degradation
 from api.watchdog import memory_watchdog_loop  # Phase 10: memory pressure watchdog
 from modules.oathnet_client import oathnet_client  # async singleton — one TCP/TLS pool
@@ -166,26 +174,6 @@ async def _save_quota(used: int, left: int, daily_limit: int) -> None:
     )
 
 
-def get_client_ip(request: Request) -> str:
-    """Extrai IP real com cadeia de confiança: Cloudflare → Nginx → direto.
-    Valida formato antes de retornar — nunca retorna um header forjável bruto.
-    """
-    for header in ("CF-Connecting-IP", "X-Real-IP"):
-        val = request.headers.get(header, "").strip()
-        if val:
-            try:
-                ipaddress.ip_address(val)
-                return val
-            except ValueError:
-                continue  # header presente mas inválido — ignora, não confia
-    # Fallback: conexão direta (Nginx em prod, uvicorn em dev)
-    host = request.client.host if request.client else "unknown"
-    try:
-        ipaddress.ip_address(host)
-        return host
-    except ValueError:
-        return "unknown"
-
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     """Application lifespan — replaces deprecated @app.on_event handlers."""
@@ -281,11 +269,6 @@ if static_path.exists():
     app.mount("/css", StaticFiles(directory=str(static_path / "css")), name="css")
     app.mount("/js", StaticFiles(directory=str(static_path / "js")), name="js")
 
-# ── Password hashing ──────────────────────────────────────────────────────────
-security = HTTPBearer(auto_error=False)
-
-
-
 # ── Users management ──────────────────────────────────────────────────────────
 
 def _load_users() -> dict:
@@ -371,60 +354,7 @@ def _create_token(username: str, role: str) -> str:
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-def _decode_token(token: str) -> dict:
-    try:
-        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-    except JWTError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid or expired token: {e}",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
 # ── Token Blacklist (revocation) ──────────────────────────────────────────────
-
-# Rate-limit duplicate blacklist-failure log messages to once per minute.
-_last_blacklist_warn: list[float] = [0.0]
-
-
-async def _check_blacklist(jti: Optional[str]) -> None:
-    """Raises 401 if the jti is revoked.
-
-    D-10 (FIND-06): Fail-CLOSED on DB error — any read failure returns HTTP 503
-    to prevent a storage outage from allowing revoked tokens through.
-    """
-    if not jti:
-        return
-    try:
-        # Purge expired entries — fire-and-forget
-        await _db.write(
-            "DELETE FROM token_blacklist WHERE exp < ?",
-            (int(time.time()),),
-        )
-        row = await _db.read_one(
-            "SELECT 1 as found FROM token_blacklist WHERE jti = ?", (jti,)
-        )
-        if row is not None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token revoked",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-    except HTTPException:
-        raise
-    except (aiosqlite.Error, OSError, ValueError, RuntimeError) as exc:
-        # D-10: fail-closed — deny access when blacklist is unreadable.
-        # RuntimeError covers the "DB not started" case (e.g. in tests or early startup).
-        now = time.monotonic()
-        if now - _last_blacklist_warn[0] > 60:
-            logger.warning(
-                "blacklist read failure — fail-closed | err=%s", type(exc).__name__
-            )
-            _last_blacklist_warn[0] = now
-        raise HTTPException(
-            status_code=503,
-            detail="security policy unavailable",
-        )
 
 async def _revoke_token(jti: Optional[str], exp: Optional[int]) -> None:
     """Add a jti to the blacklist until its expiry."""
@@ -434,36 +364,6 @@ async def _revoke_token(jti: Optional[str], exp: Optional[int]) -> None:
         "INSERT OR IGNORE INTO token_blacklist (jti, exp) VALUES (?, ?)",
         (jti, exp or int(time.time()) + JWT_EXPIRE_HOURS * 3600),
     )
-
-async def get_current_user(
-    request: Request,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-) -> dict:
-    """Dependency: valida JWT — lê cookie nx_session primeiro, Bearer como fallback."""
-    # VULN-01: cookie HttpOnly tem prioridade
-    cookie_token = request.cookies.get("nx_session")
-    if cookie_token:
-        payload = _decode_token(cookie_token)
-        await _check_blacklist(payload.get("jti"))
-        return payload
-
-    # Fallback de retrocompatibilidade: Authorization: Bearer <token>
-    if credentials and credentials.credentials:
-        payload = _decode_token(credentials.credentials)
-        await _check_blacklist(payload.get("jti"))
-        return payload
-
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Not authenticated",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-async def get_admin_user(user: dict = Depends(get_current_user)) -> dict:
-    """Dependency: requires admin role."""
-    if user.get("role") != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
-    return user
 
 # ── Audit DB ──────────────────────────────────────────────────────────────────
 

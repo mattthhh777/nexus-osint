@@ -184,6 +184,9 @@ async def test_check_blacklist_raises_503_on_db_error(monkeypatch):
 async def test_check_blacklist_passes_when_jti_not_revoked(tmp_db, monkeypatch):
     """_check_blacklist must return normally when jti is not in blacklist."""
     import api.main as m
+    import api.deps as deps
+    # Patch _db on api.deps where _check_blacklist now lives (Phase 15 Plan 02)
+    monkeypatch.setattr(deps, "_db", tmp_db)
     monkeypatch.setattr(m, "_db", tmp_db)
 
     # Should not raise
