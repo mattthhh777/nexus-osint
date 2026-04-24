@@ -29,8 +29,12 @@ services:
       - /root/nexus-osint/api:/app/api:ro
       - /root/nexus-osint/static:/app/static:ro
       - /root/nexus-osint/modules:/app/modules:ro
-    ports:
-      - "8000:8000"
+    # SEC-HIGH-1 (2026-04-23): porta 8000 NÃO publicada no host.
+    # Nginx alcança via rede interna Docker DNS (http://nexus:8000).
+    # Publicar no host bypassa nginx (CSP, HSTS, rate_limit) e UFW é
+    # ineficaz no Docker (regra DNAT em PREROUTING não passa pelo INPUT).
+    expose:
+      - "8000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
