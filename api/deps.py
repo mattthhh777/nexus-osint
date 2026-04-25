@@ -30,15 +30,10 @@ try:
 except ImportError:
     from jwt import InvalidTokenError as JWTError
 
-import os
-
+from api.config import JWT_ALGORITHM, JWT_SECRET
 from api.db import db as _db
 
 logger = logging.getLogger("nexusosint.deps")
-
-# ── Config (read from env; keep in sync with main.py) ────────────────────────
-JWT_SECRET: str = os.environ.get("JWT_SECRET", "")
-JWT_ALGORITHM: str = "HS256"
 
 # ── Credentials extractor ─────────────────────────────────────────────────────
 security = HTTPBearer(auto_error=False)
