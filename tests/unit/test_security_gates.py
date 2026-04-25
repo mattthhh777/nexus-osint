@@ -95,9 +95,10 @@ def test_admin_create_user_blocked_at_capacity(monkeypatch, tmp_path):
     tmp_users_file.write_text(json.dumps(admin_users))
 
     # Set MAX_USERS to 2 so 2 users == cap, wire tmp file path
+    import api.services.auth_service as auth_svc
     monkeypatch.setattr(m, "MAX_USERS", 2)
-    monkeypatch.setattr(m, "USERS_FILE", tmp_users_file)
-    monkeypatch.setattr(m, "_users_cache", None)
+    monkeypatch.setattr(auth_svc, "USERS_FILE", tmp_users_file)
+    monkeypatch.setattr(auth_svc, "_users_cache", None)
 
     # Override auth dependency so tests don't need a live DB for token blacklist checks
     m.app.dependency_overrides[m.get_admin_user] = lambda: {"sub": "admin", "role": "admin"}
@@ -134,9 +135,10 @@ def test_admin_create_user_allowed_below_capacity(monkeypatch, tmp_path):
     tmp_users_file = tmp_path / "users.json"
     tmp_users_file.write_text(json.dumps(admin_users))
 
+    import api.services.auth_service as auth_svc
     monkeypatch.setattr(m, "MAX_USERS", 10)
-    monkeypatch.setattr(m, "USERS_FILE", tmp_users_file)
-    monkeypatch.setattr(m, "_users_cache", None)
+    monkeypatch.setattr(auth_svc, "USERS_FILE", tmp_users_file)
+    monkeypatch.setattr(auth_svc, "_users_cache", None)
 
     # Override auth dependency so tests don't need a live DB for token blacklist checks
     m.app.dependency_overrides[m.get_admin_user] = lambda: {"sub": "admin", "role": "admin"}

@@ -232,9 +232,10 @@ def test_admin_create_user_429_after_register_limit(client, tmp_path, monkeypatc
     tmp_users_file = tmp_path / "users.json"
     tmp_users_file.write_text(_json.dumps(admin_users))
 
+    import api.services.auth_service as auth_svc
     monkeypatch.setattr(m, "MAX_USERS", 100)
-    monkeypatch.setattr(m, "USERS_FILE", tmp_users_file)
-    monkeypatch.setattr(m, "_users_cache", None)
+    monkeypatch.setattr(auth_svc, "USERS_FILE", tmp_users_file)
+    monkeypatch.setattr(auth_svc, "_users_cache", None)
 
     m.app.dependency_overrides[m.get_admin_user] = lambda: {"sub": "admin", "role": "admin"}
 

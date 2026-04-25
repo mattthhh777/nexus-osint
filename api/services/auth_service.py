@@ -1,6 +1,7 @@
 """Authentication service: users CRUD, password hashing, JWT lifecycle, startup guards."""
 import json
 import logging
+import os
 import sys
 import time
 import uuid
@@ -37,7 +38,7 @@ def _validate_jwt_secret() -> None:
     Returns None on success; the caller should then read os.environ["JWT_SECRET"]
     to configure the JWT engine.
     """
-    secret = JWT_SECRET
+    secret = os.environ.get("JWT_SECRET", "")
     if not secret or secret.strip().lower() in _WEAK_JWT_SECRETS:
         # Use print as a last resort — logging may not be configured yet
         import logging as _log
