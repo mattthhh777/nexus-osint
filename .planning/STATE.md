@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.0.0
-milestone_name: — Complete)
+milestone: v4.1
+milestone_name: Phase 15 — Refactor main.py into layered architecture
 status: Executing Phase 15
-stopped_at: 15-02-PLAN.md commitado (452721a); STATE atualizado. Pronto para executar Plan 02.
-last_updated: "2026-04-24T10:43:08.319Z"
+stopped_at: "15-03-PLAN.md complete (685f12c); 61/61 tests green; api/main.py 752 lines. Next: Plan 04 — routes extraction."
+last_updated: "2026-04-25T03:05:00-03:00"
 progress:
   total_phases: 13
   completed_phases: 8
-  total_plans: 21
-  completed_plans: 21
+  total_plans: 24
+  completed_plans: 24
 ---
 
 # Project State
