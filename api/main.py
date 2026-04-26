@@ -216,67 +216,6 @@ app.add_middleware(SecurityHeadersMiddleware)
 # Startup and shutdown are handled by the lifespan context manager above.
 
 
-# ── Search ────────────────────────────────────────────────────────────────────
-
-@app.post("/api/search")
-@limiter.limit(RL_SEARCH_LIMIT)
-async def search(
-    request: Request,
-    req: SearchRequest,
-    user: dict = Depends(get_current_user),
-):
-    """Protected SSE search endpoint. Rate limited by slowapi (RL_SEARCH_LIMIT, per user)."""
-    # Phase 10: gate on CRITICAL only — REDUCED still permits scans at lower ceiling
-    if get_orchestrator().degradation_mode == DegradationMode.CRITICAL:
-        raise HTTPException(
-            status_code=503,
-            detail="System under memory pressure — new scans temporarily rejected",
-            headers={"Retry-After": "120"},
-        )
-    client_ip = get_client_ip(request)
-    return StreamingResponse(
-        _stream_search(req, user["sub"], client_ip, db=_db, orch=get_orchestrator()),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
-
-
-# ── Breach pagination endpoint ───────────────────────────────────────────────
-
-@app.post("/api/search/more-breaches")
-@limiter.limit(RL_SEARCH_LIMIT)
-async def more_breaches(
-    request: Request,
-    body: dict,
-    user: dict = Depends(get_current_user),
-):
-    """Fetch next page of breach results using OathNet cursor."""
-    query  = body.get("query", "").strip()
-    cursor = body.get("cursor", "")
-    if not query or not cursor:
-        raise HTTPException(status_code=400, detail="query and cursor required")
-    if len(query) > 256:
-        raise HTTPException(status_code=400, detail="Query too long")
-    if oathnet_client is None:
-        raise HTTPException(status_code=503, detail="OATHNET_API_KEY not configured")
-    try:
-        result = await oathnet_client.search_breach(query, cursor)
-        if not result.success:
-            raise HTTPException(status_code=502, detail=result.error or "Breach search failed")
-        breaches_data = _serialize_breaches(result.breaches)
-        return {
-            "breaches":      breaches_data,
-            "breach_count":  len(breaches_data),
-            "results_found": result.results_found,
-            "next_cursor":   result.next_cursor,
-            "has_more":      bool(result.next_cursor),
-        }
-    except HTTPException:
-        raise
-    except httpx.ConnectError:
-        raise HTTPException(status_code=503, detail="OathNet API unreachable")
-    except httpx.TimeoutException:
-        raise HTTPException(status_code=504, detail="OathNet API timed out")
 
 
 # ── Victims API endpoints ────────────────────────────────────────────────────
@@ -427,31 +366,12 @@ async def health_memory(request: Request, _: dict = Depends(get_admin_user)):
     }
 
 
-@app.get("/api/admin/breach-extra-keys")
-@limiter.limit(RL_ADMIN_LIMIT)
-async def breach_extra_keys(request: Request, _: dict = Depends(get_admin_user)):
-    """Phase 13 diagnostic: return key names seen in breach extra_fields since process start.
-
-    Accumulates across all real OathNet scans run while the container is up.
-    Only key names are exposed — never field values (no PII leak risk).
-    Resets on container restart. Run a few real queries before calling this.
-
-    Use the result to build the Phase 14 breach card whitelist in render.js.
-    """
-    return {
-        "keys": sorted(_seen_breach_extra_keys),
-        "count": len(_seen_breach_extra_keys),
-        "note": (
-            "In-memory accumulator — resets on container restart. "
-            "Run at least one real breach query before checking."
-        ),
-    }
-
-
 # ── Routers (D-03 Step 4 — routes extracted to api.routes.*) ────────────────
 from api.routes import root as _root_routes  # noqa: E402 — partial-init import is intentional (D-04-01)
 from api.routes import auth as _auth_routes  # noqa: E402
 from api.routes import admin as _admin_routes  # noqa: E402
+from api.routes import search as _search_routes  # noqa: E402
 app.include_router(_root_routes.router)
 app.include_router(_auth_routes.router)
 app.include_router(_admin_routes.router)
+app.include_router(_search_routes.router)

@@ -115,12 +115,20 @@ def test_login_no_check_rate_db_writes(client, monkeypatch):
 
 def test_search_429_after_ten_requests(monkeypatch):
     """11th POST to /api/search by the same user returns HTTP 429 (RL_SEARCH_LIMIT=10/minute)."""
+    from unittest.mock import MagicMock
+    from api.deps import get_db as _get_db, get_orchestrator_dep as _get_orch
+    from api.orchestrator import DegradationMode
+
     token = _make_cookie("alice", "user")
     monkeypatch.setattr(m, "JWT_SECRET", _TEST_SECRET)
 
     client = TestClient(m.app, raise_server_exceptions=False)
     client.cookies["nx_session"] = token
+    _mock_orch = MagicMock()
+    _mock_orch.degradation_mode = DegradationMode.NORMAL
     m.app.dependency_overrides[m.get_current_user] = lambda: {"sub": "alice", "role": "user"}
+    m.app.dependency_overrides[_get_db] = lambda: MagicMock()
+    m.app.dependency_overrides[_get_orch] = lambda: _mock_orch
 
     try:
         for i in range(10):
@@ -137,6 +145,8 @@ def test_search_429_after_ten_requests(monkeypatch):
         assert r.status_code == 429
     finally:
         m.app.dependency_overrides.pop(m.get_current_user, None)
+        m.app.dependency_overrides.pop(_get_db, None)
+        m.app.dependency_overrides.pop(_get_orch, None)
 
 
 def test_search_per_user_isolation(monkeypatch):
@@ -145,6 +155,10 @@ def test_search_per_user_isolation(monkeypatch):
     Uses two separate TestClient instances with cookies set at the client level
     to avoid the per-request cookies deprecation and ensure correct cookie forwarding.
     """
+    from unittest.mock import MagicMock
+    from api.deps import get_db as _get_db, get_orchestrator_dep as _get_orch
+    from api.orchestrator import DegradationMode
+
     token_a = _make_cookie("user_a", "user")
     token_b = _make_cookie("user_b", "user")
 
@@ -158,7 +172,11 @@ def test_search_per_user_isolation(monkeypatch):
     client_b = TestClient(m.app, raise_server_exceptions=False)
     client_b.cookies["nx_session"] = token_b
 
+    _mock_orch = MagicMock()
+    _mock_orch.degradation_mode = DegradationMode.NORMAL
     m.app.dependency_overrides[m.get_current_user] = lambda: {"sub": "user_a", "role": "user"}
+    m.app.dependency_overrides[_get_db] = lambda: MagicMock()
+    m.app.dependency_overrides[_get_orch] = lambda: _mock_orch
 
     try:
         # Exhaust user_a's limit (10 requests) — query >=2 chars to pass validation
@@ -187,16 +205,26 @@ def test_search_per_user_isolation(monkeypatch):
         )
     finally:
         m.app.dependency_overrides.pop(m.get_current_user, None)
+        m.app.dependency_overrides.pop(_get_db, None)
+        m.app.dependency_overrides.pop(_get_orch, None)
 
 
 def test_search_429_has_retry_after(monkeypatch):
     """429 from /api/search must include Retry-After header."""
+    from unittest.mock import MagicMock
+    from api.deps import get_db as _get_db, get_orchestrator_dep as _get_orch
+    from api.orchestrator import DegradationMode
+
     token = _make_cookie("bob", "user")
     monkeypatch.setattr(m, "JWT_SECRET", _TEST_SECRET)
 
     client = TestClient(m.app, raise_server_exceptions=False)
     client.cookies["nx_session"] = token
+    _mock_orch = MagicMock()
+    _mock_orch.degradation_mode = DegradationMode.NORMAL
     m.app.dependency_overrides[m.get_current_user] = lambda: {"sub": "bob", "role": "user"}
+    m.app.dependency_overrides[_get_db] = lambda: MagicMock()
+    m.app.dependency_overrides[_get_orch] = lambda: _mock_orch
 
     try:
         for _ in range(10):
@@ -212,6 +240,8 @@ def test_search_429_has_retry_after(monkeypatch):
         assert "retry-after" in {h.lower() for h in r.headers}
     finally:
         m.app.dependency_overrides.pop(m.get_current_user, None)
+        m.app.dependency_overrides.pop(_get_db, None)
+        m.app.dependency_overrides.pop(_get_orch, None)
 
 
 # ── /api/admin/users (POST) — registration cap, real limit 3/hour ────────────
