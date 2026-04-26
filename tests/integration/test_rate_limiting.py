@@ -234,6 +234,8 @@ def test_admin_create_user_429_after_register_limit(client, tmp_path, monkeypatc
 
     import api.services.auth_service as auth_svc
     monkeypatch.setattr(m, "MAX_USERS", 100)
+    from api.routes import admin as _admin_route
+    monkeypatch.setattr(_admin_route, "MAX_USERS", 100)
     monkeypatch.setattr(auth_svc, "USERS_FILE", tmp_users_file)
     monkeypatch.setattr(auth_svc, "_users_cache", None)
 

@@ -97,6 +97,8 @@ def test_admin_create_user_blocked_at_capacity(monkeypatch, tmp_path):
     # Set MAX_USERS to 2 so 2 users == cap, wire tmp file path
     import api.services.auth_service as auth_svc
     monkeypatch.setattr(m, "MAX_USERS", 2)
+    from api.routes import admin as _admin_route
+    monkeypatch.setattr(_admin_route, "MAX_USERS", 2)
     monkeypatch.setattr(auth_svc, "USERS_FILE", tmp_users_file)
     monkeypatch.setattr(auth_svc, "_users_cache", None)
 
