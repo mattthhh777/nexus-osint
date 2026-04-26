@@ -21,13 +21,12 @@ from typing import Optional
 import httpx
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
-from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
-from fastapi.security import HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
 import jwt
 try:
@@ -216,99 +215,6 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 # Startup and shutdown are handled by the lifespan context manager above.
 
-
-# ── Admin gate: troca Bearer token por HttpOnly cookie (bridge VULN-01) ──
-@app.post("/api/admin/auth-gate")
-@limiter.limit(RL_ADMIN_LIMIT)
-async def admin_auth_gate(
-    request: Request,
-    response: Response,
-    user: dict = Depends(get_admin_user),
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
-    """
-    Recebe um Bearer token admin válido e define o cookie nx_session (HttpOnly).
-    Bridge de transição entre localStorage e cookies (VULN-01/Fase 2).
-    """
-    response.set_cookie(
-        key="nx_session",
-        value=credentials.credentials,
-        httponly=True,
-        secure=True,
-        samesite="strict",
-        max_age=JWT_EXPIRE_HOURS * 3600,
-        path="/",
-    )
-    return {"ok": True}
-
-
-# ── Auth endpoints ────────────────────────────────────────────────────────────
-
-@app.post("/api/auth")
-@limiter.limit(RL_LOGIN_LIMIT)
-async def auth_legacy(request: Request):
-    """Legacy endpoint — kept for frontend compat. Returns ok:true if no password set."""
-    if not APP_PASSWORD and not _load_users():
-        return {"ok": True}
-    # Just check if server is password-protected
-    return {"ok": False, "requires_login": True}
-
-
-@app.post("/api/login")
-@limiter.limit(RL_LOGIN_LIMIT)
-async def login(request: Request, body: LoginRequest):
-    """JWT login. Define cookie HttpOnly nx_session (VULN-01).
-    Rate limited by slowapi (RL_LOGIN_LIMIT, keyed by IP — supersedes _check_rate, FIND-04).
-    """
-    user = _verify_user(body.username, body.password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid username or password",
-        )
-
-    token     = _create_token(user["username"], user["role"])
-    max_age_s = JWT_EXPIRE_HOURS * 3600
-    is_prod   = os.getenv("ENV", "dev").lower() == "prod"
-
-    response = JSONResponse(content={
-        "ok":         True,
-        "token_type": "cookie",
-        "expires_in": max_age_s,
-        "username":   user["username"],
-        "role":       user["role"],
-    })
-    response.set_cookie(
-        key="nx_session",
-        value=token,
-        httponly=True,
-        secure=is_prod,
-        samesite="strict",
-        max_age=max_age_s,
-        path="/",
-    )
-    return response
-
-
-@app.get("/api/me")
-@limiter.limit(RL_READ_LIMIT)
-async def me(request: Request, user: dict = Depends(get_current_user)):
-    """Returns current user info."""
-    return {"username": user["sub"], "role": user.get("role", "user")}
-
-@app.post("/api/logout")
-@limiter.limit(RL_READ_LIMIT)
-async def logout(request: Request, response: Response):
-    """Termina sessão: revoga o JWT no blacklist e apaga o cookie nx_session (VULN-01)."""
-    token = request.cookies.get("nx_session")
-    if token:
-        try:
-            payload = _decode_token(token)
-            await _revoke_token(payload.get("jti"), payload.get("exp"), db=_db)
-        except HTTPException:
-            pass  # token já inválido — só limpa o cookie
-    response.delete_cookie("nx_session", path="/")
-    return {"ok": True}
 
 # ── Search ────────────────────────────────────────────────────────────────────
 
@@ -699,4 +605,6 @@ async def breach_extra_keys(request: Request, _: dict = Depends(get_admin_user))
 
 # ── Routers (D-03 Step 4 — routes extracted to api.routes.*) ────────────────
 from api.routes import root as _root_routes  # noqa: E402 — partial-init import is intentional (D-04-01)
+from api.routes import auth as _auth_routes  # noqa: E402
 app.include_router(_root_routes.router)
+app.include_router(_auth_routes.router)
