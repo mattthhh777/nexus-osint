@@ -112,6 +112,9 @@ async def lifespan(application: FastAPI):
     tracemalloc.start(10)  # 10 frames — memory profiling for /health/memory
     _ensure_default_user()
     await _db.startup(db_path=AUDIT_DB)
+    # D-05: expose singletons via app.state for Depends(get_db) / Depends(get_orchestrator_dep)
+    application.state.db = _db
+    application.state.orchestrator = get_orchestrator()
     # Phase 10: start memory watchdog as tracked background task
     watchdog_task = asyncio.create_task(
         memory_watchdog_loop(), name="memory-watchdog"
@@ -359,7 +362,7 @@ async def logout(request: Request, response: Response):
     if token:
         try:
             payload = _decode_token(token)
-            await _revoke_token(payload.get("jti"), payload.get("exp"))
+            await _revoke_token(payload.get("jti"), payload.get("exp"), db=_db)
         except HTTPException:
             pass  # token já inválido — só limpa o cookie
     response.delete_cookie("nx_session", path="/")
@@ -384,7 +387,7 @@ async def search(
         )
     client_ip = get_client_ip(request)
     return StreamingResponse(
-        _stream_search(req, user["sub"], client_ip),
+        _stream_search(req, user["sub"], client_ip, db=_db, orch=get_orchestrator()),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
