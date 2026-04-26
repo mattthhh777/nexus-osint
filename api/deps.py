@@ -8,6 +8,8 @@ Scope: Only Depends()-compatible callables live here.
   - _check_blacklist — blacklist look-up + fail-closed on DB error
   - get_current_user — primary auth dependency (cookie → Bearer fallback)
   - get_admin_user   — role-guard on top of get_current_user
+  - get_db            — request.app.state.db (DatabaseManager singleton)
+  - get_orchestrator_dep — request.app.state.orchestrator (TaskOrchestrator singleton)
 
 Import contract (D-05):
   - stdlib: time, typing, ipaddress
@@ -31,7 +33,8 @@ except ImportError:
     from jwt import InvalidTokenError as JWTError
 
 from api.config import JWT_ALGORITHM, JWT_SECRET
-from api.db import db as _db
+from api.db import db as _db, DatabaseManager
+from api.orchestrator import TaskOrchestrator
 
 logger = logging.getLogger("nexusosint.deps")
 
@@ -154,3 +157,26 @@ async def get_admin_user(user: dict = Depends(get_current_user)) -> dict:
     if user.get("role") != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
     return user
+
+
+# ── Application-state providers (D-05 canonical pattern) ─────────────────────
+
+def get_db(request: Request) -> DatabaseManager:
+    """Provide the singleton DatabaseManager via app.state.
+
+    The lifespan startup binds `application.state.db = _db` before any
+    request is served. Routes that need DB access declare:
+        db: DatabaseManager = Depends(get_db)
+    and pass `db` explicitly to service-layer functions (D-05).
+    """
+    return request.app.state.db
+
+
+def get_orchestrator_dep(request: Request) -> TaskOrchestrator:
+    """Provide the singleton TaskOrchestrator via app.state.
+
+    Named `_dep` to avoid shadowing `api.orchestrator.get_orchestrator`,
+    which is the module-level singleton accessor still used by lifespan
+    and by callers that don't have a Request in scope.
+    """
+    return request.app.state.orchestrator
