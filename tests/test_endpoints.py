@@ -62,7 +62,17 @@ async def test_unauthorized_access(tmp_db, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_health_endpoint(tmp_db, monkeypatch):
+    from unittest.mock import MagicMock
+    from api.deps import get_orchestrator_dep as _get_orch
+    from api.orchestrator import DegradationMode
+
+    _mock_orch = MagicMock()
+    _mock_orch.degradation_mode = DegradationMode.NORMAL
+    _mock_orch.active_count = 0
+    _mock_orch.semaphore_slots_free = 5
+
     app.dependency_overrides[global_db] = lambda: tmp_db
+    app.dependency_overrides[_get_orch] = lambda: _mock_orch
     monkeypatch.setattr(api.main, "_db", tmp_db)
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url=BASE_URL) as ac:

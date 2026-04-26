@@ -217,161 +217,18 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 
 
-
-# ── Victims API endpoints ────────────────────────────────────────────────────
-
-@app.get("/api/victims/search")
-@limiter.limit(RL_READ_LIMIT)
-async def victims_search_endpoint(
-    request: Request,
-    q: str = "",
-    page_size: int = 10,
-    cursor: str = "",
-    email: str = "",
-    ip: str = "",
-    discord_id: str = "",
-    username: str = "",
-    user: dict = Depends(get_current_user),
-):
-    """Search victim profiles (compromised machines)."""
-    if oathnet_client is None:
-        raise HTTPException(status_code=503, detail="OATHNET_API_KEY not configured")
-    filters = {}
-    if email:      filters["email"]      = email
-    if ip:         filters["ip"]         = ip
-    if discord_id: filters["discord_id"] = discord_id
-    if username:   filters["username"]   = username
-    ok, data = await oathnet_client.victims_search(q, page_size, cursor, "", **filters)
-    if not ok:
-        raise HTTPException(status_code=400, detail=data.get("error", "Search failed"))
-    return data
-
-
-@app.get("/api/victims/{log_id}/manifest")
-@limiter.limit(RL_READ_LIMIT)
-async def victims_manifest_endpoint(
-    request: Request,
-    log_id: str,
-    user: dict = Depends(get_current_user),
-):
-    """Get file tree for a victim log."""
-    _validate_id(log_id)
-    if oathnet_client is None:
-        raise HTTPException(status_code=503, detail="OATHNET_API_KEY not configured")
-    ok, data = await oathnet_client.victims_manifest(log_id)
-    if not ok:
-        raise HTTPException(status_code=404, detail=data.get("error", "Not found"))
-    return data
-
-
-@app.get("/api/victims/{log_id}/files/{file_id}")
-@limiter.limit(RL_READ_LIMIT)
-async def victims_file_endpoint(
-    request: Request,
-    log_id: str,
-    file_id: str,
-    user: dict = Depends(get_current_user),
-):
-    """Get raw file content from a victim log."""
-    _validate_id(log_id)
-    _validate_id(file_id)
-    if oathnet_client is None:
-        raise HTTPException(status_code=503, detail="OATHNET_API_KEY not configured")
-    ok, content_text = await oathnet_client.victims_file(log_id, file_id)
-    if not ok:
-        raise HTTPException(status_code=404, detail=content_text)
-    return PlainTextResponse(content_text)
-
-
-@app.get("/api/spiderfoot/status")
-@limiter.limit(RL_READ_LIMIT)
-async def sf_status(request: Request, _: dict = Depends(get_current_user)):
-    try:
-        async with httpx.AsyncClient(timeout=5) as http:
-            r = await http.get(f"{SPIDERFOOT_URL}/api/v1/ping")
-            return {"available": r.status_code == 200, "url": SPIDERFOOT_URL}
-    except httpx.HTTPError as exc:
-        return {"available": False, "error": str(exc), "url": SPIDERFOOT_URL}
-
-
-@app.get("/health")
-@app.head("/health")
-@limiter.limit(RL_READ_LIMIT)
-async def health(request: Request):
-    mem = psutil.virtual_memory()
-    swap = psutil.swap_memory()
-    cpu = psutil.cpu_percent(interval=0.1)
-    mem_mb = mem.used / 1024 / 1024
-    proc = psutil.Process()
-
-    # Phase 10: single source of truth — orchestrator degradation_mode
-    orch = get_orchestrator()
-    uptime_s = round(time.time() - proc.create_time(), 1)
-    wal_path = Path(str(AUDIT_DB) + "-wal")
-    wal_size_bytes = wal_path.stat().st_size if wal_path.exists() else 0
-    degradation = orch.degradation_mode
-
-    return {
-        "status": "degraded" if degradation != DegradationMode.NORMAL else "healthy",
-        "version": "3.0.0",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "memory_used_mb": round(mem_mb, 1),
-        "memory_pct": mem.percent,
-        "rss_mb": round(proc.memory_info().rss / 1024 / 1024, 1),
-        "cpu_pct": cpu,
-        "swap_used_mb": round(swap.used / 1024 / 1024, 1),
-        "agents_paused": degradation != DegradationMode.NORMAL,
-        "cache_entries": len(_api_cache),
-        # Phase 10 new fields
-        "uptime_s":             uptime_s,
-        "active_tasks":         orch.active_count,
-        "semaphore_slots_free": orch.semaphore_slots_free,
-        "wal_size_bytes":       wal_size_bytes,
-        "degradation_mode":     degradation.value,
-    }
-
-
-@app.get("/health/memory")
-@limiter.limit(RL_ADMIN_LIMIT)
-async def health_memory(request: Request, _: dict = Depends(get_admin_user)):
-    """Detailed memory profiling snapshot — admin only.
-    Exposes RSS, VMS, tracemalloc current/peak, top allocations, and cache stats.
-    Use for diagnosing memory leaks on the 1GB VPS.
-    """
-    proc = psutil.Process()
-    mem_info = proc.memory_info()
-    mem = psutil.virtual_memory()
-    traced_current, traced_peak = tracemalloc.get_traced_memory()
-
-    snapshot = tracemalloc.take_snapshot()
-    top_stats = snapshot.statistics("lineno")[:15]
-
-    return {
-        "rss_mb": round(mem_info.rss / 1024 / 1024, 1),
-        "vms_mb": round(mem_info.vms / 1024 / 1024, 1),
-        "system_memory_pct": mem.percent,
-        "tracemalloc_current_mb": round(traced_current / 1024 / 1024, 2),
-        "tracemalloc_peak_mb": round(traced_peak / 1024 / 1024, 2),
-        "top_allocations": [
-            {
-                "file": str(stat.traceback),
-                "size_kb": round(stat.size / 1024, 1),
-                "count": stat.count,
-            }
-            for stat in top_stats
-        ],
-        "cache_size": len(_api_cache),
-        "cache_maxsize": _api_cache.maxsize,
-        "agents_paused": get_orchestrator().degradation_mode != DegradationMode.NORMAL,
-    }
-
-
 # ── Routers (D-03 Step 4 — routes extracted to api.routes.*) ────────────────
 from api.routes import root as _root_routes  # noqa: E402 — partial-init import is intentional (D-04-01)
 from api.routes import auth as _auth_routes  # noqa: E402
 from api.routes import admin as _admin_routes  # noqa: E402
 from api.routes import search as _search_routes  # noqa: E402
+from api.routes import victims as _victims_routes  # noqa: E402
+from api.routes import spiderfoot as _spiderfoot_routes  # noqa: E402
+from api.routes import health as _health_routes  # noqa: E402
 app.include_router(_root_routes.router)
 app.include_router(_auth_routes.router)
 app.include_router(_admin_routes.router)
 app.include_router(_search_routes.router)
+app.include_router(_victims_routes.router)
+app.include_router(_spiderfoot_routes.router)
+app.include_router(_health_routes.router)
