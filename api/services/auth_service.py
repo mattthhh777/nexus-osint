@@ -20,7 +20,7 @@ from api.config import (
     USERS_FILE,
     _WEAK_JWT_SECRETS,
 )
-from api.db import db as _db
+from api.db import DatabaseManager
 
 logger = logging.getLogger("nexusosint.auth_service")
 
@@ -130,11 +130,11 @@ def _create_token(username: str, role: str) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
-async def _revoke_token(jti: Optional[str], exp: Optional[int]) -> None:
+async def _revoke_token(jti: Optional[str], exp: Optional[int], db: DatabaseManager) -> None:
     """Add a jti to the blacklist until its expiry."""
     if not jti:
         return
-    await _db.write(
+    await db.write(
         "INSERT OR IGNORE INTO token_blacklist (jti, exp) VALUES (?, ?)",
         (jti, exp or int(time.time()) + JWT_EXPIRE_HOURS * 3600),
     )

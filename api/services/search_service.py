@@ -13,8 +13,8 @@ from cachetools import TTLCache
 from pydantic import ValidationError
 
 from api.config import MAX_BREACH_SERIALIZE, MODULE_TIMEOUTS, SPIDERFOOT_URL
-from api.db import db as _db
-from api.orchestrator import get_orchestrator
+from api.db import DatabaseManager
+from api.orchestrator import TaskOrchestrator
 from api.schemas import SearchRequest
 from modules.oathnet_client import oathnet_client
 from modules.spiderfoot_wrapper import SpiderFootTarget
@@ -44,14 +44,14 @@ def _set_cached(endpoint: str, query: str, data) -> None:
         _api_cache[_cache_key(endpoint, query)] = data
 
 
-async def _save_quota(used: int, left: int, daily_limit: int) -> None:
+async def _save_quota(used: int, left: int, daily_limit: int, db: DatabaseManager) -> None:
     """Save current OathNet quota to DB for admin dashboard."""
-    await _db.write(
+    await db.write(
         "INSERT INTO quota_log (ts, used_today, left_today, daily_limit) VALUES (?,?,?,?)",
         (datetime.now(timezone.utc).isoformat(), used, left, daily_limit),
     )
     # Keep only last 100 entries — fire-and-forget trim
-    await _db.write(
+    await db.write(
         "DELETE FROM quota_log WHERE rowid NOT IN "
         "(SELECT rowid FROM quota_log ORDER BY ts DESC LIMIT 100)",
     )
@@ -69,9 +69,10 @@ async def _log_search(
     social_count: int = 0,
     elapsed_s: float = 0.0,
     success: bool = True,
+    db: DatabaseManager = None,
 ) -> None:
     """Write a search audit record. Non-blocking — goes through write queue."""
-    await _db.write(
+    await db.write(
         """INSERT INTO searches
            (ts, username, ip, query, query_type, mode, modules_run,
             breach_count, stealer_count, social_count, elapsed_s, success)
@@ -131,6 +132,8 @@ async def _stream_search(
     req: SearchRequest,
     username: str,
     client_ip: str,
+    db: DatabaseManager = None,
+    orch: TaskOrchestrator = None,
 ) -> AsyncGenerator[str, None]:
 
     def event(data: dict) -> str:
@@ -139,7 +142,6 @@ async def _stream_search(
     # Phase 10: register this search in the orchestrator so active_count
     # reports non-zero during a running scan. Sentinel stays in the registry
     # until _sentinel_done is set at the end of the search.
-    orch = get_orchestrator()
     _sentinel_done: asyncio.Event = asyncio.Event()
 
     async def _search_sentinel() -> None:
@@ -626,6 +628,7 @@ async def _stream_search(
         stealer_count=stealer_count,
         social_count=social_count,
         elapsed_s=elapsed,
+        db=db,
     )
 
     # Phase 10: release sentinel so orchestrator deregisters this search
