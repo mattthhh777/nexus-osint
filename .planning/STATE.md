@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0.0
 milestone_name: — Complete)
 status: Phase 15 COMPLETE
-stopped_at: Plan 04 completo — 7 api/routes/*.py extraídos, api/main.py=234 linhas, zero @app.<verb> decorators, 61/61 testes verdes. SUMMARY escrito.
-last_updated: "2026-04-26T05:30:00.000Z"
+stopped_at: Phase 16 context gathered
+last_updated: "2026-04-29T03:56:42.659Z"
 progress:
-  total_phases: 13
-  completed_phases: 9
-  total_plans: 27
-  completed_plans: 27
+  total_phases: 9
+  completed_phases: 7
+  total_plans: 18
+  completed_plans: 18
 ---
 
 # Project State
@@ -78,6 +78,7 @@ not a data-availability issue. Phase 13 discovers real extra keys; Phase 14 rend
 - 2026-04-19: Backfilled phases 12 (pre-gate), 13 (data-instrument), 14 (visual-polish) into ROADMAP.md — previously only on disk, not registered
 - 2026-04-19: Phase 15 added — "Refactor main.py into layered architecture (routes → services → repositories → models → core/utils)". Zero breaking changes constraint. Directory: `.planning/phases/15-refactor-main-py-layers/`
 - 2026-04-19: NOTE — STATE.md Phase Map (lines 32–42) lists phases 15–19 as COMPLETE (v41-social-cards, v41-inline-filters, v41-summary-hero, v41-social-avatars, v41-micro-polish), but none of those directories exist; all work happened inside Phase 14 "steps" per git log. Phase Map is aspirational/stale — does NOT represent current roadmap truth. See ROADMAP.md for canonical phase numbering.
+- 2026-04-29: Phase 16 added — "Sherlock false-positive filter + Thordata proxy integration" (FP reduction + residential rotating proxy for OSINT agents to bypass DigitalOcean IP blocks). Depends on Phase 15. Directory: `.planning/phases/16-sherlock-false-positive-filter-thordata-proxy-integration/`. Note: gsd-tools `phase add` numbered as 12 due to milestone parsing bug (collided with v4.1 Phase 12 pre-gate); manually renumbered to 16 + dir renamed.
 
 ### Blockers/Concerns
 
@@ -87,9 +88,9 @@ not a data-availability issue. Phase 13 discovers real extra keys; Phase 14 rend
 
 ## Session Continuity
 
-Last session: 2026-04-24T13:35:00Z
-Stopped at: Plan 02 completo — api/deps.py criado (bce9d7c) + main.py limpo (a6f6f19) + SUMMARY escrito. 61/61 testes verdes.
-Resume file: None
+Last session: 2026-04-29T03:56:42.654Z
+Stopped at: Phase 16 context gathered
+Resume file: .planning/phases/16-sherlock-false-positive-filter-thordata-proxy-integration/16-CONTEXT.md
 Next action: Plan 03 — introduzir app.state.db/orchestrator + get_db()/get_orchestrator() em deps.py.
 
 ### Hotfix Interleaved — 2026-04-23 → 2026-04-24 [MERGED ✅]
