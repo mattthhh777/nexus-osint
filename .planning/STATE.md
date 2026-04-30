@@ -1,15 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.0.0
-milestone_name: — Complete)
-status: Phase 15 COMPLETE
-stopped_at: Phase 16 context gathered
-last_updated: "2026-04-29T03:56:42.659Z"
+milestone: v4.1
+milestone_name: Results UX + Sherlock hardening
+status: Phase 16 PLANNED (4/4 PLAN.md drafted, awaiting Sonnet execution)
+stopped_at: Phase 16 plans 01-04 drafted — ready for /gsd:execute-phase
+last_updated: "2026-04-30T12:00:00.000Z"
 progress:
-  total_phases: 9
-  completed_phases: 7
-  total_plans: 18
+  total_phases: 10
+  completed_phases: 8
+  total_plans: 22
   completed_plans: 18
+  drafted_plans: 4
 ---
 
 # Project State
@@ -88,10 +89,25 @@ not a data-availability issue. Phase 13 discovers real extra keys; Phase 14 rend
 
 ## Session Continuity
 
-Last session: 2026-04-29T03:56:42.654Z
-Stopped at: Phase 16 context gathered
-Resume file: .planning/phases/16-sherlock-false-positive-filter-thordata-proxy-integration/16-CONTEXT.md
-Next action: Plan 03 — introduzir app.state.db/orchestrator + get_db()/get_orchestrator() em deps.py.
+Last session: 2026-04-30T12:00:00.000Z
+Stopped at: Phase 16 — all 4 PLAN.md files drafted (01 config+budget, 02 sherlock rewrite, 03 route wiring, 04 frontend+E2E+deploy)
+Resume file: .planning/phases/16-sherlock-false-positive-filter-thordata-proxy-integration/16-01-PLAN.md
+Next action: Switch to Sonnet session → run `/gsd:execute-phase 16` → execute waves 1→2→3→4 sequentially. Each wave produces SUMMARY.md before next wave starts.
+
+### Phase 16 Planning Summary (2026-04-30)
+
+- 16-01-PLAN.md (wave 1, autonomous=true): api/config.py adds 6 env vars + new api/budget.py daily Thordata bandwidth tracker + .env.example. 6 unit tests.
+- 16-02-PLAN.md (wave 2, depends_on=[16-01]): modules/sherlock_wrapper.py rewrite — Thordata sticky-session proxy with 1× rotate retry, multi-signal confidence scoring (status+text+size, 0-100, 3-state classifier), real streaming body cap (256KB), cf-mitigated detection, asyncio.TimeoutError → httpx.TimeoutException fix, SHA256-hashed audit log. ~20 unit tests.
+- 16-03-PLAN.md (wave 3, depends_on=[16-01, 16-02]): api/schemas.py SherlockUsernameRequest validator (D-H8/D-H9) + api/services/search_service.py budget circuit breaker + extended SSE serializer (state/confidence/likely/proxy_used) + api/routes/health.py thordata sub-object (admin-gated via new get_optional_admin_user) + api/main.py lifespan non-blocking proxy health check. 9 unit + ~10 integration tests.
+- 16-04-PLAN.md (wave 4, depends_on=[16-01..03]): static/js/render.js renderSocial state-branched rendering + Unverified badge + module_error UX (budget_exceeded, invalid_username) + static/css/meridian.css 3 new classes from existing tokens + 16-NEGATIVE-MARKERS-AUDIT.md (5-platform manual validation) + tests/integration/test_phase16_e2e.py (8 E2E tests) + VPS deploy. Brand Amber/Noir preserved.
+
+### Open Risks Forwarded to Execution
+
+- D-H1 enforcement (frontend never recomputes thresholds) — verified by acceptance criteria grep on `p\.confidence\s*[<>=]`. Fail-closed.
+- D-H2/D-H3 (no internal scoring leak) — SSE serializer whitelists exact 6 keys per platform item; integration test 6 + 8 audit raw bytes.
+- D-H5 (proxy URL never logged with credentials) — `_masked_proxy_log` helper in sherlock_wrapper; lifespan + audit log both use it.
+- Thordata sesstime unit correction (Pitfall 2): D-03 says "60" but Thordata docs are minutes; 16-02 implements `_STICKY_SESSTIME_MINUTES = 2`. Documented in 16-02 SUMMARY output.
+- Negative markers in PLATFORMS dict are research-derived (16-RESEARCH); 16-04 Task 1 validates 5 representative platforms against real responses before VPS deploy. PLATFORMS may be patched in-flight.
 
 ### Hotfix Interleaved — 2026-04-23 → 2026-04-24 [MERGED ✅]
 

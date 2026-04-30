@@ -363,6 +363,34 @@ Phase 03 (F1 Audit) ──► Phase 04 (F2 SQLite) ──► Phase 05 (F3 Async)
 Plans:
 - [x] TBD (run /gsd:plan-phase 15 to break down) (completed 2026-04-22)
 
+### Phase 16: Sherlock false-positive filter + Thordata proxy integration
+
+| Field | Value |
+|-------|-------|
+| **Status** | **Planned (4/4 PLAN.md drafted)** |
+| **Planned** | 2026-04-29 → 2026-04-30 |
+| **Depends on** | Phase 15 |
+| **Effort** | 2-3 sessions (Sonnet implements) |
+| **Risk** | MEDIUM (outbound proxy + scoring rewrite + frontend state contract) |
+
+**Goal:** Reduce Sherlock detection false-positives via multi-signal confidence scoring AND route Sherlock outbound traffic through Thordata residential rotating proxy to bypass DigitalOcean IP blocks (LinkedIn / Instagram / TikTok / etc).
+
+**Requirements:** PHASE16-CONFIG, PHASE16-BUDGET, PHASE16-PROXY, PHASE16-FP-FILTER, PHASE16-BUG-FIXES, PHASE16-NEGATIVE-MARKERS, PHASE16-USERNAME-VALIDATOR, PHASE16-BUDGET-CIRCUIT, PHASE16-HEALTH-METRICS, PHASE16-LIFESPAN-PROXY-CHECK, PHASE16-SERVICE-WIRING, PHASE16-FRONTEND-STATE-RENDER, PHASE16-LIKELY-BADGE, PHASE16-NEGATIVE-MARKERS-AUDIT, PHASE16-E2E-VERIFICATION
+
+**Constraints:** zero regression on Phase 06 F4 body cap (512KB global); no expansion of Phase 14 D-06 4-field display ceiling; Phase 15 leaf-module rule for `api/config.py` and `api/schemas.py` preserved; `httpx.AsyncClient` only (no `requests`/`aiohttp`); CLAUDE.md "Não Confie no Frontend" enforced — backend-only thresholds, validators, budget enforcement; brand Amber/Noir untouched.
+
+**Wave-based execution order:**
+- Wave 1: Plan 01 (foundation — config + budget tracker)
+- Wave 2: Plan 02 (sherlock_wrapper rewrite — proxy + scoring + bug fixes)
+- Wave 3: Plan 03 (route wiring — validator + circuit breaker + /health metrics + lifespan)
+- Wave 4: Plan 04 (frontend state render + negative-markers audit + E2E tests + deploy)
+
+Plans:
+- [x] 16-01-PLAN.md — Configuration foundation: 6 env vars in api/config.py + api/budget.py daily tracker + .env.example
+- [x] 16-02-PLAN.md — Sherlock engine rewrite: Thordata proxy injection (sticky session, 1× rotate retry) + multi-signal confidence scoring (status/text/size, 0-100, threshold-based 3-state) + real streaming body cap (256KB) + cf-mitigated detection + httpx.TimeoutException fix + audit log with SHA256 hash
+- [x] 16-03-PLAN.md — Route wiring: SherlockUsernameRequest pydantic validator + budget circuit breaker in service layer + extended SSE serializer (state/confidence/likely/proxy_used) + /health admin-gated thordata sub-object + lifespan non-blocking proxy health check
+- [x] 16-04-PLAN.md — Frontend state rendering (renderSocial state-branched, Unverified badge, muted likely cards) + module_error UX (budget_exceeded/invalid_username) + negative-markers manual validation audit (5 platforms) + E2E SSE round-trip tests + VPS deploy
+
 ---
 
-*Roadmap created: 2026-03-30 | Last updated: 2026-04-19 (backfill v4.1 phases 12–14 + add Phase 15 architectural refactor)*
+*Roadmap created: 2026-03-30 | Last updated: 2026-04-30 (Phase 16 planning complete — 4 PLAN.md drafted, ready for Sonnet execution)*
