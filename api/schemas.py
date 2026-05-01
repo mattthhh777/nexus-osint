@@ -1,6 +1,6 @@
 """Pydantic I/O schemas for the FastAPI app. Leaf module — imports nothing from api/* or modules/*."""
 import re
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class LoginRequest(BaseModel):
@@ -39,3 +39,25 @@ class SearchRequest(BaseModel):
     @classmethod
     def validate_sf_mode(cls, v: str) -> str:
         return v if v in ("passive", "footprint", "investigate") else "passive"
+
+
+class SherlockUsernameRequest(BaseModel):
+    """Phase 16 D-H8/D-H9: pre-validate username before invoking sherlock_wrapper.
+
+    Strict regex: alphanumerics + underscore + dot + hyphen only, 1-64 chars.
+    Rejects /, :, ?, #, &, =, whitespace, null byte, control chars.
+    Validation error message is generic — never echoes input (CLAUDE.md regra 3).
+    hide_input_in_errors=True prevents Pydantic v2 from embedding input_value in
+    the ValidationError repr, satisfying D-H9.
+    """
+
+    model_config = ConfigDict(hide_input_in_errors=True)
+
+    username: str
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, v: str) -> str:
+        if not re.fullmatch(r"^[A-Za-z0-9_.-]{1,64}$", v):
+            raise ValueError("Invalid username")
+        return v
