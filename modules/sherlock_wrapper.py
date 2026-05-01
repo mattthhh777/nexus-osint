@@ -114,7 +114,12 @@ PLATFORMS: list[dict] = [
         "claim_value": "This account doesn't exist",
         "category": "Social",
         "icon": "🐦",
-        "negative_markers": ["this account doesn't exist"],
+        # Audit 2026-05-01: X returns a full React SPA (HTTP 200, ~256KB).
+        # The marker "this account doesn't exist" is injected client-side by
+        # React and is NOT present in the SSR HTML received by httpx.
+        # Cleared negative_markers: no SSR-detectable text distinguishes
+        # missing vs existing accounts from the raw HTTP response body.
+        "negative_markers": [],
     },
     {
         "name": "Instagram",
@@ -123,7 +128,12 @@ PLATFORMS: list[dict] = [
         "claim_value": "Sorry, this page",
         "category": "Social",
         "icon": "📸",
-        "negative_markers": ["sorry, this page isn't available", "page not found"],
+        # Audit 2026-05-01: Instagram returns HTTP 200 + full React SPA (~800KB)
+        # regardless of account existence. "Sorry, this page isn't available"
+        # is rendered client-side only. SSR HTML contains no detectable
+        # text difference. Negative markers cleared; platform reliability
+        # is LOW without browser execution or residential proxy.
+        "negative_markers": [],
     },
     {
         "name": "TikTok",
@@ -141,7 +151,15 @@ PLATFORMS: list[dict] = [
         "claim_value": "Sorry, nobody on Reddit",
         "category": "Social",
         "icon": "🤖",
-        "negative_markers": ["sorry, nobody on reddit goes by that name"],
+        # Audit 2026-05-01: Reddit returns HTTP 200 with a bot-verification
+        # challenge page ("Please wait for verification") for automated
+        # requests. The marker "sorry, nobody on reddit goes by that name"
+        # is NOT present in the challenge page body. Negative markers cleared
+        # since the challenge page never contains them; the claim_value
+        # "Sorry, nobody on Reddit" also won't be found in the challenge body,
+        # so the text_absent claim will score positively even for nonexistent
+        # accounts — known limitation requiring proxy or API access.
+        "negative_markers": [],
     },
     {
         "name": "LinkedIn",
@@ -150,7 +168,13 @@ PLATFORMS: list[dict] = [
         "claim_value": "Page not found",
         "category": "Professional",
         "icon": "💼",
-        "negative_markers": ["page not found", "this page doesn't exist"],
+        # Audit 2026-05-01: LinkedIn returns HTTP 999 (proprietary login-wall
+        # status code) for all unauthenticated requests. Negative markers are
+        # unreachable — the response body is a JS redirect to the login page.
+        # text_absent claim will not match (body does not contain "Page not
+        # found") → score boost applies even for nonexistent accounts.
+        # No SSR-detectable markers; platform requires authenticated session.
+        "negative_markers": [],
     },
     {
         "name": "Pinterest",
