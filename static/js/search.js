@@ -148,7 +148,21 @@ function handleEvent(evt) {
       currentResult.extras.discord_roblox = evt;
       break;
     case 'module_error':
-      addModuleRow(`⚠ ${evt.module}: ${evt.error.slice(0,40)}`, 'error');
+      if (evt.module === 'sherlock') {
+        // Phase 16: friendly messages for sherlock-specific errors (D-H9, D-H12)
+        // NEVER echo retry_after raw seconds; NEVER echo invalid input back to UI
+        let sherlockMsg;
+        if (evt.error === 'budget_exceeded') {
+          sherlockMsg = 'Sherlock budget exceeded — try tomorrow';
+        } else if (evt.error === 'invalid_username') {
+          sherlockMsg = 'Invalid username format';
+        } else {
+          sherlockMsg = evt.error.slice(0, 60);
+        }
+        addModuleRow('⚠ Sherlock: ' + sherlockMsg, 'error');
+      } else {
+        addModuleRow(`⚠ ${evt.module}: ${evt.error.slice(0,40)}`, 'error');
+      }
       break;
     case 'done':
       currentResult.elapsed = evt.elapsed_s;

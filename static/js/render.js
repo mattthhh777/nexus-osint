@@ -474,35 +474,76 @@ function _attachFilter(bodyEl, itemSelector, getText) {
 
 // ── Social profiles ───────────────────────────────────
 function renderSocial(s) {
+  // Phase 16: consumes p.state directly from SSE payload (D-H1).
+  // NEVER recomputes state from p.confidence -- backend classifies, frontend renders.
   const el    = document.getElementById('socialBody');
   const badge = document.getElementById('socialBadge');
   const panel = document.getElementById('panelSocial');
-  if (!s || !s.found || s.found.length === 0) {
+
+  // Build unified items list: confirmed first, then likely (D-13, D-14)
+  const foundItems  = (s && s.found)  ? s.found  : [];
+  const likelyItems = (s && s.likely) ? s.likely : [];
+  const items = [
+    ...foundItems.filter(p => p.state === 'confirmed'),
+    ...likelyItems.filter(p => p.state === 'likely'),
+    // Fallback: items missing state treated as confirmed (backward compat)
+    ...foundItems.filter(p => !p.state || (p.state !== 'confirmed' && p.state !== 'likely')),
+  ];
+
+  // Empty state: neither confirmed nor likely items present (D-13)
+  if (!s || (foundItems.length + likelyItems.length) === 0) {
     if (panel) panel.style.display = 'none';
     badge.textContent = '0';
     el.innerHTML = '<div style="color:var(--color-text-tertiary);font-family:var(--font-data);font-size:.8rem">No profiles found.</div>';
     return;
   }
-  if (panel) panel.style.display = '';
-  badge.textContent = s.found_count;
 
-  const cards = s.found.map(p => {
+  if (panel) panel.style.display = '';
+  // Badge shows confirmed count only (found_count from SSE -- D-13)
+  badge.textContent = s.found_count != null ? s.found_count : foundItems.length;
+
+  // Likely count indicator alongside panel title (when > 0)
+  const likelyCount = s.likely_count != null ? s.likely_count : likelyItems.length;
+  if (panel && likelyCount > 0) {
+    const panelTitleEl = panel.querySelector('.panel-title, h3, .panel-header');
+    if (panelTitleEl) {
+      const existingIndicator = panelTitleEl.querySelector('.panel-likely-count');
+      if (existingIndicator) existingIndicator.remove();
+      const indicator = document.createElement('span');
+      indicator.className = 'panel-likely-count';
+      indicator.textContent = '+' + likelyCount + ' unverified';
+      panelTitleEl.appendChild(indicator);
+    }
+  }
+
+  const cards = items.map(p => {
+    // D-H1: consume p.state directly -- never recompute from p.confidence
+    const isLikely   = p.state === 'likely';
     const url        = sanitizeUrl(p.url);
     const username   = _extractSocialUsername(p.url);
     const avatarUrl  = _unavatarUrl(p.platform, username);
     const iconHtml   = _socialIconEl(p.platform);
 
-    // Avatar: img + fallback (fallback shown via JS error handler, not inline onerror — CSP-safe)
+    // Unverified badge -- only for likely state (D-13)
+    const unverifiedBadge = isLikely
+      ? '<span class="social-card-badge social-card-badge--unverified">Unverified</span>'
+      : '';
+
+    // Avatar: img + fallback (fallback shown via JS error handler, not inline onerror -- CSP-safe)
     const avatarHtml = avatarUrl
       ? '<img class="social-card-avatar" src="' + avatarUrl + '" alt="" loading="lazy">'
         + '<div class="social-card-avatar-fallback">' + iconHtml + '</div>'
       : '<div class="social-card-avatar-fallback" style="display:flex">' + iconHtml + '</div>';
 
-    return '<div class="social-card">'
+    // Card modifier class: social-card--likely for muted/unverified state (D-13)
+    const cardClass = isLikely ? 'social-card social-card--likely' : 'social-card';
+
+    return '<div class="' + cardClass + '">'
       + '<div class="social-card-header">'
       + '<div class="social-card-platform">'
       + '<div class="social-card-icon">' + iconHtml + '</div>'
       + '<span class="social-card-name">' + esc(p.platform) + '</span>'
+      + unverifiedBadge
       + '</div>'
       + (p.category ? '<span class="social-card-cat">' + esc(p.category) + '</span>' : '')
       + '</div>'
@@ -511,18 +552,19 @@ function renderSocial(s) {
       + (username ? '<div class="social-card-username">@' + esc(username) + '</div>' : '')
       + '</div>'
       + '<a class="social-card-cta" href="' + url + '" target="_blank" rel="noopener noreferrer">'
-      + 'View Profile \u2192'
+      + 'View Profile →'
       + '</a>'
       + '</div>';
   }).join('');
 
-  const filterHtml = s.found.length > 10
-    ? '<input class="panel-filter" type="text" placeholder="Filter ' + s.found.length + ' platforms\u2026" aria-label="Filter social platforms">'
+  // Filter input shown when combined item count > 10 (D-13)
+  const filterHtml = items.length > 10
+    ? '<input class="panel-filter" type="text" placeholder="Filter ' + items.length + ' platforms…" aria-label="Filter social platforms">'
     : '';
 
   el.innerHTML = filterHtml + '<div class="social-cards-grid">' + cards + '</div>';
 
-  // Attach avatar error handlers (CSP-safe — no inline onerror attribute)
+  // Attach avatar error handlers (CSP-safe -- no inline onerror attribute)
   el.querySelectorAll('.social-card-avatar').forEach(function(img) {
     img.addEventListener('error', function() {
       this.style.display = 'none';

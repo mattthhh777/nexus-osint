@@ -502,6 +502,40 @@
 }
 .social-card-cta:active { transform: scale(.97); transition-duration: 60ms; }
 
+/* ── Phase 16: likely state + Unverified badge ── */
+/* Muted variant for unverified/likely social cards. No new hex values -- var() only. */
+.social-card--likely {
+  opacity: 0.72;
+  border-color: var(--color-border-default);
+}
+
+.social-card-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  margin-left: 6px;
+  border-radius: 999px;
+  font-family: var(--font-data);
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.social-card-badge--unverified {
+  background: var(--color-accent-muted);
+  color: var(--color-text-tertiary);
+  border: 1px solid var(--color-accent-border);
+}
+
+.panel-likely-count {
+  margin-left: 6px;
+  font-family: var(--font-data);
+  font-size: 0.68rem;
+  color: var(--color-text-tertiary);
+  font-weight: 400;
+}
+
 /* ── Breach Cards (Phase 14) ── */
 .breach-grid { display: flex; flex-direction: column; gap: 6px; }
 
