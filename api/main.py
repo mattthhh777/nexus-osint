@@ -42,6 +42,9 @@ import tracemalloc
 import aiosqlite
 import psutil
 from api.db import db as _db  # single-connection DatabaseManager (WAL + write queue)
+import api.budget as _budget
+from api.config import THORDATA_PROXY_URL
+from modules.sherlock_wrapper import _masked_proxy_log
 from api.schemas import LoginRequest, SearchRequest  # I/O models — defined in leaf module
 from api.deps import (  # auth dependency providers — extracted in Phase 15 Plan 02
     security,
@@ -103,6 +106,38 @@ logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.WARNING))
 logger = logging.getLogger("nexusosint")
 
 
+async def _thordata_startup_check() -> None:
+    """Phase 16 D-07: non-blocking Thordata proxy reachability check on startup.
+
+    Sets api.budget._proxy_active. Failure does NOT crash the app —
+    Sherlock falls back to direct DO IP path. Logs masked URL only (D-H5).
+    """
+    if not THORDATA_PROXY_URL:
+        logger.info("Thordata proxy unset — Sherlock will use direct DO IP")
+        _budget._proxy_active = False
+        return
+
+    masked = _masked_proxy_log(THORDATA_PROXY_URL)
+    try:
+        async with httpx.AsyncClient(
+            proxy=THORDATA_PROXY_URL,
+            timeout=10.0,
+            verify=False,
+        ) as client:
+            resp = await client.get("https://api.ipify.org", params={"format": "text"})
+            resp.raise_for_status()
+            exit_ip = resp.text.strip()[:64]
+        _budget._proxy_active = True
+        logger.info("Thordata proxy OK | proxy=%s exit_ip=%s", masked, exit_ip)
+    except (httpx.ProxyError, httpx.TimeoutException, httpx.ConnectError,
+            httpx.HTTPStatusError, httpx.HTTPError) as exc:
+        _budget._proxy_active = False
+        logger.warning(
+            "Thordata proxy unavailable | proxy=%s reason=%s — Sherlock will use direct DO IP",
+            masked, type(exc).__name__,
+        )
+
+
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     """Application lifespan — replaces deprecated @app.on_event handlers."""
@@ -114,6 +149,8 @@ async def lifespan(application: FastAPI):
     # D-05: expose singletons via app.state for Depends(get_db) / Depends(get_orchestrator_dep)
     application.state.db = _db
     application.state.orchestrator = get_orchestrator()
+    # Phase 16 D-07: probe Thordata proxy; sets _budget._proxy_active before first request
+    await _thordata_startup_check()
     # Phase 10: start memory watchdog as tracked background task
     watchdog_task = asyncio.create_task(
         memory_watchdog_loop(), name="memory-watchdog"

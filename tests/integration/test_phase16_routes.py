@@ -318,14 +318,15 @@ def test_health_thordata_present_for_admin(client, monkeypatch):
     """Test 7: GET /health with admin auth -> thordata with exactly 4 sub-keys.
 
     Verifies D-19/D-H14: admin-gated Thordata bandwidth metrics.
+    Override get_optional_admin_user (the actual /health dependency) directly
+    to avoid the blacklist DB check that fails in test environments.
     """
-    from api.deps import get_admin_user as _get_admin
+    from api.deps import get_optional_admin_user as _get_opt_admin
 
-    m.app.dependency_overrides[_get_admin] = lambda: {"sub": "adminuser", "role": "admin"}
+    m.app.dependency_overrides[_get_opt_admin] = lambda: {"sub": "adminuser", "role": "admin"}
 
     try:
-        admin_tok = _make_cookie("adminuser", "admin")
-        r = client.get("/health", cookies={"nx_session": admin_tok})
+        r = client.get("/health")
         assert r.status_code == 200
         data = r.json()
         assert "thordata" in data, f"'thordata' missing for admin caller: {data}"
@@ -334,7 +335,7 @@ def test_health_thordata_present_for_admin(client, monkeypatch):
             "bytes_today_mb", "requests_today", "budget_remaining_pct", "proxy_active"
         }, f"Unexpected thordata keys: {set(thordata.keys())}"
     finally:
-        m.app.dependency_overrides.pop(_get_admin, None)
+        m.app.dependency_overrides.pop(_get_opt_admin, None)
 
 
 def test_health_thordata_reflects_usage(client, monkeypatch):
@@ -342,15 +343,14 @@ def test_health_thordata_reflects_usage(client, monkeypatch):
 
     Verifies get_metrics() is actually wired to live budget state.
     """
-    from api.deps import get_admin_user as _get_admin
+    from api.deps import get_optional_admin_user as _get_opt_admin
 
     budget.record_usage(2_000_000)
 
-    m.app.dependency_overrides[_get_admin] = lambda: {"sub": "adminuser", "role": "admin"}
+    m.app.dependency_overrides[_get_opt_admin] = lambda: {"sub": "adminuser", "role": "admin"}
 
     try:
-        admin_tok = _make_cookie("adminuser", "admin")
-        r = client.get("/health", cookies={"nx_session": admin_tok})
+        r = client.get("/health")
         assert r.status_code == 200
         data = r.json()
         assert "thordata" in data
@@ -359,7 +359,7 @@ def test_health_thordata_reflects_usage(client, monkeypatch):
             f"Expected bytes_today_mb approx 1.907, got {mb}"
         )
     finally:
-        m.app.dependency_overrides.pop(_get_admin, None)
+        m.app.dependency_overrides.pop(_get_opt_admin, None)
 
 
 # ── Task 4: Lifespan Thordata startup health check ────────────────────────────

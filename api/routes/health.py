@@ -7,8 +7,9 @@ from pathlib import Path
 import psutil
 from fastapi import APIRouter, Depends, Request
 
+import api.budget as _budget
 from api.config import AUDIT_DB, RL_ADMIN_LIMIT, RL_READ_LIMIT
-from api.deps import get_admin_user, get_orchestrator_dep
+from api.deps import get_admin_user, get_optional_admin_user, get_orchestrator_dep
 from api.main import limiter
 from api.orchestrator import DegradationMode, TaskOrchestrator
 from api.services.search_service import _api_cache
@@ -22,6 +23,7 @@ router = APIRouter()
 async def health(
     request: Request,
     orch: TaskOrchestrator = Depends(get_orchestrator_dep),
+    maybe_admin: dict | None = Depends(get_optional_admin_user),
 ):
     mem = psutil.virtual_memory()
     swap = psutil.swap_memory()
@@ -34,7 +36,7 @@ async def health(
     wal_size_bytes = wal_path.stat().st_size if wal_path.exists() else 0
     degradation = orch.degradation_mode
 
-    return {
+    payload = {
         "status": "degraded" if degradation != DegradationMode.NORMAL else "healthy",
         "version": "3.0.0",
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -51,6 +53,12 @@ async def health(
         "wal_size_bytes":       wal_size_bytes,
         "degradation_mode":     degradation.value,
     }
+
+    # Phase 16 D-19/D-H14: Thordata bandwidth metrics — admin-only
+    if maybe_admin is not None:
+        payload["thordata"] = _budget.get_metrics()
+
+    return payload
 
 
 @router.get("/health/memory")

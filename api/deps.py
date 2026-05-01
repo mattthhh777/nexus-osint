@@ -159,6 +159,24 @@ async def get_admin_user(user: dict = Depends(get_current_user)) -> dict:
     return user
 
 
+async def get_optional_admin_user(request: Request) -> dict | None:
+    """Return admin user dict if authenticated as admin, else None. Never raises HTTPException.
+
+    Phase 16 D-H14: used by /health to gate Thordata bandwidth metrics — non-admin
+    callers receive the standard /health response without the thordata sub-object.
+
+    Calls get_current_user and role-checks inline (cannot call get_admin_user directly
+    since Depends() injection is not available outside FastAPI's request lifecycle).
+    """
+    try:
+        user = await get_current_user(request, credentials=None)
+        if user.get("role") != "admin":
+            return None
+        return user
+    except HTTPException:
+        return None
+
+
 # ── Application-state providers (D-05 canonical pattern) ─────────────────────
 
 def get_db(request: Request) -> DatabaseManager:
