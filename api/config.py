@@ -69,6 +69,26 @@ MODULE_TIMEOUTS = {
 # fetches the rest on demand. 200 breaches ≈ 200KB JSON — acceptable for 1GB VPS.
 MAX_BREACH_SERIALIZE = 200
 
+# ── Phase 16: Thordata residential proxy + Sherlock confidence thresholds ────
+# Per CONTEXT.md D-11 / D-15 / D-18 / D-H5. Backend-only enforcement (D-H1, D-H4).
+# THORDATA_PROXY_URL = None means proxy disabled — Sherlock falls back to direct DO IP
+# (may be blocked by LinkedIn / Instagram / TikTok). User-supplied via .env.
+THORDATA_PROXY_URL: str | None = os.getenv("THORDATA_PROXY_URL")
+
+# Daily budget — D-16: SOFT 500MB warning, HARD 1024MB circuit breaker.
+# Stored as bytes for direct comparison against running counter.
+_THORDATA_DAILY_BUDGET_MB: int = int(os.getenv("THORDATA_DAILY_BUDGET_MB", "1024"))
+THORDATA_DAILY_BUDGET_BYTES: int = _THORDATA_DAILY_BUDGET_MB * 1_048_576
+
+# Per-search cap — D-17: 1MB total across 25 platforms (~40KB avg per platform).
+_THORDATA_PER_SEARCH_CAP_MB: int = int(os.getenv("THORDATA_PER_SEARCH_CAP_MB", "1"))
+THORDATA_PER_SEARCH_CAP_BYTES: int = _THORDATA_PER_SEARCH_CAP_MB * 1_048_576
+
+# Confidence scoring — D-10/D-11: tunable without redeploy.
+# >= CONFIRMED → state="confirmed"; >= LIKELY → state="likely"; below → state="not_found".
+SHERLOCK_CONFIRMED_THRESHOLD: int = int(os.getenv("SHERLOCK_CONFIRMED_THRESHOLD", "70"))
+SHERLOCK_LIKELY_THRESHOLD: int = int(os.getenv("SHERLOCK_LIKELY_THRESHOLD", "40"))
+
 # Allowed origins — add your domain here
 _ALLOWED_ORIGINS = [
     o.strip() for o in
