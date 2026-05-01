@@ -15,7 +15,8 @@ from pydantic import ValidationError
 from api.config import MAX_BREACH_SERIALIZE, MODULE_TIMEOUTS, SPIDERFOOT_URL
 from api.db import DatabaseManager
 from api.orchestrator import TaskOrchestrator
-from api.schemas import SearchRequest
+from api.schemas import SearchRequest, SherlockUsernameRequest
+import api.budget as _budget
 from modules.oathnet_client import oathnet_client
 from modules.spiderfoot_wrapper import SpiderFootTarget
 
@@ -351,28 +352,64 @@ async def _stream_search(
     if run.get("sherlock"):
         yield progress("Scanning social platforms…")
         ran.append("sherlock")
+
+        # Phase 16 D-H8/D-H9: pre-validate username at boundary, never echo input
+        raw_uname = query if is_user else query.split("@")[0]
         try:
-            uname = query if is_user else query.split("@")[0]
-            sherl, timed_out = await with_timeout(
-                search_username(uname, False), "sherlock"
-            )
-            if timed_out:
-                yield event({"type": "module_error", "module": "sherlock",
-                             "error": "Sherlock timed out after 60s — partial results unavailable"})
-            elif sherl:
-                social_count = sherl.found_count
+            validated = SherlockUsernameRequest(username=raw_uname)
+            uname = validated.username
+        except ValidationError:
+            yield event({
+                "type": "module_error",
+                "module": "sherlock",
+                "error": "invalid_username",  # generic — D-H9
+            })
+        else:
+            # Phase 16 D-H12: budget circuit breaker BEFORE outbound work
+            if _budget.is_hard_limit_exceeded():
                 yield event({
-                    "type": "sherlock",
-                    "found_count": sherl.found_count,
-                    "total_checked": sherl.total_checked,
-                    "source": sherl.source,
-                    "found": [{"platform": p.platform, "url": p.url,
-                               "category": p.category, "icon": p.icon}
-                              for p in sherl.found],
+                    "type": "module_error",
+                    "module": "sherlock",
+                    "error": "budget_exceeded",
+                    "retry_after": 86400,  # D-16 HARD threshold
                 })
-        except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
-            logger.error("Sherlock failed: %s", exc)
-            yield event({"type": "module_error", "module": "sherlock", "error": str(exc)})
+            else:
+                try:
+                    sherl, timed_out = await with_timeout(
+                        search_username(uname, False), "sherlock"
+                    )
+                    if timed_out:
+                        yield event({
+                            "type": "module_error", "module": "sherlock",
+                            "error": "Sherlock timed out after 60s — partial results unavailable",
+                        })
+                    elif sherl:
+                        # D-H2/D-H3: serialize ONLY safe fields. negative_markers,
+                        # raw signal scores, internal flags NEVER leak to client.
+                        def _serialize_platform(p):
+                            return {
+                                "platform": p.platform,
+                                "url": p.url,
+                                "category": p.category,
+                                "icon": p.icon,
+                                "state": p.state,
+                                "confidence": p.confidence,
+                            }
+
+                        social_count = sherl.found_count
+                        yield event({
+                            "type": "sherlock",
+                            "found_count": len(sherl.found),
+                            "likely_count": len(sherl.likely),
+                            "total_checked": sherl.total_checked,
+                            "source": sherl.source,
+                            "proxy_used": sherl.proxy_used,
+                            "found": [_serialize_platform(p) for p in sherl.found],
+                            "likely": [_serialize_platform(p) for p in sherl.likely],
+                        })
+                except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+                    logger.error("Sherlock failed: %s", exc)
+                    yield event({"type": "module_error", "module": "sherlock", "error": str(exc)})
 
     # ── Discord ───────────────────────────────────────────────────────────
     if run.get("discord"):
