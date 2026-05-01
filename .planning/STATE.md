@@ -1,16 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.1
-milestone_name: Results UX + Sherlock hardening
-status: Phase 16 PLANNED (4/4 PLAN.md drafted, awaiting Sonnet execution)
-stopped_at: Phase 16 plans 01-04 drafted — ready for /gsd:execute-phase
-last_updated: "2026-04-30T12:00:00.000Z"
+milestone: v3.0.0
+milestone_name: — Complete)
+status: Ready to execute
+stopped_at: Completed 16-01-PLAN.md (config+budget foundation)
+last_updated: "2026-05-01T01:23:52.953Z"
 progress:
-  total_phases: 10
-  completed_phases: 8
-  total_plans: 22
+  total_phases: 9
+  completed_phases: 7
+  total_plans: 18
   completed_plans: 18
-  drafted_plans: 4
 ---
 
 # Project State
@@ -21,12 +20,12 @@ See: .planning/PROJECT.md (updated 2026-04-15 — milestone v4.1)
 
 **Core value:** From the same scan, show 2× more data without additional backend cost — rendering what already arrives in the pipeline.
 
-**Current focus:** Phase 15 — refactor-main-py-layers
+**Current focus:** Phase 16 — sherlock-false-positive-filter-thordata-proxy-integration
 
 ## Current Position
 
-Phase: 15 (refactor-main-py-layers) — EXECUTING
-Plan: 1 of 4
+Phase: 16 (sherlock-false-positive-filter-thordata-proxy-integration) — EXECUTING
+Plan: 2 of 4
 
 ## Phase Map
 
@@ -57,6 +56,9 @@ Plan: 1 of 4
 - Phase 15 D-01: schemas.py is LEAF — only re + pydantic imports, zero api/* or modules/* (enforces import contract)
 - Phase 15 D-02: import re kept in main.py (used in detect_type + other guards; cannot remove)
 - Phase 15 baseline: test_full_nexus_flow was pre-existing failure (61/62 before Phase 15, not introduced by refactor)
+- Phase 16 D-16-01-A: stdlib logging used in api/budget.py (loguru absent from project stack; plans 02-04 must not add loguru)
+- Phase 16 D-16-01-B: api/budget.py placed in api/ not modules/ to avoid cross-layer import when health.py reads budget metrics (Pitfall 8)
+- Phase 16 D-16-01-C: in-memory budget counters with lazy UTC reset; container restart resets counter (acceptable D-16 trade-off)
 
 ### Critical Architecture Insight (F2 pre-check result, Opus session 2026-04-15)
 
@@ -89,9 +91,9 @@ not a data-availability issue. Phase 13 discovers real extra keys; Phase 14 rend
 
 ## Session Continuity
 
-Last session: 2026-04-30T12:00:00.000Z
-Stopped at: Phase 16 — all 4 PLAN.md files drafted (01 config+budget, 02 sherlock rewrite, 03 route wiring, 04 frontend+E2E+deploy)
-Resume file: .planning/phases/16-sherlock-false-positive-filter-thordata-proxy-integration/16-01-PLAN.md
+Last session: 2026-05-01T01:23:52.948Z
+Stopped at: Completed 16-01-PLAN.md (config+budget foundation)
+Resume file: None
 Next action: Switch to Sonnet session → run `/gsd:execute-phase 16` → execute waves 1→2→3→4 sequentially. Each wave produces SUMMARY.md before next wave starts.
 
 ### Phase 16 Planning Summary (2026-04-30)
