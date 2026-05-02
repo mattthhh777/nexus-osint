@@ -367,8 +367,9 @@ Plans:
 
 | Field | Value |
 |-------|-------|
-| **Status** | **Planned (4/4 PLAN.md drafted)** |
+| **Status** | **✅ COMPLETE (2026-05-01)** |
 | **Planned** | 2026-04-29 → 2026-04-30 |
+| **Completed** | 2026-05-01 |
 | **Depends on** | Phase 15 |
 | **Effort** | 2-3 sessions (Sonnet implements) |
 | **Risk** | MEDIUM (outbound proxy + scoring rewrite + frontend state contract) |
@@ -393,4 +394,4 @@ Plans:
 
 ---
 
-*Roadmap created: 2026-03-30 | Last updated: 2026-04-30 (Phase 16 planning complete — 4 PLAN.md drafted, ready for Sonnet execution)*
+*Roadmap created: 2026-03-30 | Last updated: 2026-05-01 (Phase 16 COMPLETE — Sherlock FP filter + Thordata proxy deployed to VPS; 53/53 tests green)*
