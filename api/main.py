@@ -13,6 +13,7 @@ import asyncio
 import logging
 import os
 import re
+import ssl
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -130,7 +131,7 @@ async def _thordata_startup_check() -> None:
         _budget._proxy_active = True
         logger.info("Thordata proxy OK | proxy=%s exit_ip=%s", masked, exit_ip)
     except (httpx.ProxyError, httpx.TimeoutException, httpx.ConnectError,
-            httpx.HTTPStatusError, httpx.HTTPError) as exc:
+            httpx.HTTPStatusError, httpx.HTTPError, ssl.SSLError, OSError) as exc:
         _budget._proxy_active = False
         logger.warning(
             "Thordata proxy unavailable | proxy=%s reason=%s — Sherlock will use direct DO IP",
