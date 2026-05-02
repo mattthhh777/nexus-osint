@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0.0
 milestone_name: — Complete)
-status: Executing Phase 16
-stopped_at: 16-03 complete (0d3a61a) — health thordata + lifespan proxy check + get_optional_admin_user
-last_updated: "2026-05-01T21:30:00.000Z"
+status: Phase 16 COMPLETE — VPS deploy pending
+stopped_at: "16-04 complete (53174a0) — E2E tests + ssl.SSLError fix; all 4 plans done; VPS deploy pending next session"
+last_updated: "2026-05-01T22:00:00Z"
 progress:
   total_phases: 9
-  completed_phases: 7
-  total_plans: 18
-  completed_plans: 18
+  completed_phases: 8
+  total_plans: 22
+  completed_plans: 22
 ---
 
 # Project State
@@ -91,10 +91,10 @@ not a data-availability issue. Phase 13 discovers real extra keys; Phase 14 rend
 
 ## Session Continuity
 
-Last session: 2026-05-01T21:30:00Z
-Stopped at: 16-03 complete (0d3a61a) — route layer wired: validator + budget circuit breaker + extended SSE + /health thordata + lifespan proxy check
+Last session: 2026-05-01T22:00:00Z
+Stopped at: 16-04 complete (53174a0) — Phase 16 fully coded; VPS deploy is the only remaining step
 Resume file: None
-Next action: `/gsd:execute-phase 16` → execute Plan 04 (frontend: render.js state-branched rendering + Unverified badge + module_error UX + meridian.css + E2E tests + VPS deploy).
+Next action: VPS deploy — `scp -r api/ modules/ static/ root@146.190.142.50:/root/nexus-osint/ && ssh root@146.190.142.50 "cd /root/nexus-osint && docker compose up -d --build"`; then smoke test + mark Phase 16 COMPLETE in ROADMAP.md.
 
 ### Phase 16 Planning Summary (2026-04-30)
 
