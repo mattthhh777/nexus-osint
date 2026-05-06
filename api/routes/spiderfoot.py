@@ -1,10 +1,10 @@
-"""SpiderFoot integration routes: /api/spiderfoot/status."""
+﻿"""SpiderFoot integration routes: /api/spiderfoot/status."""
 import httpx
 from fastapi import APIRouter, Depends, Request
 
 from api.config import RL_READ_LIMIT, SPIDERFOOT_URL
 from api.deps import get_current_user
-from api.main import limiter
+from api.limiter import limiter
 
 router = APIRouter()
 

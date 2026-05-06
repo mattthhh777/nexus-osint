@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Request
 import api.budget as _budget
 from api.config import AUDIT_DB, RL_ADMIN_LIMIT, RL_READ_LIMIT
 from api.deps import get_admin_user, get_optional_admin_user, get_orchestrator_dep
-from api.main import limiter
+from api.limiter import limiter
 from api.orchestrator import DegradationMode, TaskOrchestrator
 from api.services.search_service import _api_cache
 

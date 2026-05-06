@@ -1,4 +1,4 @@
-"""Admin routes: stats, logs, user CRUD."""
+﻿"""Admin routes: stats, logs, user CRUD."""
 import re
 from datetime import datetime, timezone
 from typing import Optional
@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from api.config import MAX_USERS, RL_ADMIN_LIMIT, RL_REGISTER_LIMIT
 from api.db import DatabaseManager
 from api.deps import get_admin_user, get_db
-from api.main import limiter
+from api.limiter import limiter
 from api.services.auth_service import _load_users, _safe_hash, _save_users
 
 router = APIRouter()

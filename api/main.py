@@ -23,7 +23,6 @@ import httpx
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
-from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from fastapi.middleware.cors import CORSMiddleware
@@ -123,7 +122,6 @@ async def _thordata_startup_check() -> None:
         async with httpx.AsyncClient(
             proxy=THORDATA_PROXY_URL,
             timeout=10.0,
-            verify=False,
         ) as client:
             resp = await client.get("https://api.ipify.org", params={"format": "text"})
             resp.raise_for_status()
@@ -183,23 +181,7 @@ app.add_middleware(
 )
 
 
-# ── Rate limiter — key function + registration ────────────────────────────────
-
-def _rate_key(request: Request) -> str:
-    """Prefer JWT sub for authenticated users, fall back to client IP."""
-    token = request.cookies.get("nx_session")
-    if token:
-        try:
-            payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-            sub = payload.get("sub")
-            if sub:
-                return f"u:{sub}"
-        except (jwt.InvalidTokenError, jwt.ExpiredSignatureError):
-            pass
-    return f"ip:{get_remote_address(request)}"
-
-
-limiter = Limiter(key_func=_rate_key, storage_uri="memory://")
+from api.limiter import limiter  # noqa: E402 — must follow app definition
 app.state.limiter = limiter
 
 

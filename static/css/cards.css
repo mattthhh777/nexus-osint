@@ -528,6 +528,13 @@
   border: 1px solid var(--color-accent-border);
 }
 
+.social-card-badge--low-reliability {
+  background: rgba(240, 100, 30, 0.12);
+  color: #e07020;
+  border: 1px solid rgba(240, 100, 30, 0.30);
+  cursor: help;
+}
+
 .panel-likely-count {
   margin-left: 6px;
   font-family: var(--font-data);

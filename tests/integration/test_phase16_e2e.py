@@ -397,10 +397,11 @@ def test_dh13_audit_log_uses_hash_not_plaintext(monkeypatch):
 
 
 def test_platform_result_serialization_exact_keys(monkeypatch):
-    """Test 8: found and likely items have EXACTLY the 6 allowed keys.
+    """Test 8: found and likely items have the required 6 keys; only 'reliability' allowed extra.
 
-    Allowed: {platform, url, category, icon, state, confidence}
-    Forbidden: found, error, negative_markers, or any internal field.
+    Required: {platform, url, category, icon, state, confidence}
+    Optional: {reliability} — present only when value is "low" (low-reliability platforms)
+    Forbidden: found, error, negative_markers, or any other internal field.
     D-H2: internal scoring signals must not leak to client.
     """
     import modules.sherlock_wrapper as sw
@@ -417,17 +418,23 @@ def test_platform_result_serialization_exact_keys(monkeypatch):
     )
     assert sherlock_event is not None, f"No sherlock event: {events}"
 
-    allowed_keys = {"platform", "url", "category", "icon", "state", "confidence"}
+    required_keys = {"platform", "url", "category", "icon", "state", "confidence"}
+    optional_keys = {"reliability"}
+    allowed_keys = required_keys | optional_keys
     all_items = sherlock_event.get("found", []) + sherlock_event.get("likely", [])
     assert len(all_items) == 4, f"Expected 4 total items (2+2), got {len(all_items)}"
 
     for item in all_items:
         item_keys = set(item.keys())
         extra = item_keys - allowed_keys
-        missing = allowed_keys - item_keys
+        missing = required_keys - item_keys
         assert not extra, (
             f"Platform item contains forbidden extra keys: {extra} -- item: {item}"
         )
         assert not missing, (
             f"Platform item missing required keys: {missing} -- item: {item}"
         )
+        if "reliability" in item_keys:
+            assert item["reliability"] == "low", (
+                f"reliability must be 'low' when present, got: {item['reliability']!r}"
+            )

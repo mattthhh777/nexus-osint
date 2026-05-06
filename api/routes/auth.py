@@ -9,7 +9,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from api.config import APP_PASSWORD, JWT_EXPIRE_HOURS, RL_ADMIN_LIMIT, RL_LOGIN_LIMIT, RL_READ_LIMIT
 from api.db import DatabaseManager
 from api.deps import _decode_token, get_admin_user, get_current_user, get_db, security
-from api.main import limiter
+from api.limiter import limiter
 from api.schemas import LoginRequest
 from api.services.auth_service import _create_token, _load_users, _revoke_token, _verify_user
 

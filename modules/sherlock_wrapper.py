@@ -28,6 +28,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Optional
 
+import random
+
 import httpx
 
 from api.config import (
@@ -120,6 +122,7 @@ PLATFORMS: list[dict] = [
         # Cleared negative_markers: no SSR-detectable text distinguishes
         # missing vs existing accounts from the raw HTTP response body.
         "negative_markers": [],
+        "reliability": "low",
     },
     {
         "name": "Instagram",
@@ -134,6 +137,7 @@ PLATFORMS: list[dict] = [
         # text difference. Negative markers cleared; platform reliability
         # is LOW without browser execution or residential proxy.
         "negative_markers": [],
+        "reliability": "low",
     },
     {
         "name": "TikTok",
@@ -160,6 +164,7 @@ PLATFORMS: list[dict] = [
         # so the text_absent claim will score positively even for nonexistent
         # accounts — known limitation requiring proxy or API access.
         "negative_markers": [],
+        "reliability": "low",
     },
     {
         "name": "LinkedIn",
@@ -175,6 +180,7 @@ PLATFORMS: list[dict] = [
         # found") → score boost applies even for nonexistent accounts.
         # No SSR-detectable markers; platform requires authenticated session.
         "negative_markers": [],
+        "reliability": "low",
     },
     {
         "name": "Pinterest",
@@ -340,14 +346,26 @@ PLATFORMS: list[dict] = [
     },
 ]
 
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept-Language": "en-US,en;q=0.9",
-}
+_UA_POOL = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14.4; rv:125.0) Gecko/20100101 Firefox/125.0",
+]
+
+
+def _get_headers() -> dict[str, str]:
+    return {
+        "User-Agent": random.choice(_UA_POOL),
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+
+
+# Backward-compat alias used by tests and callers that expect a module-level dict.
+HEADERS = _get_headers()
 
 CONNECT_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 
@@ -365,6 +383,7 @@ class PlatformResult:
     state: str = "not_found"      # "confirmed" | "likely" | "not_found" (Phase 16)
     error: Optional[str] = None   # "timeout" | "connection_error" | "http_NNN"
                                   # | "proxy_unavailable" | "cf_challenge"
+    reliability: str = "normal"   # "normal" | "low" — low = SPA/bot-wall, results unreliable
 
 
 @dataclass
@@ -525,6 +544,7 @@ async def _check_platform(
         url=url,
         category=platform.get("category", ""),
         icon=platform.get("icon", ""),
+        reliability=platform.get("reliability", "normal"),
     )
 
     # Per-domain outbound rate limit (CLAUDE.md mandate + D-04)
@@ -654,10 +674,9 @@ def _try_sherlock_cli(username: str) -> Optional[SherlockResult]:
 def _build_client_kwargs(proxy_url: str | None) -> dict:
     """Build httpx.AsyncClient kwargs with optional Thordata sticky-session proxy."""
     base: dict = {
-        "headers": HEADERS,
+        "headers": _get_headers(),
         "timeout": CONNECT_TIMEOUT,
         "follow_redirects": True,
-        "verify": False,
     }
     if proxy_url:
         base["proxy"] = proxy_url  # singular 'proxy=' (httpx 0.27.x; 'proxies=' deprecated)

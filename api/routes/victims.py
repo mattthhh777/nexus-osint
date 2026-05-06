@@ -1,10 +1,10 @@
-"""Victims API routes: /api/victims/search, manifest, file content."""
+﻿"""Victims API routes: /api/victims/search, manifest, file content."""
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 
 from api.config import RL_READ_LIMIT
 from api.deps import get_current_user
-from api.main import limiter
+from api.limiter import limiter
 from api.services.admin_service import _validate_id
 from modules.oathnet_client import oathnet_client
 

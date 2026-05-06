@@ -529,6 +529,11 @@ function renderSocial(s) {
       ? '<span class="social-card-badge social-card-badge--unverified">Unverified</span>'
       : '';
 
+    // Low-reliability badge -- SPA/bot-wall platforms where SSR detection is unreliable
+    const lowReliabilityBadge = (p.reliability === 'low')
+      ? '<span class="social-card-badge social-card-badge--low-reliability" title="This platform blocks automated checks — results may be inaccurate">Low Reliability</span>'
+      : '';
+
     // Avatar: img + fallback (fallback shown via JS error handler, not inline onerror -- CSP-safe)
     const avatarHtml = avatarUrl
       ? '<img class="social-card-avatar" src="' + avatarUrl + '" alt="" loading="lazy">'
@@ -544,6 +549,7 @@ function renderSocial(s) {
       + '<div class="social-card-icon">' + iconHtml + '</div>'
       + '<span class="social-card-name">' + esc(p.platform) + '</span>'
       + unverifiedBadge
+      + lowReliabilityBadge
       + '</div>'
       + (p.category ? '<span class="social-card-cat">' + esc(p.category) + '</span>' : '')
       + '</div>'

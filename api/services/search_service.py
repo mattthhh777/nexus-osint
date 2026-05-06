@@ -88,14 +88,22 @@ async def _log_search(
     )
 
 
+_RE_DISCORD_ID = re.compile(r"^\d{14,19}$")
+_RE_PHONE      = re.compile(r"^\+\d{7,15}$")
+_RE_EMAIL      = re.compile(r"^[\w.+\-]+@[\w\-]+\.[\w.]{2,}$", re.I)
+_RE_IP         = re.compile(r"^(\d{1,3}\.){3}\d{1,3}$")
+_RE_DOMAIN     = re.compile(r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$")
+_RE_STEAM_ID   = re.compile(r"^\d{7,10}$")
+
+
 def detect_type(q: str) -> str:
     q = q.strip()
-    if re.match(r"^\d{14,19}$", q):      return "discord_id"
-    if re.match(r"^\+\d{7,15}$", q):     return "phone"
-    if re.match(r"^[\w.+\-]+@[\w\-]+\.[\w.]{2,}$", q, re.I): return "email"
-    if re.match(r"^(\d{1,3}\.){3}\d{1,3}$", q):               return "ip"
-    if re.match(r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$", q): return "domain"
-    if re.match(r"^\d{7,10}$", q):        return "steam_id"
+    if _RE_DISCORD_ID.match(q): return "discord_id"
+    if _RE_PHONE.match(q):      return "phone"
+    if _RE_EMAIL.match(q):      return "email"
+    if _RE_IP.match(q):         return "ip"
+    if _RE_DOMAIN.match(q):     return "domain"
+    if _RE_STEAM_ID.match(q):   return "steam_id"
     return "username"
 
 
@@ -387,7 +395,7 @@ async def _stream_search(
                         # D-H2/D-H3: serialize ONLY safe fields. negative_markers,
                         # raw signal scores, internal flags NEVER leak to client.
                         def _serialize_platform(p):
-                            return {
+                            d = {
                                 "platform": p.platform,
                                 "url": p.url,
                                 "category": p.category,
@@ -395,6 +403,9 @@ async def _stream_search(
                                 "state": p.state,
                                 "confidence": p.confidence,
                             }
+                            if getattr(p, "reliability", "normal") != "normal":
+                                d["reliability"] = p.reliability
+                            return d
 
                         social_count = sherl.found_count
                         yield event({

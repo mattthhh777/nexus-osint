@@ -1,4 +1,4 @@
-"""Search routes: /api/search (SSE), /api/search/more-breaches, /api/admin/breach-extra-keys."""
+﻿"""Search routes: /api/search (SSE), /api/search/more-breaches, /api/admin/breach-extra-keys."""
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 from api.config import RL_ADMIN_LIMIT, RL_SEARCH_LIMIT
 from api.db import DatabaseManager
 from api.deps import get_admin_user, get_client_ip, get_current_user, get_db, get_orchestrator_dep
-from api.main import limiter
+from api.limiter import limiter
 from api.orchestrator import DegradationMode, TaskOrchestrator
 from api.schemas import SearchRequest
 from api.services.search_service import (
