@@ -205,10 +205,10 @@ def test_healthy_sherlock_event_shape(monkeypatch):
 
     D-H2/D-H3: no negative_markers, no status_pts, no text_pts, no size_pts in event.
     """
-    import modules.sherlock_wrapper as sw
+    import modules.maigret_wrapper as mw
 
     stub = _make_stub_sherlock_result()
-    monkeypatch.setattr(sw, "search_username", AsyncMock(return_value=stub))
+    monkeypatch.setattr(mw, "search_username", AsyncMock(return_value=stub))
 
     req = SearchRequest(query="testuser", mode="manual", modules=["sherlock"])
     events = asyncio.get_event_loop().run_until_complete(_collect_sse(req))
@@ -236,10 +236,10 @@ def test_platform_items_contain_only_allowed_keys(monkeypatch):
 
     D-H2: internal scoring signals must not leak to client.
     """
-    import modules.sherlock_wrapper as sw
+    import modules.maigret_wrapper as mw
 
     stub = _make_stub_sherlock_result()
-    monkeypatch.setattr(sw, "search_username", AsyncMock(return_value=stub))
+    monkeypatch.setattr(mw, "search_username", AsyncMock(return_value=stub))
 
     req = SearchRequest(query="testuser", mode="manual", modules=["sherlock"])
     events = asyncio.get_event_loop().run_until_complete(_collect_sse(req))
@@ -265,7 +265,7 @@ def test_record_usage_called_after_successful_sherlock(monkeypatch):
     Note: record_usage is called inside search_username (sherlock_wrapper), not in
     search_service directly. We verify it via the budget module state changing.
     """
-    import modules.sherlock_wrapper as sw
+    import modules.maigret_wrapper as mw
 
     stub = _make_stub_sherlock_result()
 
@@ -279,10 +279,10 @@ def test_record_usage_called_after_successful_sherlock(monkeypatch):
     monkeypatch.setattr(budget, "record_usage", spy_record_usage)
 
     # Return stub directly — search_username is mocked, but record_usage
-    # is called inside _stream_search (from sherlock_wrapper side).
+    # is called inside _stream_search (from maigret_wrapper side).
     # To verify the wiring, we check that the stub result flows through
     # and the serializer produces the extended format.
-    monkeypatch.setattr(sw, "search_username", AsyncMock(return_value=stub))
+    monkeypatch.setattr(mw, "search_username", AsyncMock(return_value=stub))
 
     req = SearchRequest(query="testuser", mode="manual", modules=["sherlock"])
     events = asyncio.get_event_loop().run_until_complete(_collect_sse(req))

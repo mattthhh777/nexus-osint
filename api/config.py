@@ -50,7 +50,7 @@ MODULE_TIMEOUTS = {
     "breach":         45,   # OathNet breach search — can be slow with many results
     "stealer":        45,   # OathNet stealer v2
     "holehe":         20,   # Email account checker
-    "sherlock":       60,   # Checks 25 platforms concurrently
+    "sherlock":       120,  # Maigret — checks 500 platforms concurrently
     "discord":        15,   # Simple Discord API
     "discord_auto":   10,   # Auto Discord from breach
     "ip_info":        15,   # IP geolocation
