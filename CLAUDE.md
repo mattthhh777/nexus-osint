@@ -1,6 +1,6 @@
 # NexusOSINT — CLAUDE.md
-# Milestone v4.0: Low-Resource Agent Architecture & Hardening
-# Stack: FastAPI + Vanilla JS + SQLite + Docker | VPS: 1vCPU / 1GB RAM
+# Milestone v4.0: Agent Architecture & Hardening
+# Stack: FastAPI + Vanilla JS + SQLite + Docker | VPS: 3vCPU / 4GB RAM / 80GB SSD
 
 ---
 
@@ -118,21 +118,20 @@ obsidian-markdown   → documentação de decisões ao final de cada sessão
 Backend:   FastAPI (Python 3.12+)
 Frontend:  Vanilla JS — nunca fonte de verdade para lógica de negócio
 Database:  SQLite com WAL mode + serialização via asyncio.Queue
-Container: Docker multi-stage, target <250MB, deploy em DO VPS
+Container: Docker multi-stage, target <250MB, deploy em Hetzner VPS
 ```
 
 ### Hardware Constraints (não-negociáveis)
 ```
-VPS:               DigitalOcean 1vCPU / 1GB RAM / 25GB SSD
-RAM resting:       < 200MB
-RAM alerta:        > 400MB → investigar ativamente (possível leak crescendo)
-RAM limite Docker: 800m (deixar ~200MB para SO)
-RAM swap total:    2800m (800m RAM + 2GB swap)
-Swap:              2GB obrigatório — configurar antes de qualquer deploy
-Concurrency:       asyncio.Semaphore(max=5) — teto absoluto
+VPS:               Hetzner 3vCPU / 4GB RAM / 80GB SSD | IP: 87.99.153.11
+RAM resting:       < 500MB
+RAM alerta:        > 2000MB → investigar ativamente (possível leak crescendo)
+RAM crítico:       > 85% (~3400MB) → pausar novos agents
+RAM limite Docker: 3500m (deixar ~500MB para SO)
+Swap:              1GB recomendado como safety net
+Concurrency:       asyncio.Semaphore(max=10) — teto absoluto
 Docker image:      < 250MB
-SQLite readers:    máximo 3 conexões de leitura simultâneas com WAL
-                   (acima disso, pressão no VPS 1GB se torna mensurável)
+SQLite readers:    máximo 5 conexões de leitura simultâneas com WAL
 ```
 
 ### Identidade Visual (protegida)
@@ -306,7 +305,7 @@ class Database:
 # ERRADO: create_task() fire-and-forget = OOM garantido
 
 class AgentOrchestrator:
-    def __init__(self, max_concurrent: int = 5):
+    def __init__(self, max_concurrent: int = 10):
         self._semaphore = asyncio.Semaphore(max_concurrent)
         self._registry: dict[str, asyncio.Task] = {}
         self._paused = False
@@ -372,7 +371,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
-# workers=1: single process no VPS 1vCPU/1GB — asyncio gerencia concorrência internamente
+# workers=1: asyncio gerencia concorrência I/O-bound — múltiplos workers não ajudam workloads async
 ```
 
 ```yaml
@@ -382,17 +381,17 @@ services:
     deploy:
       resources:
         limits:
-          memory: 800m
+          memory: 3500m
         reservations:
-          memory: 200m
+          memory: 300m
     mem_swappiness: 10  # swap apenas sob pressão real, não agressivamente
 ```
 
 **Definition of Done**:
 - [ ] `docker images nexus` < 250MB
-- [ ] `/swapfile` 2GB ativo no VPS (`swapon --show`)
+- [ ] `/swapfile` 1GB ativo no VPS (`swapon --show`) — safety net
 - [ ] Health check respondendo em < 10s após start
-- [ ] `docker stats` em resting: memory < 200MB
+- [ ] `docker stats` em resting: memory < 500MB
 
 ---
 
@@ -462,8 +461,8 @@ from fastapi import APIRouter, Depends
 
 router = APIRouter()
 
-MEMORY_ALERT_MB = 400    # investigar ativamente
-MEMORY_CRITICAL_PCT = 85 # pausar novos agents
+MEMORY_ALERT_MB = 2000   # investigar ativamente
+MEMORY_CRITICAL_PCT = 85 # pausar novos agents (~3400MB de 4GB)
 CPU_ALERT_PCT = 80
 
 @router.get("/health")
@@ -491,7 +490,7 @@ async def health_check(orchestrator: AgentOrchestrator = Depends(get_orchestrato
 
 **Definition of Done**:
 - [ ] `/health` retorna dados reais (não só HTTP 200)
-- [ ] Threshold alerta (400MB) e crítico (85%) funcionais
+- [ ] Threshold alerta (2000MB) e crítico (85%) funcionais
 - [ ] Graceful degradation: agents pausam — não derrubam
 - [ ] Log de warning quando thresholds são atingidos
 
@@ -624,7 +623,7 @@ FIM DE SESSÃO:
 | Rate limiting de saída em todos os agentes OSINT | OBRIGATÓRIO |
 | SQLite: asyncio.Queue + single writer + máx 3 readers simultâneos | OBRIGATÓRIO |
 | Async agents: TaskGroup + registry — sem fire-and-forget | OBRIGATÓRIO |
-| Semaphore ceiling: máximo 5 tasks simultâneas | OBRIGATÓRIO |
+| Semaphore ceiling: máximo 10 tasks simultâneas | OBRIGATÓRIO |
 | Docker target: < 250MB | OBRIGATÓRIO |
 | Brand Amber/Noir: nenhuma mudança sem aprovação | OBRIGATÓRIO |
 | Rollback documentado antes de executar F6 e F7 | OBRIGATÓRIO |
@@ -653,32 +652,32 @@ Input validation:    pydantic v2 com field validators — nunca confiar no front
 Logging:             loguru — estruturado, nunca PII, nunca dados do alvo sem hash
 Testes async:        pytest-asyncio + respx (mock httpx)
 Docker multi-stage:  python:3.12-slim (digest fixo após estabilizar)
-VPS swap:            fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+VPS swap:            fallocate -l 1G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
 Security headers:    starlette middleware — não JS
-Memory thresholds:   resting < 200MB | alerta > 400MB | crítico > 85% RAM
-SQLite readers:      máx 3 simultâneos com WAL no VPS 1GB
+Memory thresholds:   resting < 500MB | alerta > 2000MB | crítico > 85% (~3400MB)
+SQLite readers:      máx 5 simultâneos com WAL
 ```
 
 ---
 
 ## DEPLOY — VPS PRODUCTION
 
-**VPS**: DigitalOcean `root@146.190.142.50`
+**VPS**: Hetzner `root@87.99.153.11` (domínio: nexusosint.uk via Cloudflare proxy)
 
 Após qualquer mudança de código aprovada e commitada, Claude faz o deploy assim:
 
 ```bash
 # 1. Enviar arquivos alterados para o VPS
-scp -r api/ static/ nginx.conf root@146.190.142.50:/root/nexus-osint/
+scp -r api/ static/ nginx.conf root@87.99.153.11:/root/nexus-osint/
 
 # 2. Rebuild e restart no VPS
-ssh root@146.190.142.50 "cd /root/nexus-osint && docker compose up -d --build"
+ssh root@87.99.153.11 "cd /root/nexus-osint && docker compose up -d --build"
 ```
 
 **Regras de deploy**:
 - Deploy só ocorre após `git commit` bem-sucedido
 - Nunca fazer deploy de branch diferente de `master` sem aprovação explícita
-- Se `docker compose up` falhar no VPS → investigar logs antes de qualquer rollback: `ssh root@146.190.142.50 "docker logs nexus_osint-nexus-1 --tail 50"`
+- Se `docker compose up` falhar no VPS → investigar logs antes de qualquer rollback: `ssh root@87.99.153.11 "docker logs nexus_osint-nexus-1 --tail 50"`
 - Deploy de mudanças de schema de banco de dados exige janela de manutenção planejada
 - Nunca enviar `.env` ou arquivos de segredos via SCP — esses já existem no VPS
 
