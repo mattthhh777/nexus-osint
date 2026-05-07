@@ -8,20 +8,20 @@ A premium OSINT (Open Source Intelligence) SaaS platform for security profession
 
 A single search query returns comprehensive intelligence from 13+ OSINT modules with professional-grade data presentation — density without chaos. From the same scan, show 2× more data without additional backend cost by rendering what already arrives.
 
-## Current Milestone: v4.1 Results UX — Data completeness & presentation
+## Current Milestone: v4.2 Database Migration — SQLite → PostgreSQL
 
-**Goal:** Transform raw data tables into readable, actionable intelligence cards. Breach data already flows through the pipeline with 11+ fields (including `extra_fields` dict for unmapped API data) — the bottleneck is purely in the render layer. Social profiles get platform-branded SVG cards. Inline filters land on dense panels. The visual gap vs. reference platforms (OathNet, OSINT Industries) closes by 50%+ at zero backend cost.
+**Goal:** Replace SQLite with PostgreSQL to remove single-writer bottleneck, unlock concurrent agent writes, leverage native JSONB for `extra_fields`, and prepare for full-text search on breach data. Hardware constraint that originally locked SQLite (1GB RAM DigitalOcean) no longer applies — Hetzner VPS provides 4GB RAM headroom. Migration is data-preserving with rollback playbook.
 
 **Target features:**
 
-- Phase 12: Pre-gate — commit deployed files + delete backup zips
-- Phase 13: Data Instrumentation — admin endpoint to discover real `extra_fields` keys + frontend whitelist
-- Phase 14: Breach Cards — flat table → 2-col card per entry, reads `extra_fields`, per-field copy
-- Phase 15: Social Cards — emoji chips → SVG brand icon cards (Lucide + Simple Icons)
-- Phase 16: Inline Filters — filter input in panels with >10 entries, debounced 150ms
-- Phase 17: Summary Hero — 4 stat cards (Total Found / Breaches / Stealers / Social) at results top
-- Phase 18: Copy & Expand — per-field copy + "Raw JSON" modal per item
-- Phase 19: Micro-polish — press-feedback, sf-dot visible on mobile, placeholder rotativo
+- PostgreSQL setup — docker-compose service + tuning for 4GB host (shared_buffers, work_mem, max_connections)
+- asyncpg driver — async connection pool with bounded size, replace `aiosqlite.Connection` + write Queue
+- Alembic migrations — schema versioning, port current SQLite schema to Postgres-native types (JSONB for `extra_fields`)
+- Data migration tool — dump SQLite → load Postgres with row-count + checksum validation
+- Connection layer refactor — repository layer swaps engine without route-level changes
+- Backup automation — pg_dump cron + retention policy + restore drill
+- Rollback playbook — keep SQLite snapshot during cutover window, documented revert path
+- Maintenance window cutover — single planned downtime, dual-write not in scope
 
 ## Key Decisions
 
@@ -29,7 +29,7 @@ A single search query returns comprehensive intelligence from 13+ OSINT modules 
 |----------|-----------|---------|
 | Keep vanilla JS/CSS stack | Production working, rewrite risk too high | ✅ Good |
 | Meridian design system | Consistent visual language, single source of truth | ✅ Good |
-| SQLite with WAL, not PostgreSQL | 1GB RAM constraint; WAL handles concurrent reads; asyncio.Queue serializes writes | ✅ Validated Phase 04 |
+| SQLite with WAL, not PostgreSQL | 1GB RAM constraint at DigitalOcean; WAL + asyncio.Queue single-writer | ⚠️ Superseded by v4.2 — VPS migrated to Hetzner 4GB; Postgres now justified |
 | TaskGroup + Semaphore, not heavy processes | OOM prevention on 1GB VPS; dual semaphore (Global=5, OathNet=3) | ✅ Validated Phase 05 |
 | httpx as sole HTTP client | Remove requests + aiohttp — 15MB container reduction | ✅ Validated Phase 11 |
 | TTLCache for API responses | maxsize=200, ttl=300s — preserves OathNet 100/day quota | ✅ Validated Phase 11 |
@@ -89,7 +89,7 @@ A single search query returns comprehensive intelligence from 13+ OSINT modules 
 ### Out of Scope
 
 - Next.js / React / Vue migration — vanilla stack is production, rewrite risk too high
-- PostgreSQL / Redis — SQLite sufficient at current scale with WAL
+- Redis — Postgres LISTEN/NOTIFY + in-memory caches sufficient at current scale (revisit if pubsub needs grow)
 - New OSINT data sources beyond OathNet API — focus is presentation, not data expansion
 - Mobile app — web-first
 - CI/CD pipeline — deploy via scp, not blocking current work
@@ -104,18 +104,19 @@ A single search query returns comprehensive intelligence from 13+ OSINT modules 
 ## Context
 
 **Production environment:**
-- DigitalOcean VPS: 1 vCPU / 1GB RAM / 25GB SSD (SFO3, Ubuntu 24.04)
+- Hetzner VPS: 3 vCPU / 4GB RAM / 80GB SSD (IP 87.99.153.11, Ubuntu)
 - Domain nexusosint.uk via Cloudflare
-- SSL via Let's Encrypt (certbot container), expires 2026-06-21
-- Docker Compose: app (FastAPI/Uvicorn) + Nginx + Certbot
+- SSL via Let's Encrypt (certbot container)
+- Docker Compose: app (FastAPI/Uvicorn) + Nginx + Certbot + (v4.2) Postgres
 - OathNet API: Starter plan, 100 lookups/day (main operational constraint)
 - Deploy via scp (no CI/CD)
 
-**Hardware constraints (non-negotiable):**
-- RAM target: <200MB resting footprint
-- Swap: 2GB mandatory
-- Concurrency ceiling: asyncio.Semaphore(5) — absolute max simultaneous tasks
-- Docker image target: <250MB (currently 306MB — accepted, F5 venue for reduction)
+**Hardware constraints (current — Hetzner):**
+- RAM target: <500MB app resting; <2000MB alert; >85% (~3400MB) critical → pause new agents
+- Postgres budget (v4.2): ~300MB shared_buffers + work_mem; total system resting <1.2GB
+- Swap: 1GB recommended safety net
+- Concurrency ceiling: asyncio.Semaphore(10) — Postgres connection pool max 8 (leave headroom)
+- Docker image target: <250MB app image (Postgres image separate)
 
 **Design system:** Meridian — "Night command station" aesthetic. Noir/amber palette.
 Density without chaos. Max border-radius 6px (except pills).
@@ -126,9 +127,9 @@ Density without chaos. Max border-radius 6px (except pills).
 
 ## Constraints
 
-- **Stack lock**: FastAPI + vanilla HTML/CSS/JS + SQLite + Docker — no framework changes
-- **Hardware**: 1 vCPU / 1GB RAM / 25GB SSD — every architectural decision must respect this
-- **Memory ceiling**: <200MB resting, Semaphore(5) for concurrent tasks
+- **Stack lock**: FastAPI + vanilla HTML/CSS/JS + Docker — no framework changes (DB layer evolving in v4.2: SQLite → PostgreSQL)
+- **Hardware**: 3 vCPU / 4GB RAM / 80GB SSD (Hetzner) — every architectural decision must respect this
+- **Memory ceiling**: <500MB app resting + ~300MB Postgres; Semaphore(10) for concurrent tasks; pool max 8
 - **Amber/noir identity**: Color palette is brand identity — never change
 - **File protection**: Do NOT modify docker-compose.yml, nginx.conf, Dockerfile, entrypoint.sh, admin.html, modules/*.py without explicit approval (nginx.conf pre-gate exception was for CSP fix)
 - **Known traps**: Never use passlib, su-exec, `from __future__ import annotations`, `user: "1000:1000"` in compose, `internal: true` on Docker network
@@ -200,4 +201,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-15 after Phase 12 pre-gate (v4.1 planning kickoff)*
+*Last updated: 2026-05-06 — v4.2 milestone kickoff (SQLite → PostgreSQL migration)*

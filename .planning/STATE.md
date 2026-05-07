@@ -1,31 +1,33 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.0.0
-milestone_name: — Complete)
-status: Phase 16 COMPLETE — VPS deploy pending
-stopped_at: "16-04 complete (53174a0) — E2E tests + ssl.SSLError fix; all 4 plans done; VPS deploy pending next session"
-last_updated: "2026-05-01T22:00:00Z"
+milestone: v4.2.0
+milestone_name: Database Migration (SQLite → PostgreSQL)
+status: Defining requirements
+stopped_at: "v4.2 milestone kickoff — research phase next"
+last_updated: "2026-05-06T22:30:00Z"
 progress:
-  total_phases: 9
-  completed_phases: 8
-  total_plans: 22
-  completed_plans: 22
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-15 — milestone v4.1)
+See: .planning/PROJECT.md (updated 2026-05-06 — milestone v4.2)
 
 **Core value:** From the same scan, show 2× more data without additional backend cost — rendering what already arrives in the pipeline.
 
-**Current focus:** Phase 16 — sherlock-false-positive-filter-thordata-proxy-integration
+**Current focus:** v4.2 milestone setup — defining requirements for SQLite → PostgreSQL migration.
 
 ## Current Position
 
-Phase: 16 (sherlock-false-positive-filter-thordata-proxy-integration) — EXECUTING
-Plan: 1 of 4
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-06 — Milestone v4.2 started (Database Migration)
 
 ## Phase Map
 
