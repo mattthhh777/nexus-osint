@@ -32,9 +32,9 @@ services:
       - ENV=prod
     volumes:
       - nexus_data:/app/data
-      - /root/nexus-osint/api:/app/api:ro
-      - /root/nexus-osint/static:/app/static:ro
-      - /root/nexus-osint/modules:/app/modules:ro
+      - ./api:/app/api:ro
+      - ./static:/app/static:ro
+      - ./modules:/app/modules:ro
     # SEC-HIGH-1 (2026-04-23): porta 8000 NÃO publicada no host.
     # Nginx alcança via rede interna Docker DNS (http://nexus:8000).
     # Publicar no host bypassa nginx (CSP, HSTS, rate_limit) e UFW é
@@ -69,10 +69,10 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - /root/nexus-osint/nginx.conf:/etc/nginx/nginx.conf:ro
-      - /root/nexus-osint/static:/etc/nginx/static:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./static:/etc/nginx/static:ro
       - certbot_www:/var/www/certbot:ro
-      - /root/nexus-osint/certbot_certs:/etc/letsencrypt:ro
+      - ./certbot_certs:/etc/letsencrypt:ro
     depends_on:
       - nexus
     networks:
@@ -87,7 +87,7 @@ services:
       - no-new-privileges:true
     volumes:
       - certbot_www:/var/www/certbot
-      - /root/nexus-osint/certbot_certs:/etc/letsencrypt
+      - ./certbot_certs:/etc/letsencrypt
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done;'"
     restart: unless-stopped
 
