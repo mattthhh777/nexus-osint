@@ -394,4 +394,166 @@ Plans:
 
 ---
 
-*Roadmap created: 2026-03-30 | Last updated: 2026-05-01 (Phase 16 COMPLETE — Sherlock FP filter + Thordata proxy deployed to VPS; 53/53 tests green)*
+## Milestone v4.2 — Database Migration (SQLite → PostgreSQL)
+
+**Defined:** 2026-05-07 | **Timeline:** 6-10 weeks / 8 phases | **Stack target:** PostgreSQL 16-alpine + asyncpg 0.31 + Alembic 1.13 async + SQLAlchemy 2.0 Core
+
+**Locked params:** UUID PKs all tables · JSONB payload on `searches` · pool max_size=10 / min_size=2 · `max_connections=20` · nexus `mem_limit=2500MB` · postgres `mem_limit=768MB` · `shared_buffers=256MB` · `work_mem=8MB` · `shm_size=256MB` · greenfield drop `token_blacklist`/`rate_limits` · preserve `searches`+`quota_log` · `pg_dump` 7d · SQLite snapshot 30d.
+
+**Open Risks:** R-01 nexus mem 2500MB tight (Phase 22 = gate, OOM → 2700MB). R-02 UUID +30% idx on dropped tables (accepted). R-03 JSONB scope creep (accepted). R-04 PG READ COMMITTED ≠ SQLite SERIALIZABLE (Phase 21 RMW audit critical).
+
+---
+
+### Phase 17: v4.2 Pre-Migration Audit & DB Abstraction Layer
+
+**Goal:** Discipline before driver swap — audit SQL dialect violations and introduce a thin repository layer so Phase 21 driver swap is contained to one module.
+**Requirements:** DBM-01, DBM-02, DBM-03, DBM-04
+**Depends on:** Phase 16
+**Risk:** LOW — still on SQLite at end of phase
+**Plans:** 0/3 plans complete
+
+**Deliverable:** `grep -rE "AUTOINCREMENT|INSERT OR REPLACE|datetime\(|strftime\(|rowid|fetchone\(|fetchall\("` audit report; `SQL_INVENTORY.md`; `?`→`$N` placeholder map; `db.fetch_one/fetch_all/execute/transaction` repository layer wrapping aiosqlite; all call sites refactored to use it.
+
+**Avoids:** PITFALLS Pitfall 1 (dialect drift), Pitfall 4 (asyncpg API differs), sed-replace disaster.
+
+Plans:
+- [ ] 17-01-PLAN.md — SQL inventory + placeholder map + rowid fix (DBM-01, DBM-03, DBM-04)
+- [ ] 17-02-PLAN.md — fetch_*/execute/transaction abstraction + DatabaseError (DBM-02 base)
+- [ ] 17-03-PLAN.md — contain aiosqlite to api/db.py + call-site refactor (DBM-02 closure)
+
+---
+
+### Phase 18: Postgres Container + Compose Wiring (parallel deploy)
+
+**Goal:** Stand up Postgres alongside SQLite without cutover risk. App still on SQLite at end of phase.
+**Requirements:** DBM-05, DBM-06, DBM-07, DBM-08, DBM-09, DBM-10
+**Depends on:** Phase 17
+**Risk:** MEDIUM — VPS RAM envelope tight; nexus `mem_limit` reduction observable in production
+**Plans:** 0/0 plans complete
+
+**Deliverable:** `docker-compose.yml` with `postgres:16-alpine`, named volume `postgres_data`, healthcheck, `condition: service_healthy` gating on nexus, password as Docker secret, `mem_limit=768MB`, `shm_size=256MB`, tuned `command:` flags (`shared_buffers=256MB`, `work_mem=8MB`, `max_connections=20`, `idle_in_transaction_session_timeout=60s`), no public port mapping. Nexus `mem_limit` reduced to 2500MB.
+
+**Avoids:** Pitfalls 7 (OOM), 8 (startup race), 9 (volume permissions — named volume not bind), Anti-Pattern 4 (public Postgres).
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 18)
+
+---
+
+### Phase 19: Schema-as-Code + Alembic Async + Test Infra
+
+**Goal:** Schema defined and reviewed before any data touches it. Test infra works on real PG before code is written against PG.
+**Requirements:** DBM-11, DBM-12, DBM-13, DBM-14, DBM-15, DBM-16, DBM-17, DBM-18, DBM-19
+**Depends on:** Phase 18
+**Risk:** MEDIUM — type-mapping landmines silent until Phase 21
+**Plans:** 0/0 plans complete
+
+**Deliverable:** `alembic init -t async migrations`; baseline migration with `MetaData`/`Table` for all tables (greenfield schema using TIMESTAMPTZ / BOOLEAN / JSONB / UUID `gen_random_uuid()` / `TEXT[]`); `pgcrypto` extension enabled; per-table indexes including FK indexes (Postgres does NOT auto-index FKs); CHECK constraints (not ENUM) for status fields; `searches.payload JSONB` + GIN index; template-database test fixtures; `docker-compose.test.yml` with tmpfs PG on port 5433.
+
+**Verification:** `\d+ table_name` confirms TIMESTAMPTZ; `grep -i "TIMESTAMP[^T]" migrations/` returns zero; FK index cross-check passes.
+
+**Avoids:** Pitfall 2 (type mapping), Performance Trap "Missing indexes on FKs".
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 19)
+
+---
+
+### Phase 20: Data Port Script (`searches` only)
+
+**Goal:** Greenfield + selective preserve. `searches` is the only table with historical value.
+**Requirements:** DBM-20, DBM-21, DBM-22, DBM-23
+**Depends on:** Phase 19
+**Risk:** MEDIUM — type fixups must be exact; row-count parity is the safety net
+**Plans:** 0/0 plans complete
+
+**Deliverable:** `scripts/port_searches.py` using `asyncpg.copy_records_to_table` in 1000-row batches; type fixups (ISO TEXT → datetime → TIMESTAMPTZ; CSV `modules_run` → `TEXT[]`; INTEGER `success` → BOOLEAN; legacy NULL payload → `'{}'::jsonb`); row-count parity assertion; idempotent (truncate-then-load on rerun); timed on staging copy of production.
+
+**Avoids:** Pitfall 11 (cutover data loss — script tested before maintenance window).
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 20)
+
+---
+
+### Phase 21: Repository Layer Switch + Code Audit Pass 2
+
+**Goal:** Swap implementation behind Phase 17 abstraction. Audit isolation-level race conditions specifically (PG READ COMMITTED ≠ SQLite SERIALIZABLE).
+**Requirements:** DBM-24, DBM-25, DBM-26, DBM-27, DBM-28, DBM-29, DBM-30, DBM-31
+**Depends on:** Phase 20
+**Risk:** HIGH — most code-touching phase; missed RMW pattern = silent lost-update bug in production
+**Plans:** 0/3 plans complete
+
+**Deliverable:** `api/db.py` rewritten on asyncpg pool (max_size=10, min_size=2, command_timeout=30); `_writer_loop` and `asyncio.Queue` deleted (lines 34, 46-47, 193-222 of current `api/db.py`); `?` → `$N` placeholders rewritten at all call sites; `INSERT OR REPLACE` → `ON CONFLICT DO UPDATE`; every `SELECT then UPDATE` reviewed and replaced with atomic `UPDATE col = col + 1` or `SELECT FOR UPDATE`; pool always inside `async with`; `idle_in_transaction_session_timeout=60s`; `/health` exposes `pool.get_idle_size()`.
+
+**Avoids:** Pitfall 5 (cancellation leaks), Pitfall 6 (RMW races), Anti-Pattern 1 (re-implementing the queue).
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 21)
+
+---
+
+### Phase 22: Concurrency & Memory Stress Test (GATE)
+
+**Goal:** Verify new architecture under load matching production burst patterns BEFORE the irreversible cutover.
+**Requirements:** DBM-32, DBM-33, DBM-34, DBM-35, DBM-36, DBM-37
+**Depends on:** Phase 21
+**Risk:** HIGH — gate for cutover; OOM here = bump nexus `mem_limit` to 2700MB before Phase 23
+**Plans:** 0/0 plans complete
+
+**Deliverable:** Test scenario: 10 concurrent agents × N scans + `cancel_all` mid-burst, repeated; `pg_stat_activity` clean (zero `idle in transaction`) after each cycle; `docker stats postgres` peak < 768MB; `docker stats nexus` peak < 2500MB; `/health` reports `pool.get_idle_size()` recovering between bursts; counter consistency under concurrency verified; slow-query log reviewed.
+
+**Gate criteria:** All four pass → proceed to Phase 23. Any OOM → revisit `mem_limit` to 2700MB and re-run; any pool leak → fix in Phase 21 and re-run; never enter Phase 23 with red metrics.
+
+**Avoids:** Discovering OOM or pool leaks in production.
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 22)
+
+---
+
+### Phase 23: Cutover (maintenance window, ≤ 30 min) — IRREVERSIBLE
+
+**Goal:** Execute the documented playbook exactly. No improvisation in the maintenance window.
+**Requirements:** DBM-38, DBM-39, DBM-40, DBM-41, DBM-42, DBM-43, DBM-44, DBM-45, DBM-46
+**Depends on:** Phase 22 (gate green)
+**Risk:** CRITICAL — irreversible; rollback is "restore SQLite snapshot + revert image tag"
+**Plans:** 0/0 plans complete
+
+**Deliverable:**
+1. Pre-flight: SQLite snapshot (`cp nexus.db nexus.db.pre-pg-$(date +%Y%m%d)`), Docker image tagged `pre-pg-backup`, `git rev-parse HEAD` saved to runbook.
+2. Read-only mode flag flipped → 503 + `Retry-After` for writes; GETs continue.
+3. Drain `orchestrator._registry` to zero (poll, max 60s).
+4. Run `port_searches.py` → assert row-count parity → run `SELECT setval(pg_get_serial_sequence(...))` on every serial PK (only if any sequences remain — UUID-all may eliminate).
+5. Flip `DATABASE_URL` env to `postgresql+asyncpg://...` → `docker compose up -d --build nexus`.
+6. Smoke test: `/health`, sample `/search`, `/admin`, dashboard.
+7. Read-only mode off; announce restored.
+8. SQLite file kept read-only on disk for 30 days.
+
+**Rollback playbook:** must be tested on staging beforehand. Failure to test = abort Phase 23.
+
+**Avoids:** Sequence collisions, lost in-flight writes, no rollback path.
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 23)
+
+---
+
+### Phase 24: Post-Migration Tuning + Backup Hardening (1-week observation)
+
+**Goal:** Tuning needs real production traffic data; defer optimization until measured.
+**Requirements:** DBM-47, DBM-48, DBM-49, DBM-50, DBM-51, DBM-52, DBM-53
+**Depends on:** Phase 23 (1 week production traffic minimum)
+**Risk:** LOW — observation phase
+**Plans:** 0/0 plans complete
+
+**Deliverable:** `pg_stat_statements` review → partial indexes on confirmed hot paths only; per-table autovacuum tuning for `searches` if churn justifies (`autovacuum_vacuum_scale_factor=0.05`); bloat report (`n_dead_tup / n_live_tup`) baselined; `pg_dump` cron at 03:00 with 7-day retention; restore drill on staging passes; `aiosqlite` removed from `requirements.txt`; CLAUDE.md updated to reflect F2 obsoletion (asyncio.Queue write serializer removed, SQLite section archived).
+
+**Avoids:** Pre-optimizing without data; backup-you-have-not-restored anti-pattern (Pitfalls 10, 12).
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 24)
+
+---
+
+*Roadmap created: 2026-03-30 | Last updated: 2026-05-07 (v4.2 milestone roadmap added — Phases 17-24, SQLite → PostgreSQL migration)*
