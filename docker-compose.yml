@@ -61,11 +61,16 @@ services:
     deploy:
       resources:
         limits:
-          memory: 800m
+          memory: 2500m
         reservations:
           memory: 200m
     mem_swappiness: 10
     memswap_limit: 2800m
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - internal
 
@@ -173,9 +178,16 @@ volumes:
     driver: local
   redis_data:
     driver: local
+  postgres_data:
+    driver: local
+
+secrets:
+  pg_password:
+    file: ./secrets/pg_password.txt
 
 networks:
   internal:
     driver: bridge
+    name: nexus_net
   external:
     driver: bridge
