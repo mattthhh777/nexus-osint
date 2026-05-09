@@ -451,14 +451,15 @@ Plans:
 **Requirements:** DBM-05, DBM-06, DBM-07, DBM-08, DBM-09, DBM-10
 **Depends on:** Phase 18
 **Risk:** MEDIUM — VPS RAM envelope tight; nexus `mem_limit` reduction observable in production
-**Plans:** 0/0 plans complete
+**Plans:** 0/2 plans executed
 
 **Deliverable:** `docker-compose.yml` with `postgres:16-alpine`, named volume `postgres_data`, healthcheck, `condition: service_healthy` gating on nexus, password as Docker secret, `mem_limit=768MB`, `shm_size=256MB`, tuned `command:` flags (`shared_buffers=256MB`, `work_mem=8MB`, `max_connections=20`, `idle_in_transaction_session_timeout=60s`), no public port mapping. Nexus `mem_limit` reduced to 2500MB.
 
 **Avoids:** Pitfalls 7 (OOM), 8 (startup race), 9 (volume permissions — named volume not bind), Anti-Pattern 4 (public Postgres).
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 19)
+- [ ] 19-01: Postgres service + secrets + memory wiring
+- [ ] 19-02: Compose validation + Hetzner parallel deploy smoke
 
 ---
 
