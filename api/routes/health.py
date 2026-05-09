@@ -10,7 +10,8 @@ from fastapi import APIRouter, Depends, Request
 import api.budget as _budget
 from api.cache import cache_backend
 from api.config import AUDIT_DB, RL_ADMIN_LIMIT, RL_READ_LIMIT
-from api.deps import get_admin_user, get_optional_admin_user, get_orchestrator_dep
+from api.deps import get_admin_user, get_db, get_optional_admin_user, get_orchestrator_dep
+from api.db import DatabaseManager
 from api.limiter import limiter
 from api.orchestrator import DegradationMode, TaskOrchestrator
 
@@ -23,6 +24,7 @@ router = APIRouter()
 async def health(
     request: Request,
     orch: TaskOrchestrator = Depends(get_orchestrator_dep),
+    db: DatabaseManager = Depends(get_db),
     maybe_admin: dict | None = Depends(get_optional_admin_user),
 ):
     mem = psutil.virtual_memory()
@@ -56,6 +58,7 @@ async def health(
         "degradation_mode":     degradation.value,
     }
     payload["cache"] = cache_payload
+    payload["db"] = db.pool_stats()
 
     # Phase 16 D-19/D-H14: Thordata bandwidth metrics — admin-only
     if maybe_admin is not None:

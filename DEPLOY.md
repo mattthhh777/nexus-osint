@@ -141,6 +141,23 @@ chmod 600 secrets/pg_password.txt
 
 Never commit `secrets/pg_password.txt`. The file is intentionally ignored by git and must exist on the VPS before Compose starts the `postgres` service.
 
+## PostgreSQL Cutover Notes
+
+After the cutover, `DATABASE_URL` must be set in `.env` using the Postgres password from `secrets/pg_password.txt`:
+
+```bash
+DATABASE_URL=postgresql+asyncpg://nexus:<password>@postgres:5432/nexusosint
+```
+
+The Nexus container runs `alembic upgrade head` automatically on startup when `DATABASE_URL` is present. Use `READ_ONLY_MODE=true` only during a maintenance window; POST/PUT/PATCH/DELETE return `503` with `Retry-After`, while GET endpoints continue.
+
+Backups:
+
+```bash
+scripts/pg_backup.sh
+scripts/pg_restore_drill.sh backups/postgres/<backup>.sql.gz
+```
+
 ## Initial Deploy
 
 ```bash

@@ -43,7 +43,7 @@ import psutil
 from api.cache import cache_backend
 from api.db import db as _db  # single-connection DatabaseManager (WAL + write queue)
 import api.budget as _budget
-from api.config import THORDATA_PROXY_URL
+from api.config import READ_ONLY_MODE, THORDATA_PROXY_URL
 from modules.sherlock_wrapper import _masked_proxy_log
 from api.schemas import LoginRequest, SearchRequest  # I/O models — defined in leaf module
 from api.deps import (  # auth dependency providers — extracted in Phase 15 Plan 02
@@ -143,7 +143,7 @@ async def lifespan(application: FastAPI):
     _validate_jwt_secret()
     tracemalloc.start(10)  # 10 frames — memory profiling for /health/memory
     _ensure_default_user()
-    await _db.startup(db_path=AUDIT_DB)
+    await _db.startup()
     await cache_backend.startup()
     # D-05: expose singletons via app.state for Depends(get_db) / Depends(get_orchestrator_dep)
     application.state.db = _db
@@ -176,6 +176,18 @@ async def lifespan(application: FastAPI):
 
 
 app = FastAPI(title="NexusOSINT", version="3.0.0", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+
+
+@app.middleware("http")
+async def read_only_mode_guard(request: Request, call_next):
+    if READ_ONLY_MODE and request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "maintenance read-only mode"},
+            headers={"Retry-After": "120"},
+        )
+    return await call_next(request)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_ALLOWED_ORIGINS,

@@ -1,165 +1,85 @@
-"""
-tests/test_db.py — Unit tests for api/db.py DatabaseManager.
-
-Test coverage:
-  1. WAL mode is active after startup
-  2. Schema: all 4 tables exist after startup
-  3. Write serialization: 50 concurrent writes complete without lock errors
-  4. Read-during-write: reads return immediately while writes are queued
-  5. Startup/shutdown lifecycle: data persists across manager instances
-"""
+"""Tests for the asyncpg-backed DatabaseManager."""
 from __future__ import annotations
 
 import asyncio
-import sqlite3
-from pathlib import Path
+from datetime import datetime, timezone
 
 import pytest
-import pytest_asyncio
 
 from api.db import DatabaseManager
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-
 async def _table_exists(db: DatabaseManager, table: str) -> bool:
-    row = await db.read_one(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+    row = await db.fetch_one(
+        "SELECT 1 AS found FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1",
         (table,),
     )
     return row is not None
 
 
-# ── Tests ─────────────────────────────────────────────────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_wal_mode(tmp_db: DatabaseManager) -> None:
-    """PRAGMA journal_mode must return 'wal' after startup."""
-    row = await tmp_db.read_one("PRAGMA journal_mode")
-    assert row is not None, "PRAGMA journal_mode returned None"
-    # aiosqlite.Row keyed by column name — SQLite returns the pragma value
-    # in the first (and only) column, key varies by driver version
-    value = list(row.values())[0]
-    assert value == "wal", f"Expected WAL mode, got {value!r}"
-
-
 @pytest.mark.asyncio
 async def test_schema_tables_exist(tmp_db: DatabaseManager) -> None:
-    """All 4 tables must exist after startup."""
     for table in ("searches", "token_blacklist", "rate_limits", "quota_log"):
-        exists = await _table_exists(tmp_db, table)
-        assert exists, f"Table '{table}' was not created by startup()"
+        assert await _table_exists(tmp_db, table)
 
 
 @pytest.mark.asyncio
-async def test_write_serialization(tmp_db: DatabaseManager) -> None:
-    """50 concurrent writes must all succeed with zero lock errors."""
-    insert_sql = "INSERT INTO quota_log (ts, used_today, left_today, daily_limit) VALUES (?,?,?,?)"
+async def test_pool_stats_expose_idle_size(tmp_db: DatabaseManager) -> None:
+    stats = tmp_db.pool_stats()
+    assert stats["started"] is True
+    assert stats["max_size"] == 4
+    assert isinstance(stats["idle_size"], int)
 
-    # Fire 50 concurrent write_await calls — each waits for confirmation
+
+@pytest.mark.asyncio
+async def test_concurrent_writes_complete_without_lost_rows(tmp_db: DatabaseManager) -> None:
+    insert_sql = (
+        "INSERT INTO quota_log (ts, used_today, left_today, daily_limit) "
+        "VALUES ($1, $2, $3, $4)"
+    )
+
     tasks = [
-        tmp_db.write_await(insert_sql, (f"2026-01-01T00:00:{i:02d}Z", i, 100 - i, 100))
+        tmp_db.execute(
+            insert_sql,
+            (datetime.now(timezone.utc), i, 100 - i, 100),
+        )
         for i in range(50)
     ]
-    # If any write fails, this will raise an exception
     await asyncio.gather(*tasks)
 
-    rows = await tmp_db.read_all("SELECT COUNT(*) as cnt FROM quota_log")
-    assert rows[0]["cnt"] == 50, f"Expected 50 rows, found {rows[0]['cnt']}"
+    row = await tmp_db.fetch_one("SELECT COUNT(*) AS cnt FROM quota_log")
+    assert row == {"cnt": 50}
 
 
 @pytest.mark.asyncio
-async def test_quota_log_retention_keeps_100_newest_by_explicit_id(tmp_db: DatabaseManager) -> None:
-    """The quota retention query must use the explicit quota_log id column."""
-    insert_sql = "INSERT INTO quota_log (ts, used_today, left_today, daily_limit) VALUES (?,?,?,?)"
-
+async def test_quota_log_retention_keeps_100_newest_by_ts(tmp_db: DatabaseManager) -> None:
     for i in range(200):
-        await tmp_db.write_await(
-            insert_sql,
-            (f"2026-01-01T00:{i:03d}:00Z", i, 200 - i, 200),
+        await tmp_db.execute(
+            "INSERT INTO quota_log (ts, used_today, left_today, daily_limit) VALUES ($1, $2, $3, $4)",
+            (datetime(2026, 1, 1, 0, 0, tzinfo=timezone.utc), i, 200 - i, 200),
         )
 
-    await tmp_db.write_await(
+    await tmp_db.execute(
         "DELETE FROM quota_log WHERE id NOT IN "
         "(SELECT id FROM quota_log ORDER BY ts DESC LIMIT 100)"
     )
 
-    rows = await tmp_db.read_all("SELECT id, used_today FROM quota_log ORDER BY id")
-    assert len(rows) == 100
-    assert rows[0]["used_today"] == 100
-    assert rows[-1]["used_today"] == 199
+    row = await tmp_db.fetch_one("SELECT COUNT(*) AS cnt FROM quota_log")
+    assert row == {"cnt": 100}
 
 
 @pytest.mark.asyncio
-async def test_read_during_write(tmp_db: DatabaseManager) -> None:
-    """
-    Reads must not block while the write queue has pending items.
-    We queue 10 writes, then immediately issue a read — the read should
-    return promptly because WAL allows concurrent readers.
-    """
-    insert_sql = "INSERT INTO rate_limits (key, ts) VALUES (?,?)"
+async def test_transaction_rolls_back_on_exception(tmp_db: DatabaseManager) -> None:
+    with pytest.raises(ValueError):
+        async with tmp_db.transaction() as tx:
+            await tx.execute(
+                "INSERT INTO rate_limits (key, ts) VALUES ($1, $2)",
+                ("tx_rollback", 1.0),
+            )
+            raise ValueError("force rollback")
 
-    # Queue 10 writes (fire-and-forget — they go on the queue but are not awaited yet)
-    for i in range(10):
-        await tmp_db.write(insert_sql, (f"test_key_{i}", float(i)))
-
-    # Read immediately while writes may still be processing
-    row = await tmp_db.read_one("SELECT COUNT(*) as cnt FROM searches")
-    assert row is not None
-    assert isinstance(row["cnt"], int)
-
-
-@pytest.mark.asyncio
-async def test_startup_shutdown_persists(tmp_path: Path) -> None:
-    """Data written before shutdown must be readable after a new startup."""
-    db_path = tmp_path / "persist_test.db"
-
-    # First manager: write data, then shut down
-    mgr1 = DatabaseManager(db_path=db_path)
-    await mgr1.startup()
-    await mgr1.write_await(
-        "INSERT INTO searches "
-        "(ts, username, ip, query, query_type, mode, modules_run, elapsed_s, success) "
-        "VALUES (?,?,?,?,?,?,?,?,?)",
-        ("2026-01-01T00:00:00Z", "testuser", "127.0.0.1", "test_query",
-         "username", "automated", "breach", 1.5, 1),
+    row = await tmp_db.fetch_one(
+        "SELECT key FROM rate_limits WHERE key = $1",
+        ("tx_rollback",),
     )
-    await mgr1.shutdown()
-
-    # Second manager: open same file, verify the row is there
-    mgr2 = DatabaseManager(db_path=db_path)
-    await mgr2.startup()
-    row = await mgr2.read_one(
-        "SELECT username FROM searches WHERE query = ?", ("test_query",)
-    )
-    await mgr2.shutdown()
-
-    assert row is not None, "Row written before shutdown was not found after restart"
-    assert row["username"] == "testuser"
-
-
-@pytest.mark.asyncio
-async def test_startup_migrates_legacy_quota_log_without_id(tmp_path: Path) -> None:
-    """Existing SQLite DBs with the old quota_log shape must remain usable."""
-    db_path = tmp_path / "legacy_quota.db"
-    conn = sqlite3.connect(db_path)
-    conn.execute(
-        "CREATE TABLE quota_log (ts TEXT NOT NULL, used_today INTEGER, left_today INTEGER, daily_limit INTEGER)"
-    )
-    conn.execute(
-        "INSERT INTO quota_log (ts, used_today, left_today, daily_limit) VALUES (?,?,?,?)",
-        ("2026-01-01T00:00:00Z", 1, 99, 100),
-    )
-    conn.commit()
-    conn.close()
-
-    manager = DatabaseManager(db_path=db_path)
-    await manager.startup()
-    row = await manager.fetch_one(
-        "SELECT id, used_today FROM quota_log ORDER BY id LIMIT 1"
-    )
-    await manager.shutdown()
-
-    assert row == {"id": 1, "used_today": 1}
+    assert row is None

@@ -47,6 +47,8 @@ JWT_SECRET: str = os.environ.get("JWT_SECRET", "")
 DATA_DIR   = Path("/app/data")
 USERS_FILE = DATA_DIR / "users.json"
 AUDIT_DB   = DATA_DIR / "audit.db"
+DATABASE_URL: str = os.getenv("DATABASE_URL", "")
+READ_ONLY_MODE: bool = _env_bool("READ_ONLY_MODE", False)
 
 # ── Memory watchdog thresholds ───────────────────────────────────────────────
 MEMORY_ALERT_MB: int = 400       # log warning, investigate (watchdog uses this)

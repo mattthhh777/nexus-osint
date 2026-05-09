@@ -25,6 +25,17 @@ class FakeOrchestrator:
     semaphore_slots_free = 10
 
 
+class FakeDb:
+    def pool_stats(self):
+        return {
+            "started": True,
+            "min_size": 1,
+            "max_size": 4,
+            "size": 1,
+            "idle_size": 1,
+        }
+
+
 @pytest.mark.asyncio
 async def test_health_contains_cache_backend_and_legacy_entries(monkeypatch):
     monkeypatch.setattr(health_route, "cache_backend", FakeCacheBackend())
@@ -32,12 +43,14 @@ async def test_health_contains_cache_backend_and_legacy_entries(monkeypatch):
     payload = await health_route.health.__wrapped__(
         request=None,
         orch=FakeOrchestrator(),
+        db=FakeDb(),
         maybe_admin=None,
     )
 
     assert payload["cache"]["backend"] == "memory"
     assert payload["cache"]["reachable"] is True
     assert payload["cache_entries"] == 3
+    assert payload["db"]["idle_size"] == 1
 
 
 def test_health_route_no_longer_imports_search_service():

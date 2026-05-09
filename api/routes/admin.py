@@ -1,6 +1,6 @@
 ﻿"""Admin routes: stats, logs, user CRUD."""
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -23,10 +23,14 @@ async def admin_stats(
 ):
     """Dashboard stats for admin."""
     try:
-        today = datetime.now(timezone.utc).date().isoformat()
+        today_start = datetime.now(timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        tomorrow_start = today_start + timedelta(days=1)
 
         today_row = await db.fetch_one(
-            "SELECT COUNT(*) as cnt FROM searches WHERE ts LIKE ?", (f"{today}%",)
+            "SELECT COUNT(*) as cnt FROM searches WHERE ts >= $1 AND ts < $2",
+            (today_start, tomorrow_start),
         )
         today_cnt = today_row["cnt"] if today_row else 0
 
@@ -35,14 +39,14 @@ async def admin_stats(
 
         top_queries = await db.fetch_all(
             """SELECT query, COUNT(*) as cnt FROM searches
-               WHERE ts LIKE ? GROUP BY query ORDER BY cnt DESC LIMIT 10""",
-            (f"{today}%",),
+               WHERE ts >= $1 AND ts < $2 GROUP BY query ORDER BY cnt DESC LIMIT 10""",
+            (today_start, tomorrow_start),
         )
 
         per_user = await db.fetch_all(
             """SELECT username, COUNT(*) as cnt FROM searches
-               WHERE ts LIKE ? GROUP BY username ORDER BY cnt DESC""",
-            (f"{today}%",),
+               WHERE ts >= $1 AND ts < $2 GROUP BY username ORDER BY cnt DESC""",
+            (today_start, tomorrow_start),
         )
 
         quota_left = quota_used = quota_limit = None
@@ -84,14 +88,14 @@ async def admin_logs(
         if username:
             rows = [
                 row async for row in db.fetch_stream(
-                    "SELECT * FROM searches WHERE username=? ORDER BY ts DESC LIMIT ? OFFSET ?",
+                    "SELECT * FROM searches WHERE username=$1 ORDER BY ts DESC LIMIT $2 OFFSET $3",
                     (username, limit, offset),
                 )
             ]
         else:
             rows = [
                 row async for row in db.fetch_stream(
-                    "SELECT * FROM searches ORDER BY ts DESC LIMIT ? OFFSET ?",
+                    "SELECT * FROM searches ORDER BY ts DESC LIMIT $1 OFFSET $2",
                     (limit, offset),
                 )
             ]

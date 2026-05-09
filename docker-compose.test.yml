@@ -1,0 +1,26 @@
+services:
+  test-postgres:
+    image: postgres:16-alpine
+    container_name: nexus-test-postgres
+    environment:
+      POSTGRES_DB: nexusosint_test
+      POSTGRES_USER: nexus
+      POSTGRES_PASSWORD: nexus
+      POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale=C.UTF-8
+    command: >
+      postgres
+        -c shared_buffers=128MB
+        -c work_mem=4MB
+        -c max_connections=20
+        -c idle_in_transaction_session_timeout=60s
+        -c jit=off
+    ports:
+      - "5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data:size=256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus -d nexusosint_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s

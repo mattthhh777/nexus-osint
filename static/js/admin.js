@@ -215,7 +215,10 @@ async function loadLogs() {
     } else {
       body.innerHTML = logs.map(l => {
         const ts      = (l.ts || '').replace('T', ' ').slice(0, 19);
-        const modules = (l.modules_run || '').split(',').filter(Boolean).length;
+        const modulesRaw = l.modules_run || '';
+        const modules = Array.isArray(modulesRaw)
+          ? modulesRaw.filter(Boolean).length
+          : modulesRaw.split(',').filter(Boolean).length;
         const elapsed = l.elapsed_s ? `${l.elapsed_s}s` : '─';
         return `<tr>
           <td class="td-muted td-nowrap">${esc(ts)}</td>
@@ -256,7 +259,7 @@ async function exportLogsCSV() {
     const rows = [['Timestamp','Username','IP','Query','Type','Mode','Modules','Breaches','Stealers','Social','Elapsed']];
     logs.forEach(l => rows.push([
       l.ts, l.username, l.ip, l.query, l.query_type,
-      l.mode, l.modules_run, l.breach_count, l.stealer_count,
+      l.mode, Array.isArray(l.modules_run) ? l.modules_run.join(',') : l.modules_run, l.breach_count, l.stealer_count,
       l.social_count, l.elapsed_s
     ]));
 

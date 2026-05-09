@@ -98,8 +98,8 @@ async def _set_cached(endpoint: str, query: str, data) -> None:
 async def _save_quota(used: int, left: int, daily_limit: int, db: DatabaseManager) -> None:
     """Save current OathNet quota to DB for admin dashboard."""
     await db.execute_nowait(
-        "INSERT INTO quota_log (ts, used_today, left_today, daily_limit) VALUES (?,?,?,?)",
-        (datetime.now(timezone.utc).isoformat(), used, left, daily_limit),
+        "INSERT INTO quota_log (ts, used_today, left_today, daily_limit) VALUES ($1, $2, $3, $4)",
+        (datetime.now(timezone.utc), used, left, daily_limit),
     )
     # Keep only last 100 entries — fire-and-forget trim
     await db.execute_nowait(
@@ -127,13 +127,13 @@ async def _log_search(
         """INSERT INTO searches
            (ts, username, ip, query, query_type, mode, modules_run,
             breach_count, stealer_count, social_count, elapsed_s, success)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)""",
         (
-            datetime.now(timezone.utc).isoformat(),
+            datetime.now(timezone.utc),
             username, ip, query, query_type, mode,
-            ",".join(modules_run),
+            modules_run,
             breach_count, stealer_count, social_count,
-            elapsed_s, int(success),
+            elapsed_s, success,
         ),
     )
 

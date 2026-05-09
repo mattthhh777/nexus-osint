@@ -14,13 +14,14 @@ services:
     # popular request.client.host. Sem isso, slowapi ratelimit agrupa
     # todos os usuários no mesmo bucket (IP do container nginx).
     command: >
-      uvicorn api.main:app
+      sh -c 'if [ -n "$${DATABASE_URL:-}" ]; then alembic upgrade head; fi;
+      exec uvicorn api.main:app
         --host 0.0.0.0
         --port 8000
         --workers 1
         --timeout-graceful-shutdown 30
         --proxy-headers
-        --forwarded-allow-ips=172.16.0.0/12
+        --forwarded-allow-ips=172.16.0.0/12'
     environment:
       - OATHNET_API_KEY=${OATHNET_API_KEY}
       - SPIDERFOOT_URL=http://spiderfoot:5001
@@ -35,6 +36,8 @@ services:
       - CACHE_KEY_PREFIX=${CACHE_KEY_PREFIX:-nexus:v1:search}
       - CACHE_FAIL_OPEN=${CACHE_FAIL_OPEN:-true}
       - CACHE_MAX_VALUE_BYTES=${CACHE_MAX_VALUE_BYTES:-262144}
+      - DATABASE_URL=${DATABASE_URL:-}
+      - READ_ONLY_MODE=${READ_ONLY_MODE:-false}
     volumes:
       - nexus_data:/app/data
       - ./api:/app/api:ro
