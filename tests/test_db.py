@@ -11,6 +11,7 @@ Test coverage:
 from __future__ import annotations
 
 import asyncio
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -70,6 +71,28 @@ async def test_write_serialization(tmp_db: DatabaseManager) -> None:
 
 
 @pytest.mark.asyncio
+async def test_quota_log_retention_keeps_100_newest_by_explicit_id(tmp_db: DatabaseManager) -> None:
+    """The quota retention query must use the explicit quota_log id column."""
+    insert_sql = "INSERT INTO quota_log (ts, used_today, left_today, daily_limit) VALUES (?,?,?,?)"
+
+    for i in range(200):
+        await tmp_db.write_await(
+            insert_sql,
+            (f"2026-01-01T00:{i:03d}:00Z", i, 200 - i, 200),
+        )
+
+    await tmp_db.write_await(
+        "DELETE FROM quota_log WHERE id NOT IN "
+        "(SELECT id FROM quota_log ORDER BY ts DESC LIMIT 100)"
+    )
+
+    rows = await tmp_db.read_all("SELECT id, used_today FROM quota_log ORDER BY id")
+    assert len(rows) == 100
+    assert rows[0]["used_today"] == 100
+    assert rows[-1]["used_today"] == 199
+
+
+@pytest.mark.asyncio
 async def test_read_during_write(tmp_db: DatabaseManager) -> None:
     """
     Reads must not block while the write queue has pending items.
@@ -115,3 +138,28 @@ async def test_startup_shutdown_persists(tmp_path: Path) -> None:
 
     assert row is not None, "Row written before shutdown was not found after restart"
     assert row["username"] == "testuser"
+
+
+@pytest.mark.asyncio
+async def test_startup_migrates_legacy_quota_log_without_id(tmp_path: Path) -> None:
+    """Existing SQLite DBs with the old quota_log shape must remain usable."""
+    db_path = tmp_path / "legacy_quota.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE quota_log (ts TEXT NOT NULL, used_today INTEGER, left_today INTEGER, daily_limit INTEGER)"
+    )
+    conn.execute(
+        "INSERT INTO quota_log (ts, used_today, left_today, daily_limit) VALUES (?,?,?,?)",
+        ("2026-01-01T00:00:00Z", 1, 99, 100),
+    )
+    conn.commit()
+    conn.close()
+
+    manager = DatabaseManager(db_path=db_path)
+    await manager.startup()
+    row = await manager.fetch_one(
+        "SELECT id, used_today FROM quota_log ORDER BY id LIMIT 1"
+    )
+    await manager.shutdown()
+
+    assert row == {"id": 1, "used_today": 1}

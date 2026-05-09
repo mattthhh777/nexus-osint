@@ -17,7 +17,6 @@ import os
 import sys
 
 import pytest
-import aiosqlite
 
 # Import api.main eagerly so load_dotenv() runs once at collection time.
 # Without this, monkeypatch.delenv("JWT_SECRET") would be overridden by
@@ -165,17 +164,18 @@ def test_admin_create_user_allowed_below_capacity(monkeypatch, tmp_path):
 async def test_check_blacklist_raises_503_on_db_error(monkeypatch):
     """_check_blacklist must raise HTTP 503 when the DB read fails (fail-closed)."""
     import api.main as m
+    from api.db import DatabaseError
     from fastapi import HTTPException
 
-    # Patch _db.write and _db.read_one to simulate DB failure
-    async def _failing_write(*args, **kwargs):
-        raise aiosqlite.OperationalError("disk I/O error")
+    # Patch the Phase 17 DB abstraction methods to simulate storage failure.
+    async def _failing_execute_nowait(*args, **kwargs):
+        raise DatabaseError("disk I/O error")
 
-    async def _failing_read_one(*args, **kwargs):
-        raise aiosqlite.OperationalError("disk I/O error")
+    async def _failing_fetch_one(*args, **kwargs):
+        raise DatabaseError("disk I/O error")
 
-    monkeypatch.setattr(m._db, "write", _failing_write)
-    monkeypatch.setattr(m._db, "read_one", _failing_read_one)
+    monkeypatch.setattr(m._db, "execute_nowait", _failing_execute_nowait)
+    monkeypatch.setattr(m._db, "fetch_one", _failing_fetch_one)
 
     with pytest.raises(HTTPException) as exc_info:
         await m._check_blacklist("test-jti-value")

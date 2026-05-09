@@ -134,7 +134,7 @@ async def _revoke_token(jti: Optional[str], exp: Optional[int], db: DatabaseMana
     """Add a jti to the blacklist until its expiry."""
     if not jti:
         return
-    await db.write(
+    await db.execute_nowait(
         "INSERT OR IGNORE INTO token_blacklist (jti, exp) VALUES (?, ?)",
         (jti, exp or int(time.time()) + JWT_EXPIRE_HOURS * 3600),
     )

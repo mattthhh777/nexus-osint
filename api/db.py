@@ -13,18 +13,19 @@ Usage:
     from api.db import db
 
     await db.startup()               # call once at app startup
-    await db.write(sql, params)      # fire-and-forget write
-    await db.write_await(sql, params) # write + wait for confirmation
-    row  = await db.read_one(sql, params)
-    rows = await db.read_all(sql, params)
+    await db.execute_nowait(sql, params) # fire-and-forget write
+    await db.execute(sql, params)        # write + wait for confirmation
+    row  = await db.fetch_one(sql, params)
+    rows = await db.fetch_all(sql, params)
     await db.shutdown()              # call at app shutdown
 """
 from __future__ import annotations
 
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncGenerator, Optional
+from typing import Any, AsyncGenerator, AsyncIterator, Optional
 
 import aiosqlite
 
@@ -32,6 +33,43 @@ logger = logging.getLogger("nexusosint.db")
 
 # Sentinel object to signal the writer loop to exit
 _STOP_SENTINEL = object()
+
+
+class DatabaseError(Exception):
+    """Database operation failed inside the current driver implementation."""
+
+
+class Transaction:
+    """Small transaction facade matching the future Postgres-facing DB contract."""
+
+    def __init__(self, conn: aiosqlite.Connection) -> None:
+        self._conn = conn
+
+    async def fetch_one(
+        self, sql: str, params: tuple[Any, ...] = ()
+    ) -> Optional[dict[str, Any]]:
+        try:
+            async with self._conn.execute(sql, params) as cur:
+                row = await cur.fetchone()
+                return dict(row) if row is not None else None
+        except aiosqlite.Error as exc:
+            raise DatabaseError("database transaction fetch_one failed") from exc
+
+    async def fetch_all(
+        self, sql: str, params: tuple[Any, ...] = ()
+    ) -> list[dict[str, Any]]:
+        try:
+            async with self._conn.execute(sql, params) as cur:
+                rows = await cur.fetchall()
+                return [dict(row) for row in rows]
+        except aiosqlite.Error as exc:
+            raise DatabaseError("database transaction fetch_all failed") from exc
+
+    async def execute(self, sql: str, params: tuple[Any, ...] = ()) -> None:
+        try:
+            await self._conn.execute(sql, params)
+        except aiosqlite.Error as exc:
+            raise DatabaseError("database transaction execute failed") from exc
 
 
 class DatabaseManager:
@@ -45,6 +83,7 @@ class DatabaseManager:
         self._conn: Optional[aiosqlite.Connection] = None
         self._write_queue: asyncio.Queue[Any] = asyncio.Queue(maxsize=1000)
         self._writer_task: Optional[asyncio.Task[None]] = None
+        self._tx_lock: asyncio.Lock = asyncio.Lock()
         self._started: bool = False
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -69,19 +108,28 @@ class DatabaseManager:
         # Ensure parent directory exists
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
 
-        self._conn = await aiosqlite.connect(str(self._db_path))
-        self._conn.row_factory = aiosqlite.Row
+        try:
+            self._conn = await aiosqlite.connect(str(self._db_path))
+            self._conn.row_factory = aiosqlite.Row
+        except aiosqlite.Error as exc:
+            raise DatabaseError("database startup failed") from exc
 
         # ── PRAGMAs ───────────────────────────────────────────────────────────
-        await self._conn.execute("PRAGMA journal_mode=WAL")
-        await self._conn.execute("PRAGMA synchronous=NORMAL")     # safe with WAL, 2x faster
-        await self._conn.execute("PRAGMA busy_timeout=5000")       # wait 5s instead of failing
-        await self._conn.execute("PRAGMA cache_size=-8000")        # 8MB cache
-        await self._conn.execute("PRAGMA wal_autocheckpoint=100")  # checkpoint every 100 pages
-        await self._conn.commit()
+        try:
+            await self._conn.execute("PRAGMA journal_mode=WAL")
+            await self._conn.execute("PRAGMA synchronous=NORMAL")     # safe with WAL, 2x faster
+            await self._conn.execute("PRAGMA busy_timeout=5000")       # wait 5s instead of failing
+            await self._conn.execute("PRAGMA cache_size=-8000")        # 8MB cache
+            await self._conn.execute("PRAGMA wal_autocheckpoint=100")  # checkpoint every 100 pages
+            await self._conn.commit()
+        except aiosqlite.Error as exc:
+            raise DatabaseError("database pragma initialization failed") from exc
 
         # ── Schema: all DDL in one place ──────────────────────────────────────
-        await self._create_schema()
+        try:
+            await self._create_schema()
+        except aiosqlite.Error as exc:
+            raise DatabaseError("database schema initialization failed") from exc
 
         # ── Start background writer ───────────────────────────────────────────
         self._writer_task = asyncio.create_task(
@@ -178,15 +226,44 @@ class DatabaseManager:
         # quota_log — OathNet API quota tracking for admin dashboard
         await self._conn.execute("""
             CREATE TABLE IF NOT EXISTS quota_log (
+                id          INTEGER PRIMARY KEY,
                 ts          TEXT    NOT NULL,
                 used_today  INTEGER,
                 left_today  INTEGER,
                 daily_limit INTEGER
             )
         """)
+        await self._ensure_quota_log_id_column()
 
         await self._conn.commit()
         logger.debug("Database schema verified/created")
+
+    async def _ensure_quota_log_id_column(self) -> None:
+        """Rebuild legacy quota_log tables that predate the explicit id PK."""
+        assert self._conn is not None
+        async with self._conn.execute("PRAGMA table_info(quota_log)") as cur:
+            rows = await cur.fetchall()
+        if any(row["name"] == "id" for row in rows):
+            return
+
+        logger.info("Migrating legacy quota_log table to explicit id primary key")
+        await self._conn.execute("ALTER TABLE quota_log RENAME TO quota_log_legacy")
+        await self._conn.execute("""
+            CREATE TABLE quota_log (
+                id          INTEGER PRIMARY KEY,
+                ts          TEXT    NOT NULL,
+                used_today  INTEGER,
+                left_today  INTEGER,
+                daily_limit INTEGER
+            )
+        """)
+        await self._conn.execute("""
+            INSERT INTO quota_log (ts, used_today, left_today, daily_limit)
+            SELECT ts, used_today, left_today, daily_limit
+            FROM quota_log_legacy
+            ORDER BY ts
+        """)
+        await self._conn.execute("DROP TABLE quota_log_legacy")
 
     # ── Writer loop ───────────────────────────────────────────────────────────
 
@@ -207,10 +284,20 @@ class DatabaseManager:
             sql, params, fut = item
             try:
                 assert self._conn is not None
-                await self._conn.execute(sql, params)
-                await self._conn.commit()
+                async with self._tx_lock:
+                    await self._conn.execute(sql, params)
+                    await self._conn.commit()
                 if fut is not None and not fut.done():
                     fut.get_loop().call_soon_threadsafe(fut.set_result, None)
+            except aiosqlite.Error as exc:
+                db_exc = DatabaseError("database write failed")
+                db_exc.__cause__ = exc
+                logger.error("DB write error â€” sql=%r params=%r error=%s", sql, params, exc)
+                if fut is not None and not fut.done():
+                    try:
+                        fut.get_loop().call_soon_threadsafe(fut.set_exception, db_exc)
+                    except Exception:
+                        pass
             except Exception as exc:
                 logger.error("DB write error — sql=%r params=%r error=%s", sql, params, exc)
                 if fut is not None and not fut.done():
@@ -259,6 +346,14 @@ class DatabaseManager:
 
         await fut
 
+    async def execute(self, sql: str, params: tuple[Any, ...] = ()) -> None:
+        """Canonical blocking write alias for the driver abstraction layer."""
+        await self.write_await(sql, params)
+
+    async def execute_nowait(self, sql: str, params: tuple[Any, ...] = ()) -> None:
+        """Canonical fire-and-forget write alias for the driver abstraction layer."""
+        await self.write(sql, params)
+
     # ── Read operations (direct, WAL allows concurrent reads) ─────────────────
 
     async def read(
@@ -271,9 +366,12 @@ class DatabaseManager:
         if not self._started:
             raise RuntimeError("DatabaseManager not started — call startup() first")
         assert self._conn is not None
-        async with self._conn.execute(sql, params) as cur:
-            rows = await cur.fetchall()
-            return [dict(row) for row in rows]
+        try:
+            async with self._conn.execute(sql, params) as cur:
+                rows = await cur.fetchall()
+                return [dict(row) for row in rows]
+        except aiosqlite.Error as exc:
+            raise DatabaseError("database read failed") from exc
 
     async def read_all(
         self, sql: str, params: tuple[Any, ...] = ()
@@ -291,9 +389,24 @@ class DatabaseManager:
         if not self._started:
             raise RuntimeError("DatabaseManager not started — call startup() first")
         assert self._conn is not None
-        async with self._conn.execute(sql, params) as cur:
-            row = await cur.fetchone()
-            return dict(row) if row is not None else None
+        try:
+            async with self._conn.execute(sql, params) as cur:
+                row = await cur.fetchone()
+                return dict(row) if row is not None else None
+        except aiosqlite.Error as exc:
+            raise DatabaseError("database read_one failed") from exc
+
+    async def fetch_one(
+        self, sql: str, params: tuple[Any, ...] = ()
+    ) -> Optional[dict[str, Any]]:
+        """Canonical read-one alias for the driver abstraction layer."""
+        return await self.read_one(sql, params)
+
+    async def fetch_all(
+        self, sql: str, params: tuple[Any, ...] = ()
+    ) -> list[dict[str, Any]]:
+        """Canonical read-all alias for the driver abstraction layer."""
+        return await self.read_all(sql, params)
 
     async def read_stream(
         self,
@@ -313,13 +426,45 @@ class DatabaseManager:
         if not self._started:
             raise RuntimeError("DatabaseManager not started — call startup() first")
         assert self._conn is not None
-        async with self._conn.execute(sql, params) as cur:
-            while True:
-                rows = await cur.fetchmany(batch_size)
-                if not rows:
-                    break
-                for row in rows:
-                    yield dict(row)
+        try:
+            async with self._conn.execute(sql, params) as cur:
+                while True:
+                    rows = await cur.fetchmany(batch_size)
+                    if not rows:
+                        break
+                    for row in rows:
+                        yield dict(row)
+        except aiosqlite.Error as exc:
+            raise DatabaseError("database read_stream failed") from exc
+
+    async def fetch_stream(
+        self,
+        sql: str,
+        params: tuple[Any, ...] = (),
+        batch_size: int = 50,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        """Canonical stream alias for the driver abstraction layer."""
+        async for row in self.read_stream(sql, params, batch_size):
+            yield row
+
+    @asynccontextmanager
+    async def transaction(self) -> AsyncIterator[Transaction]:
+        """Run multiple statements atomically on the underlying connection."""
+        if not self._started:
+            raise RuntimeError("DatabaseManager not started â€” call startup() first")
+        assert self._conn is not None
+
+        async with self._tx_lock:
+            try:
+                await self._conn.execute("BEGIN IMMEDIATE")
+                yield Transaction(self._conn)
+                await self._conn.commit()
+            except aiosqlite.Error as exc:
+                await self._conn.rollback()
+                raise DatabaseError("database transaction failed") from exc
+            except Exception:
+                await self._conn.rollback()
+                raise
 
 
 # ── Module-level singleton ────────────────────────────────────────────────────

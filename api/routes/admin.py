@@ -3,11 +3,10 @@ import re
 from datetime import datetime, timezone
 from typing import Optional
 
-import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from api.config import MAX_USERS, RL_ADMIN_LIMIT, RL_REGISTER_LIMIT
-from api.db import DatabaseManager
+from api.db import DatabaseError, DatabaseManager
 from api.deps import get_admin_user, get_db
 from api.limiter import limiter
 from api.services.auth_service import _load_users, _safe_hash, _save_users
@@ -26,28 +25,28 @@ async def admin_stats(
     try:
         today = datetime.now(timezone.utc).date().isoformat()
 
-        today_row = await db.read_one(
+        today_row = await db.fetch_one(
             "SELECT COUNT(*) as cnt FROM searches WHERE ts LIKE ?", (f"{today}%",)
         )
         today_cnt = today_row["cnt"] if today_row else 0
 
-        total_row = await db.read_one("SELECT COUNT(*) as cnt FROM searches")
+        total_row = await db.fetch_one("SELECT COUNT(*) as cnt FROM searches")
         total_cnt = total_row["cnt"] if total_row else 0
 
-        top_queries = await db.read_all(
+        top_queries = await db.fetch_all(
             """SELECT query, COUNT(*) as cnt FROM searches
                WHERE ts LIKE ? GROUP BY query ORDER BY cnt DESC LIMIT 10""",
             (f"{today}%",),
         )
 
-        per_user = await db.read_all(
+        per_user = await db.fetch_all(
             """SELECT username, COUNT(*) as cnt FROM searches
                WHERE ts LIKE ? GROUP BY username ORDER BY cnt DESC""",
             (f"{today}%",),
         )
 
         quota_left = quota_used = quota_limit = None
-        quota_row = await db.read_one(
+        quota_row = await db.fetch_one(
             "SELECT used_today, left_today, daily_limit FROM quota_log ORDER BY ts DESC LIMIT 1"
         )
         if quota_row:
@@ -66,7 +65,7 @@ async def admin_stats(
             "quota_used":        quota_used,
             "quota_limit":       quota_limit,
         }
-    except aiosqlite.OperationalError as exc:
+    except DatabaseError as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
 
@@ -84,20 +83,20 @@ async def admin_logs(
     try:
         if username:
             rows = [
-                row async for row in db.read_stream(
+                row async for row in db.fetch_stream(
                     "SELECT * FROM searches WHERE username=? ORDER BY ts DESC LIMIT ? OFFSET ?",
                     (username, limit, offset),
                 )
             ]
         else:
             rows = [
-                row async for row in db.read_stream(
+                row async for row in db.fetch_stream(
                     "SELECT * FROM searches ORDER BY ts DESC LIMIT ? OFFSET ?",
                     (limit, offset),
                 )
             ]
         return {"logs": rows, "limit": limit, "offset": offset}
-    except aiosqlite.OperationalError as exc:
+    except DatabaseError as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
 

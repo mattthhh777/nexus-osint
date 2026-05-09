@@ -13,7 +13,7 @@ Scope: Only Depends()-compatible callables live here.
 
 Import contract (D-05):
   - stdlib: time, typing, ipaddress
-  - 3rd party: aiosqlite, fastapi, fastapi.security, jwt (PyJWT)
+  - 3rd party: fastapi, fastapi.security, jwt (PyJWT)
   - internal: api.db — allowed (db is below deps in the import graph)
   - PROHIBITED: api.main — would create a circular import
 """
@@ -22,7 +22,6 @@ import logging
 import time
 from typing import Optional
 
-import aiosqlite
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
@@ -33,7 +32,7 @@ except ImportError:
     from jwt import InvalidTokenError as JWTError
 
 from api.config import JWT_ALGORITHM, JWT_SECRET
-from api.db import db as _db, DatabaseManager
+from api.db import DatabaseError, db as _db, DatabaseManager
 from api.orchestrator import TaskOrchestrator
 
 logger = logging.getLogger("nexusosint.deps")
@@ -95,11 +94,11 @@ async def _check_blacklist(jti: Optional[str]) -> None:
         return
     try:
         # Purge expired entries — fire-and-forget
-        await _db.write(
+        await _db.execute_nowait(
             "DELETE FROM token_blacklist WHERE exp < ?",
             (int(time.time()),),
         )
-        row = await _db.read_one(
+        row = await _db.fetch_one(
             "SELECT 1 as found FROM token_blacklist WHERE jti = ?", (jti,)
         )
         if row is not None:
@@ -110,7 +109,7 @@ async def _check_blacklist(jti: Optional[str]) -> None:
             )
     except HTTPException:
         raise
-    except (aiosqlite.Error, OSError, ValueError, RuntimeError) as exc:
+    except (DatabaseError, OSError, ValueError, RuntimeError) as exc:
         # D-10: fail-closed — deny access when blacklist is unreadable.
         # RuntimeError covers the "DB not started" case (e.g. in tests or early startup).
         now = time.monotonic()
