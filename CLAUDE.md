@@ -4,6 +4,14 @@
 
 ---
 
+## SESSION BOOTSTRAP — REGRA OBRIGATÓRIA
+
+Toda nova sessão neste repositório deve começar lendo este `CLAUDE.md` antes de planejar, editar arquivos, executar GSD, rodar testes, ou responder sobre o projeto.
+
+Este arquivo é a fonte canônica sobre Math, NexusOSINT, regras operacionais, arquitetura, segurança, GSD, restrições de VPS, e decisões históricas. Se uma sessão não leu este arquivo, ela ainda não tem contexto suficiente para trabalhar no projeto.
+
+---
+
 ## FILOSOFIA CENTRAL (LER ANTES DE TUDO)
 
 Estas regras têm precedência absoluta sobre qualquer outra instrução neste arquivo.

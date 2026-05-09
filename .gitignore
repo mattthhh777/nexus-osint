@@ -48,3 +48,12 @@ nexus_osint.db-wal
 
 # Pasta de arquivos fora do projeto
 fora do git/
+
+# Local agent/tooling artifacts
+.agents/
+skills-lock.json
+
+# Local research/session scratch files
+maigret_repo/
+apiOathnet.yamal.txt
+ultima sessao.txt
