@@ -110,7 +110,7 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | postgres `shared_buffers` | 256MB | within 768MB container limit |
 | postgres `work_mem` | 8MB | × ~3 sorts × 20 conns ≈ 480MB worst-case (within budget) |
 | postgres `shm_size` | 256MB (Compose) | Docker default 64MB breaks hash joins |
-| nexus `mem_limit` | 2500MB | TIGHT if FastAPI peaks ~800MB during 10-agent burst — Phase 6 stress test = gate; if OOM → revisit to 2700MB |
+| nexus `mem_limit` | 2500MB | TIGHT if FastAPI peaks ~800MB during 10-agent burst — Phase 23 stress test = gate; if OOM → revisit to 2700MB |
 | postgres `mem_limit` | 768MB | research-resolved value |
 | `quota_log` | preserve | audit value |
 | `searches` | preserve | only table with historical value; ported via `asyncpg.copy_records_to_table` |
@@ -121,23 +121,23 @@ Deferred to future milestone. Tracked but not in current roadmap.
 
 ## v4.2 Requirements
 
-### Pre-Migration (Phase 1)
+### Pre-Migration (Phase 17)
 
-- [ ] **DBM-01**: Audit grep returns zero unmitigated SQL dialect violations (`AUTOINCREMENT`, `INSERT OR REPLACE`, `datetime(`, `strftime(`, `rowid`, raw `?` placeholders outside the abstraction layer)
-- [ ] **DBM-02**: Repository abstraction layer (`db.fetch_one/fetch_all/execute/transaction`) wraps current aiosqlite implementation; all call sites refactored to use it
-- [ ] **DBM-03**: List of every raw SQL string in codebase produced and committed (`.planning/phases/01-*/SQL_INVENTORY.md`)
-- [ ] **DBM-04**: `?`→`$N` placeholder rewrite map documented per call site
+- [x] **DBM-01**: Audit grep returns zero unmitigated SQL dialect violations (`AUTOINCREMENT`, `INSERT OR REPLACE`, `datetime(`, `strftime(`, `rowid`, raw `?` placeholders outside the abstraction layer)
+- [x] **DBM-02**: Repository abstraction layer (`db.fetch_one/fetch_all/execute/transaction`) wraps current aiosqlite implementation; all call sites refactored to use it
+- [x] **DBM-03**: List of every raw SQL string in codebase produced and committed (`.planning/phases/17-*/SQL_INVENTORY.md`)
+- [x] **DBM-04**: `?`→`$N` placeholder rewrite map documented per call site
 
-### Container & Compose (Phase 2)
+### Container & Compose (Phase 19)
 
 - [ ] **DBM-05**: `docker-compose.yml` adds `postgres:16-alpine` service on private `nexus_net`, no public port mapping
 - [ ] **DBM-06**: Postgres `mem_limit=768MB`, `shm_size=256MB`, `command:` flags include `shared_buffers=256MB`, `work_mem=8MB`, `max_connections=20`
 - [ ] **DBM-07**: Named volume `postgres_data` (NOT bind mount — UID 999 permission trap)
 - [ ] **DBM-08**: Healthcheck + `depends_on: condition: service_healthy` gating on `nexus` service
 - [ ] **DBM-09**: Postgres password via Docker secret (not env var — leaks via `docker inspect`)
-- [ ] **DBM-10**: Nexus `mem_limit` adjusted to 2500MB; documented as Phase 6 gate
+- [ ] **DBM-10**: Nexus `mem_limit` adjusted to 2500MB; documented as Phase 23 gate
 
-### Schema-as-Code (Phase 3)
+### Schema-as-Code (Phase 20)
 
 - [ ] **DBM-11**: `alembic init -t async migrations` initialized; baseline migration committed
 - [ ] **DBM-12**: All tables use `TIMESTAMPTZ` (zero `TIMESTAMP` without TZ — `grep -i "TIMESTAMP[^T]" migrations/` returns zero)
@@ -149,14 +149,14 @@ Deferred to future milestone. Tracked but not in current roadmap.
 - [ ] **DBM-18**: Status fields use CHECK constraints, not ENUM
 - [ ] **DBM-19**: `docker-compose.test.yml` provides ephemeral PG on `tmpfs` port 5433; template-database test fixtures work in CI
 
-### Data Port (Phase 4)
+### Data Port (Phase 21)
 
 - [ ] **DBM-20**: `scripts/port_searches.py` uses `asyncpg.copy_records_to_table` in 1000-row batches
 - [ ] **DBM-21**: Type fixups applied: SQLite ISO TEXT → datetime → `TIMESTAMPTZ`; CSV `modules_run` → `TEXT[]`; INTEGER `success` → `BOOLEAN`
 - [ ] **DBM-22**: Row-count parity assertion passes on staging copy of production
 - [ ] **DBM-23**: Script is idempotent (truncate-then-load on rerun)
 
-### Driver Swap (Phase 5)
+### Driver Swap (Phase 22)
 
 - [ ] **DBM-24**: `api/db.py` rewritten on `asyncpg.Pool` (max_size=10, min_size=2, command_timeout=30)
 - [ ] **DBM-25**: `_writer_loop` and `asyncio.Queue` deleted (lines 34, 46-47, 193-222 of current `api/db.py`)
@@ -167,16 +167,16 @@ Deferred to future milestone. Tracked but not in current roadmap.
 - [ ] **DBM-30**: `idle_in_transaction_session_timeout=60s` set server-side
 - [ ] **DBM-31**: `/health` exposes `pool.get_idle_size()` for leak detection
 
-### Stress Test (Phase 6) — GATE
+### Stress Test (Phase 23) — GATE
 
 - [ ] **DBM-32**: 10 concurrent agents × N scans + `cancel_all` mid-burst loop runs to completion without OOM
 - [ ] **DBM-33**: `pg_stat_activity` shows zero `idle in transaction` after each cycle
 - [ ] **DBM-34**: `docker stats postgres` peak < 768MB
-- [ ] **DBM-35**: `docker stats nexus` peak < 2500MB (if exceeded → revisit `mem_limit` to 2700MB before Phase 7)
+- [ ] **DBM-35**: `docker stats nexus` peak < 2500MB (if exceeded → revisit `mem_limit` to 2700MB before Phase 24)
 - [ ] **DBM-36**: `/health` `pool.get_idle_size()` recovers between bursts
 - [ ] **DBM-37**: Counter consistency under concurrency verified (no lost updates)
 
-### Cutover (Phase 7) — Irreversible
+### Cutover (Phase 24) — Irreversible
 
 - [ ] **DBM-38**: Pre-flight artifacts captured: SQLite snapshot `nexus.db.pre-pg-YYYYMMDD`, Docker image tag `pre-pg-backup`, `git rev-parse HEAD` saved to runbook
 - [ ] **DBM-39**: Read-only mode env flag flips → writes return 503 + `Retry-After`; GETs continue
@@ -188,7 +188,7 @@ Deferred to future milestone. Tracked but not in current roadmap.
 - [ ] **DBM-45**: Read-only mode off; SQLite file kept read-only on disk for 30 days
 - [ ] **DBM-46**: Maintenance window ≤ 30 minutes; rollback playbook tested on staging beforehand
 
-### Post-Migration (Phase 8)
+### Post-Migration (Phase 25)
 
 - [ ] **DBM-47**: `pg_stat_statements` reviewed after 1 week production traffic; partial indexes added only on confirmed hot paths
 - [ ] **DBM-48**: Per-table autovacuum tuning applied to `searches` if churn justifies (`autovacuum_vacuum_scale_factor=0.05`)
@@ -217,25 +217,55 @@ Deferred to future milestone. Tracked but not in current roadmap.
 
 ## Open Risks Forwarded to Execution
 
-- **R-01** (regra 5): nexus `mem_limit=2500MB` is tight; Phase 6 stress test is gate. If OOM → bump to 2700MB before Phase 7.
+- **R-01** (regra 5): nexus `mem_limit=2500MB` is tight; Phase 23 stress test is gate. If OOM → bump to 2700MB before Phase 24.
 - **R-02**: UUID-all increases index size on greenfield-dropped tables (token_blacklist/rate_limits) — accepted; net storage minor.
 - **R-03**: JSONB column added to `searches` in v4.2 expands scope; data port script must handle NULL→`'{}'::jsonb` for legacy rows.
-- **R-04**: PG READ COMMITTED ≠ SQLite SERIALIZABLE — Phase 5 audit must catch every RMW pattern; missing one = lost-update bug.
+- **R-04**: PG READ COMMITTED ≠ SQLite SERIALIZABLE — Phase 22 audit must catch every RMW pattern; missing one = lost-update bug.
 
 ## Traceability v4.2
 
 | Requirement | Phase |
 |-------------|-------|
-| DBM-01 — DBM-04 | Phase 1 |
-| DBM-05 — DBM-10 | Phase 2 |
-| DBM-11 — DBM-19 | Phase 3 |
-| DBM-20 — DBM-23 | Phase 4 |
-| DBM-24 — DBM-31 | Phase 5 |
-| DBM-32 — DBM-37 | Phase 6 (gate) |
-| DBM-38 — DBM-46 | Phase 7 (cutover) |
-| DBM-47 — DBM-53 | Phase 8 |
+| DBM-01 — DBM-04 | Phase 17 |
+| DBM-05 — DBM-10 | Phase 19 |
+| DBM-11 — DBM-19 | Phase 20 |
+| DBM-20 — DBM-23 | Phase 21 |
+| DBM-24 — DBM-31 | Phase 22 |
+| DBM-32 — DBM-37 | Phase 23 (gate) |
+| DBM-38 — DBM-46 | Phase 24 (cutover) |
+| DBM-47 — DBM-53 | Phase 25 |
 
-**Coverage:** 53 requirements / 8 phases / 0 unmapped
+**Coverage:** 53 DBM requirements / 8 Postgres phases / 0 unmapped
+
+---
+
+# Milestone v4.2 Fold-In - Redis7 Cache Backend
+
+**Defined:** 2026-05-08
+**Core Value:** Replace per-process `cachetools.TTLCache` with shared Redis7 TTL cache so duplicate OSINT calls are avoided across restarts/workers and cache observability is no longer tied to an in-memory object.
+**Scope:** Search/API response cache only. Not a queue, not a database, not session storage.
+**Stack:** Redis 7 Alpine container + `redis.asyncio` Python client + fail-open in-memory fallback.
+
+## v4.2 Redis Requirements
+
+### Redis Cache Replacement (Phase 18)
+
+- [x] **CACHE-01**: `docker-compose.yml` adds `redis:7-alpine` on private `internal` network with no public port mapping, `redis_data` named volume, healthcheck `redis-cli ping`, and bounded memory policy (`maxmemory=64mb`, `maxmemory-policy=allkeys-lru`).
+- [x] **CACHE-02**: `.env.example` documents `REDIS_URL=redis://redis:6379/0`, `CACHE_TTL_SECONDS=300`, `CACHE_KEY_PREFIX=nexus:v1:search`, `CACHE_FAIL_OPEN=true`, and `CACHE_MAX_VALUE_BYTES=262144`.
+- [x] **CACHE-03**: New `api/cache.py` exposes async cache contract: `startup()`, `shutdown()`, `get(endpoint, query)`, `set(endpoint, query, value, ttl=None)`, `stats()`, and in-memory fallback with same contract.
+- [x] **CACHE-04**: `api/services/search_service.py` removes `cachetools.TTLCache` and `_api_cache`; all cache hits/sets use the async cache contract.
+- [x] **CACHE-05**: Cached OathNet breach/stealer values are JSON-safe DTOs only; no `raw_response`, no live dataclass objects, no unserializable Python objects.
+- [x] **CACHE-06**: Cache failures are fail-open: Redis connection/timeout/serialization errors log warning and the search continues without returning 500.
+- [x] **CACHE-07**: `/health` and `/health/memory` expose cache backend, reachable status, entry estimate if available, hit/miss counters, and error counter without importing search internals.
+- [x] **CACHE-08**: `requirements.txt` adds Redis Python client and removes `cachetools` after TTLCache replacement.
+- [x] **CACHE-09**: Unit tests cover Redis fake/fallback behavior, TTL expiration semantics, JSON DTO round-trip for OathNet results, fail-open errors, and health stats shape.
+- [x] **CACHE-10**: Integration smoke verifies Redis cache hit avoids second OathNet call for the same endpoint/query within 300 seconds.
+
+## Traceability v4.2 Redis
+
+| Requirement | Phase |
+|-------------|-------|
+| CACHE-01 - CACHE-10 | Phase 18 |
 
 ---
 *v4.1 requirements defined: 2026-03-25*

@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
 milestone: v4.2.0
-milestone_name: Database Migration (SQLite → PostgreSQL)
-status: Phase 17 planned — ready to execute
-stopped_at: "Phase 17 plans verified (3 plans / 3 waves); next /gsd:execute-phase 17"
-last_updated: "2026-05-07T18:00:00Z"
+milestone_name: Database Migration + Redis7 Cache Fold-In
+status: Phase 18 complete; Phase 19 Postgres container/compose planning is next
+stopped_at: Phase 18 complete; next action is plan/execute Phase 19 Postgres container + compose wiring
+last_updated: "2026-05-09T00:00:00.000Z"
 progress:
-  total_phases: 8
-  completed_phases: 0
-  total_plans: 3
-  completed_plans: 0
+  total_phases: 25
+  completed_phases: 18
+  total_plans: 32
+  completed_plans: 30
 ---
 
 # Project State
@@ -20,27 +20,31 @@ See: .planning/PROJECT.md (updated 2026-05-06 — milestone v4.2)
 
 **Core value:** From the same scan, show 2× more data without additional backend cost — rendering what already arrives in the pipeline.
 
-**Current focus:** v4.2 milestone setup — defining requirements for SQLite → PostgreSQL migration.
+**Current focus:** Phase 19 — postgres-container-compose-wiring
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-05-06 — Milestone v4.2 started (Database Migration)
+Phase: 19 (postgres-container-compose-wiring) — PLANNED
+Plan: 0 of 0 complete; next action is create Phase 19 plans
 
 ## Phase Map
 
 | # | Phase | Status | Notes |
 |---|-------|--------|-------|
-| 12 | v41-pregate | ✅ COMPLETE | Pre-gate commit + zip cleanup |
-| 13 | v41-data-instrument | ✅ COMPLETE | `/api/admin/breach-extra-keys` + accumulator |
-| 14 | v41-breach-cards | ✅ COMPLETE | Flat table → 2-col cards + extra_fields + per-field copy |
-| 15 | v41-social-cards | ✅ COMPLETE | Emoji chips → SVG brand icon cards (25 platforms) |
-| 16 | v41-inline-filters | ✅ COMPLETE | Filter input: social (>10 platforms) + holehe (>10 domains), debounce 150ms |
-| 17 | v41-summary-hero | ✅ COMPLETE | Clickable stat cards + risk tinting + ↓ view hint |
-| 18 | v41-social-avatars | ✅ COMPLETE | Social cards com foto de perfil via unavatar.io + CSP fix |
-| 19 | v41-micro-polish | ✅ COMPLETE | press-feedback, sf-dot pulse/offline, placeholder rotativo |
+| 12 | v41-pregate | COMPLETE | Pre-gate commit + zip cleanup |
+| 13 | v41-data-instrument | COMPLETE | `/api/admin/breach-extra-keys` + accumulator |
+| 14 | visual-polish | COMPLETE | Surgical Results UX polish |
+| 15 | refactor-main-py-layers | COMPLETE | Layered architecture refactor |
+| 16 | sherlock-false-positive-filter-thordata-proxy-integration | COMPLETE | Confidence scoring + Thordata proxy integration |
+| 17 | v4-2-pre-migration-audit-db-abstraction-layer | COMPLETE | SQL inventory + DB abstraction; 3/3 plans complete |
+| 18 | redis7-cache-backend | COMPLETE | Redis7 cache replacement; 2/2 plans complete |
+| 19 | postgres-container-compose-wiring | PLANNED | Postgres service, secrets, healthcheck |
+| 20 | schema-as-code-alembic-async-test-infra | PLANNED | Async Alembic + PG test infra |
+| 21 | data-port-script-searches-only | PLANNED | `searches` port script |
+| 22 | repository-layer-switch-code-audit-pass-2 | PLANNED | asyncpg pool swap behind Phase 17 abstraction |
+| 23 | concurrency-memory-stress-test | PLANNED | Gate before cutover |
+| 24 | postgres-cutover | PLANNED | Maintenance window |
+| 25 | post-migration-tuning-backup-hardening | PLANNED | 1-week observation + backups |
 
 ## Accumulated Context
 
@@ -84,6 +88,8 @@ not a data-availability issue. Phase 13 discovers real extra keys; Phase 14 rend
 - 2026-04-19: Phase 15 added — "Refactor main.py into layered architecture (routes → services → repositories → models → core/utils)". Zero breaking changes constraint. Directory: `.planning/phases/15-refactor-main-py-layers/`
 - 2026-04-19: NOTE — STATE.md Phase Map (lines 32–42) lists phases 15–19 as COMPLETE (v41-social-cards, v41-inline-filters, v41-summary-hero, v41-social-avatars, v41-micro-polish), but none of those directories exist; all work happened inside Phase 14 "steps" per git log. Phase Map is aspirational/stale — does NOT represent current roadmap truth. See ROADMAP.md for canonical phase numbering.
 - 2026-04-29: Phase 16 added — "Sherlock false-positive filter + Thordata proxy integration" (FP reduction + residential rotating proxy for OSINT agents to bypass DigitalOcean IP blocks). Depends on Phase 15. Directory: `.planning/phases/16-sherlock-false-positive-filter-thordata-proxy-integration/`. Note: gsd-tools `phase add` numbered as 12 due to milestone parsing bug (collided with v4.1 Phase 12 pre-gate); manually renumbered to 16 + dir renamed.
+- 2026-05-08: Redis7 Cache Backend folded into v4.2 as Phase 18 to replace process-local `cachetools.TTLCache` with shared Redis7 TTL cache. Directory: `.planning/phases/18-redis7-cache-backend/`. Postgres phases shifted 18-24 → 19-25. Planning only; implementation not started.
+- 2026-05-09: Phase 18 implemented and verified. Redis7 service/config, async fail-open cache backend, search cache migration, health cache stats, and `cachetools` removal complete. Targeted tests: 9 passed.
 
 ### Blockers/Concerns
 
@@ -93,10 +99,10 @@ not a data-availability issue. Phase 13 discovers real extra keys; Phase 14 rend
 
 ## Session Continuity
 
-Last session: 2026-05-01T22:00:00Z
-Stopped at: 16-04 complete (53174a0) — Phase 16 fully coded; VPS deploy is the only remaining step
+Last session: 2026-05-09T00:00:00Z
+Stopped at: Phase 18 complete; Redis7 cache backend implemented and verified
 Resume file: None
-Next action: VPS deploy — `scp -r api/ modules/ static/ root@146.190.142.50:/root/nexus-osint/ && ssh root@146.190.142.50 "cd /root/nexus-osint && docker compose up -d --build"`; then smoke test + mark Phase 16 COMPLETE in ROADMAP.md.
+Next action: `/gsd:plan-phase 19` for Postgres container + compose wiring.
 
 ### Phase 16 Planning Summary (2026-04-30)
 

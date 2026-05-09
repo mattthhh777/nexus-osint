@@ -1,5 +1,6 @@
-"""Search service: TTL cache, seen-keys accumulator, SSE stream generator, SpiderFoot runner, helpers."""
+"""Search service: cache helpers, seen-keys accumulator, SSE stream generator, SpiderFoot runner."""
 import asyncio
+from dataclasses import asdict, fields, is_dataclass
 import json
 import logging
 import re
@@ -7,54 +8,103 @@ import time
 from datetime import datetime, timezone
 from typing import AsyncGenerator
 
-import aiosqlite
 import httpx
-from cachetools import TTLCache
 from pydantic import ValidationError
 
+from api.cache import cache_backend
 from api.config import MAX_BREACH_SERIALIZE, MODULE_TIMEOUTS, SPIDERFOOT_URL
-from api.db import DatabaseManager
+from api.db import DatabaseError, DatabaseManager
 from api.orchestrator import TaskOrchestrator
 from api.schemas import SearchRequest, SherlockUsernameRequest
 import api.budget as _budget
-from modules.oathnet_client import oathnet_client
+from modules.oathnet_client import (
+    BreachRecord,
+    OathnetMeta,
+    OathnetResult,
+    StealerRecord,
+    oathnet_client,
+)
 from modules.spiderfoot_wrapper import SpiderFootTarget
 
 logger = logging.getLogger("nexusosint.search_service")
 
 # 5-min TTL, max 200 entries — ~2MB max, safe for 1GB VPS
-_api_cache: TTLCache = TTLCache(maxsize=200, ttl=300)
 
 # Phase 13 accumulator — grows as real breach scans happen; resets on restart
 _seen_breach_extra_keys: set[str] = set()
 
 
-def _cache_key(endpoint: str, query: str) -> str:
-    """Generate normalised cache key for external API responses."""
-    return f"{endpoint}:{query.lower().strip()}"
+def _drop_raw_payload_fields(value):
+    if isinstance(value, dict):
+        return {
+            key: _drop_raw_payload_fields(item)
+            for key, item in value.items()
+            if key not in {"raw_response", "raw"}
+        }
+    if isinstance(value, list):
+        return [_drop_raw_payload_fields(item) for item in value]
+    return value
 
 
-def _get_cached(endpoint: str, query: str):
+def _dataclass_kwargs(cls, value: dict) -> dict:
+    allowed = {field.name for field in fields(cls)}
+    return {key: item for key, item in value.items() if key in allowed}
+
+
+def _oathnet_result_to_cache(result: OathnetResult) -> dict:
+    data = asdict(result) if is_dataclass(result) else dict(result)
+    return _drop_raw_payload_fields(data)
+
+
+def _oathnet_result_from_cache(data: dict) -> OathnetResult:
+    clean = _drop_raw_payload_fields(data or {})
+    meta_value = clean.get("meta") or {}
+    result_kwargs = _dataclass_kwargs(OathnetResult, clean)
+    result_kwargs["breaches"] = [
+        BreachRecord(**_dataclass_kwargs(BreachRecord, item))
+        for item in clean.get("breaches", [])
+        if isinstance(item, dict)
+    ]
+    result_kwargs["stealers"] = [
+        StealerRecord(**_dataclass_kwargs(StealerRecord, item))
+        for item in clean.get("stealers", [])
+        if isinstance(item, dict)
+    ]
+    result_kwargs["meta"] = (
+        OathnetMeta(**_dataclass_kwargs(OathnetMeta, meta_value))
+        if isinstance(meta_value, dict)
+        else OathnetMeta()
+    )
+    return OathnetResult(**result_kwargs)
+
+
+async def _get_cached(endpoint: str, query: str):
     """Return cached API response or None if absent / expired."""
-    return _api_cache.get(_cache_key(endpoint, query))
+    data = await cache_backend.get(endpoint, query)
+    if data is None:
+        return None
+    if endpoint in {"breach", "stealer"} and isinstance(data, dict):
+        return _oathnet_result_from_cache(data)
+    return data
 
 
-def _set_cached(endpoint: str, query: str, data) -> None:
+async def _set_cached(endpoint: str, query: str, data) -> None:
     """Store a successful API response in cache. Never cache None / errors."""
     if data is not None:
-        _api_cache[_cache_key(endpoint, query)] = data
+        value = _oathnet_result_to_cache(data) if isinstance(data, OathnetResult) else data
+        await cache_backend.set(endpoint, query, value)
 
 
 async def _save_quota(used: int, left: int, daily_limit: int, db: DatabaseManager) -> None:
     """Save current OathNet quota to DB for admin dashboard."""
-    await db.write(
+    await db.execute_nowait(
         "INSERT INTO quota_log (ts, used_today, left_today, daily_limit) VALUES (?,?,?,?)",
         (datetime.now(timezone.utc).isoformat(), used, left, daily_limit),
     )
     # Keep only last 100 entries — fire-and-forget trim
-    await db.write(
-        "DELETE FROM quota_log WHERE rowid NOT IN "
-        "(SELECT rowid FROM quota_log ORDER BY ts DESC LIMIT 100)",
+    await db.execute_nowait(
+        "DELETE FROM quota_log WHERE id NOT IN "
+        "(SELECT id FROM quota_log ORDER BY ts DESC LIMIT 100)",
     )
 
 
@@ -73,7 +123,7 @@ async def _log_search(
     db: DatabaseManager = None,
 ) -> None:
     """Write a search audit record. Non-blocking — goes through write queue."""
-    await db.write(
+    await db.execute_nowait(
         """INSERT INTO searches
            (ts, username, ip, query, query_type, mode, modules_run,
             breach_count, stealer_count, social_count, elapsed_s, success)
@@ -241,7 +291,7 @@ async def _stream_search(
         ran += ["breach", "stealer"]
         try:
             # Check breach cache first — avoids OathNet API call within 5-min TTL
-            cached_breach = _get_cached("breach", query)
+            cached_breach = await _get_cached("breach", query)
             if cached_breach is not None:
                 tasks = []
                 breach_future = cached_breach
@@ -251,7 +301,7 @@ async def _stream_search(
 
             stealer_future = None
             if run.get("stealer"):
-                cached_stealer = _get_cached("stealer", query)
+                cached_stealer = await _get_cached("stealer", query)
                 if cached_stealer is not None:
                     stealer_future = cached_stealer
                 else:
@@ -267,7 +317,7 @@ async def _stream_search(
                 raw = results_gathered[gather_idx] if gather_idx < len(results_gathered) else None
                 res = raw if not isinstance(raw, Exception) else None
                 if res is not None:
-                    _set_cached("breach", query, res)
+                    await _set_cached("breach", query, res)
                 gather_idx += 1
 
             if run.get("stealer"):
@@ -277,7 +327,7 @@ async def _stream_search(
                     raw_sts = results_gathered[gather_idx] if gather_idx < len(results_gathered) else None
                     sts_result = raw_sts if not isinstance(raw_sts, Exception) else None
                     if sts_result is not None:
-                        _set_cached("stealer", query, sts_result)
+                        await _set_cached("stealer", query, sts_result)
                     gather_idx += 1
             else:
                 sts_result = None
@@ -292,7 +342,7 @@ async def _stream_search(
 
                 if run.get("holehe") and is_email:
                     ran.append("holehe")
-                    cached_holehe = _get_cached("holehe", query)
+                    cached_holehe = await _get_cached("holehe", query)
                     if cached_holehe is not None:
                         res.holehe_domains = cached_holehe
                     else:
@@ -303,7 +353,7 @@ async def _stream_search(
                             logger.warning("Holehe timed out")
                         elif h:
                             res.holehe_domains = h.holehe_domains
-                            _set_cached("holehe", query, h.holehe_domains)
+                            await _set_cached("holehe", query, h.holehe_domains)
 
                 breaches_data = _serialize_breaches(res.breaches)
                 breach_count  = len(breaches_data)
@@ -352,7 +402,7 @@ async def _stream_search(
                         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
                             logger.warning("Auto Discord failed %s: %s", disc_id, exc)
 
-        except (httpx.HTTPError, aiosqlite.Error, ValueError, KeyError, TypeError) as exc:
+        except (httpx.HTTPError, DatabaseError, ValueError, KeyError, TypeError) as exc:
             logger.error("OathNet failed: %s", exc)
             yield event({"type": "module_error", "module": "oathnet", "error": str(exc)})
 
@@ -435,8 +485,8 @@ async def _stream_search(
             })
         else:
             try:
-                cached_disc_user = _get_cached("discord_user", query)
-                cached_disc_hist = _get_cached("discord_hist", query)
+                cached_disc_user = await _get_cached("discord_user", query)
+                cached_disc_hist = await _get_cached("discord_hist", query)
 
                 if cached_disc_user is not None and cached_disc_hist is not None:
                     yield event({
@@ -453,9 +503,9 @@ async def _stream_search(
                         oathnet_client.discord_username_history(query), "discord", default=(False, None)
                     )
                     if ok_u and user_data is not None:
-                        _set_cached("discord_user", query, user_data)
+                        await _set_cached("discord_user", query, user_data)
                     if ok_h and raw_hist is not None:
-                        _set_cached("discord_hist", query, raw_hist)
+                        await _set_cached("discord_hist", query, raw_hist)
                     yield event({
                         "type": "discord",
                         "user": user_data if ok_u else None,
@@ -471,7 +521,7 @@ async def _stream_search(
         yield progress("Fetching IP geolocation…")
         ran.append("ip_info")
         try:
-            cached_ip = _get_cached("ip_info", query)
+            cached_ip = await _get_cached("ip_info", query)
             if cached_ip is not None:
                 yield event({"type": "ip_info", "ok": True, "data": cached_ip})
             else:
@@ -482,7 +532,7 @@ async def _stream_search(
                     yield event({"type": "module_error", "module": "ip_info", "error": "IP lookup timed out"})
                 else:
                     if ok and data is not None:
-                        _set_cached("ip_info", query, data)
+                        await _set_cached("ip_info", query, data)
                     yield event({"type": "ip_info", "ok": ok, "data": data if ok else None})
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
             logger.error("IP info failed: %s", exc)
@@ -510,7 +560,7 @@ async def _stream_search(
         yield progress("Looking up Steam profile…")
         ran.append("steam")
         try:
-            cached_steam = _get_cached("steam", query)
+            cached_steam = await _get_cached("steam", query)
             if cached_steam is not None:
                 yield event({"type": "steam", "ok": True, "data": cached_steam})
             else:
@@ -521,7 +571,7 @@ async def _stream_search(
                     yield event({"type": "module_error", "module": "steam", "error": "Steam lookup timed out"})
                 else:
                     if ok and data is not None:
-                        _set_cached("steam", query, data)
+                        await _set_cached("steam", query, data)
                     yield event({"type": "steam", "ok": ok,
                                  "data": data if ok else None,
                                  "error": data.get("error") if not ok else None})
@@ -534,7 +584,7 @@ async def _stream_search(
         yield progress("Looking up Xbox profile…")
         ran.append("xbox")
         try:
-            cached_xbox = _get_cached("xbox", query)
+            cached_xbox = await _get_cached("xbox", query)
             if cached_xbox is not None:
                 yield event({"type": "xbox", "ok": True, "data": cached_xbox})
             else:
@@ -545,7 +595,7 @@ async def _stream_search(
                     yield event({"type": "module_error", "module": "xbox", "error": "Xbox lookup timed out"})
                 else:
                     if ok and data is not None:
-                        _set_cached("xbox", query, data)
+                        await _set_cached("xbox", query, data)
                     logger.info("Xbox lookup ok=%s data_keys=%s", ok, list(data.keys()) if isinstance(data, dict) else type(data).__name__)
                     yield event({"type": "xbox", "ok": ok, "data": data})
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
@@ -557,7 +607,7 @@ async def _stream_search(
         yield progress("Looking up Roblox profile…")
         ran.append("roblox")
         try:
-            cached_roblox = _get_cached("roblox", query)
+            cached_roblox = await _get_cached("roblox", query)
             if cached_roblox is not None:
                 yield event({"type": "roblox", "ok": True, "data": cached_roblox})
             else:
@@ -568,7 +618,7 @@ async def _stream_search(
                     yield event({"type": "module_error", "module": "roblox", "error": "Roblox lookup timed out"})
                 else:
                     if ok and data is not None:
-                        _set_cached("roblox", query, data)
+                        await _set_cached("roblox", query, data)
                     yield event({"type": "roblox", "ok": ok, "data": data if ok else None})
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
             logger.error("Roblox failed: %s", exc)

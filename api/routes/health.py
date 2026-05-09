@@ -8,11 +8,11 @@ import psutil
 from fastapi import APIRouter, Depends, Request
 
 import api.budget as _budget
+from api.cache import cache_backend
 from api.config import AUDIT_DB, RL_ADMIN_LIMIT, RL_READ_LIMIT
 from api.deps import get_admin_user, get_optional_admin_user, get_orchestrator_dep
 from api.limiter import limiter
 from api.orchestrator import DegradationMode, TaskOrchestrator
-from api.services.search_service import _api_cache
 
 router = APIRouter()
 
@@ -35,6 +35,8 @@ async def health(
     wal_path = Path(str(AUDIT_DB) + "-wal")
     wal_size_bytes = wal_path.stat().st_size if wal_path.exists() else 0
     degradation = orch.degradation_mode
+    cache_stats = await cache_backend.stats()
+    cache_payload = cache_stats.__dict__
 
     payload = {
         "status": "degraded" if degradation != DegradationMode.NORMAL else "healthy",
@@ -46,13 +48,14 @@ async def health(
         "cpu_pct": cpu,
         "swap_used_mb": round(swap.used / 1024 / 1024, 1),
         "agents_paused": degradation != DegradationMode.NORMAL,
-        "cache_entries": len(_api_cache),
+        "cache_entries": cache_stats.entries if cache_stats.entries is not None else 0,
         "uptime_s":             uptime_s,
         "active_tasks":         orch.active_count,
         "semaphore_slots_free": orch.semaphore_slots_free,
         "wal_size_bytes":       wal_size_bytes,
         "degradation_mode":     degradation.value,
     }
+    payload["cache"] = cache_payload
 
     # Phase 16 D-19/D-H14: Thordata bandwidth metrics — admin-only
     if maybe_admin is not None:
@@ -76,6 +79,8 @@ async def health_memory(
     mem_info = proc.memory_info()
     mem = psutil.virtual_memory()
     traced_current, traced_peak = tracemalloc.get_traced_memory()
+    cache_stats = await cache_backend.stats()
+    cache_payload = cache_stats.__dict__
 
     snapshot = tracemalloc.take_snapshot()
     top_stats = snapshot.statistics("lineno")[:15]
@@ -94,7 +99,8 @@ async def health_memory(
             }
             for stat in top_stats
         ],
-        "cache_size": len(_api_cache),
-        "cache_maxsize": _api_cache.maxsize,
+        "cache": cache_payload,
+        "cache_size": cache_stats.entries if cache_stats.entries is not None else 0,
+        "cache_maxsize": None,
         "agents_paused": orch.degradation_mode != DegradationMode.NORMAL,
     }

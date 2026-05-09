@@ -396,38 +396,60 @@ Plans:
 
 ## Milestone v4.2 — Database Migration (SQLite → PostgreSQL)
 
-**Defined:** 2026-05-07 | **Timeline:** 6-10 weeks / 8 phases | **Stack target:** PostgreSQL 16-alpine + asyncpg 0.31 + Alembic 1.13 async + SQLAlchemy 2.0 Core
+**Defined:** 2026-05-07 | **Timeline:** 6-10 weeks / 9 phases | **Stack target:** PostgreSQL 16-alpine + asyncpg 0.31 + Alembic 1.13 async + SQLAlchemy 2.0 Core + Redis 7 Alpine cache
 
 **Locked params:** UUID PKs all tables · JSONB payload on `searches` · pool max_size=10 / min_size=2 · `max_connections=20` · nexus `mem_limit=2500MB` · postgres `mem_limit=768MB` · `shared_buffers=256MB` · `work_mem=8MB` · `shm_size=256MB` · greenfield drop `token_blacklist`/`rate_limits` · preserve `searches`+`quota_log` · `pg_dump` 7d · SQLite snapshot 30d.
 
-**Open Risks:** R-01 nexus mem 2500MB tight (Phase 22 = gate, OOM → 2700MB). R-02 UUID +30% idx on dropped tables (accepted). R-03 JSONB scope creep (accepted). R-04 PG READ COMMITTED ≠ SQLite SERIALIZABLE (Phase 21 RMW audit critical).
+**Open Risks:** R-01 nexus mem 2500MB tight (Phase 23 = gate, OOM → 2700MB). R-02 UUID +30% idx on dropped tables (accepted). R-03 JSONB scope creep (accepted). R-04 PG READ COMMITTED ≠ SQLite SERIALIZABLE (Phase 22 RMW audit critical).
 
 ---
 
 ### Phase 17: v4.2 Pre-Migration Audit & DB Abstraction Layer
 
-**Goal:** Discipline before driver swap — audit SQL dialect violations and introduce a thin repository layer so Phase 21 driver swap is contained to one module.
+**Goal:** Discipline before driver swap — audit SQL dialect violations and introduce a thin repository layer so Phase 22 driver swap is contained to one module.
 **Requirements:** DBM-01, DBM-02, DBM-03, DBM-04
 **Depends on:** Phase 16
 **Risk:** LOW — still on SQLite at end of phase
-**Plans:** 0/3 plans complete
+**Plans:** 3/3 plans complete
 
 **Deliverable:** `grep -rE "AUTOINCREMENT|INSERT OR REPLACE|datetime\(|strftime\(|rowid|fetchone\(|fetchall\("` audit report; `SQL_INVENTORY.md`; `?`→`$N` placeholder map; `db.fetch_one/fetch_all/execute/transaction` repository layer wrapping aiosqlite; all call sites refactored to use it.
 
 **Avoids:** PITFALLS Pitfall 1 (dialect drift), Pitfall 4 (asyncpg API differs), sed-replace disaster.
 
 Plans:
-- [ ] 17-01-PLAN.md — SQL inventory + placeholder map + rowid fix (DBM-01, DBM-03, DBM-04)
-- [ ] 17-02-PLAN.md — fetch_*/execute/transaction abstraction + DatabaseError (DBM-02 base)
-- [ ] 17-03-PLAN.md — contain aiosqlite to api/db.py + call-site refactor (DBM-02 closure)
+- [x] 17-01-PLAN.md — SQL inventory + placeholder map + rowid fix (DBM-01, DBM-03, DBM-04)
+- [x] 17-02-PLAN.md — fetch_*/execute/transaction abstraction + DatabaseError (DBM-02 base)
+- [x] 17-03-PLAN.md — contain aiosqlite to api/db.py + call-site refactor (DBM-02 closure)
+
+**Verification note (2026-05-08):** Phase 17 focused tests pass (`13 passed`). Full suite is `121 passed, 2 failed`; remaining failures are pre-existing/out-of-scope rate-limit and endpoint fixture issues documented in `17-03-SUMMARY.md`.
 
 ---
 
-### Phase 18: Postgres Container + Compose Wiring (parallel deploy)
+### Phase 18: Redis7 Cache Backend
+
+**Goal:** Replace process-local `cachetools.TTLCache` with shared Redis7 cache so duplicate OSINT calls are avoided across restarts/workers and cache observability is no longer tied to an in-memory object.
+**Requirements:** CACHE-01, CACHE-02, CACHE-03, CACHE-04, CACHE-05, CACHE-06, CACHE-07, CACHE-08, CACHE-09, CACHE-10
+**Depends on:** Phase 17
+**Risk:** MEDIUM — cache touches hot search path, but must fail open and preserve search output semantics
+**Plans:** 2/2 plans complete
+
+**Deliverable:** `redis:7-alpine` service on private `internal` network with no public port mapping; async `api/cache.py` contract with Redis backend and in-memory fallback; search cache migrated from sync `TTLCache` to async cache helpers; `/health` exposes cache backend/reachable/hit/miss/error stats; `cachetools` removed after migration.
+
+**Avoids:** Process-local cache misses after restart, cache observability coupled to `search_service`, Redis outage causing search HTTP 500s, cache storing raw OathNet responses.
+
+Plans:
+- [x] 18-01-PLAN.md — Redis runtime/config + async cache backend + lifecycle wiring
+- [x] 18-02-PLAN.md — Search-service Redis migration + health stats + `cachetools` removal
+
+**Verification note (2026-05-09):** Phase 18 targeted tests pass (`9 passed`); `python -m compileall api` passes; `TTLCache|cachetools|_api_cache` grep returns no matches in `api` and `requirements.txt`.
+
+---
+
+### Phase 19: Postgres Container + Compose Wiring (parallel deploy)
 
 **Goal:** Stand up Postgres alongside SQLite without cutover risk. App still on SQLite at end of phase.
 **Requirements:** DBM-05, DBM-06, DBM-07, DBM-08, DBM-09, DBM-10
-**Depends on:** Phase 17
+**Depends on:** Phase 18
 **Risk:** MEDIUM — VPS RAM envelope tight; nexus `mem_limit` reduction observable in production
 **Plans:** 0/0 plans complete
 
@@ -436,15 +458,15 @@ Plans:
 **Avoids:** Pitfalls 7 (OOM), 8 (startup race), 9 (volume permissions — named volume not bind), Anti-Pattern 4 (public Postgres).
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 18)
+- [ ] TBD (run /gsd:plan-phase 19)
 
 ---
 
-### Phase 19: Schema-as-Code + Alembic Async + Test Infra
+### Phase 20: Schema-as-Code + Alembic Async + Test Infra
 
 **Goal:** Schema defined and reviewed before any data touches it. Test infra works on real PG before code is written against PG.
 **Requirements:** DBM-11, DBM-12, DBM-13, DBM-14, DBM-15, DBM-16, DBM-17, DBM-18, DBM-19
-**Depends on:** Phase 18
+**Depends on:** Phase 19
 **Risk:** MEDIUM — type-mapping landmines silent until Phase 21
 **Plans:** 0/0 plans complete
 
@@ -455,15 +477,15 @@ Plans:
 **Avoids:** Pitfall 2 (type mapping), Performance Trap "Missing indexes on FKs".
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 19)
+- [ ] TBD (run /gsd:plan-phase 20)
 
 ---
 
-### Phase 20: Data Port Script (`searches` only)
+### Phase 21: Data Port Script (`searches` only)
 
 **Goal:** Greenfield + selective preserve. `searches` is the only table with historical value.
 **Requirements:** DBM-20, DBM-21, DBM-22, DBM-23
-**Depends on:** Phase 19
+**Depends on:** Phase 20
 **Risk:** MEDIUM — type fixups must be exact; row-count parity is the safety net
 **Plans:** 0/0 plans complete
 
@@ -472,15 +494,15 @@ Plans:
 **Avoids:** Pitfall 11 (cutover data loss — script tested before maintenance window).
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 20)
+- [ ] TBD (run /gsd:plan-phase 21)
 
 ---
 
-### Phase 21: Repository Layer Switch + Code Audit Pass 2
+### Phase 22: Repository Layer Switch + Code Audit Pass 2
 
 **Goal:** Swap implementation behind Phase 17 abstraction. Audit isolation-level race conditions specifically (PG READ COMMITTED ≠ SQLite SERIALIZABLE).
 **Requirements:** DBM-24, DBM-25, DBM-26, DBM-27, DBM-28, DBM-29, DBM-30, DBM-31
-**Depends on:** Phase 20
+**Depends on:** Phase 21
 **Risk:** HIGH — most code-touching phase; missed RMW pattern = silent lost-update bug in production
 **Plans:** 0/3 plans complete
 
@@ -489,34 +511,34 @@ Plans:
 **Avoids:** Pitfall 5 (cancellation leaks), Pitfall 6 (RMW races), Anti-Pattern 1 (re-implementing the queue).
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 21)
-
----
-
-### Phase 22: Concurrency & Memory Stress Test (GATE)
-
-**Goal:** Verify new architecture under load matching production burst patterns BEFORE the irreversible cutover.
-**Requirements:** DBM-32, DBM-33, DBM-34, DBM-35, DBM-36, DBM-37
-**Depends on:** Phase 21
-**Risk:** HIGH — gate for cutover; OOM here = bump nexus `mem_limit` to 2700MB before Phase 23
-**Plans:** 0/0 plans complete
-
-**Deliverable:** Test scenario: 10 concurrent agents × N scans + `cancel_all` mid-burst, repeated; `pg_stat_activity` clean (zero `idle in transaction`) after each cycle; `docker stats postgres` peak < 768MB; `docker stats nexus` peak < 2500MB; `/health` reports `pool.get_idle_size()` recovering between bursts; counter consistency under concurrency verified; slow-query log reviewed.
-
-**Gate criteria:** All four pass → proceed to Phase 23. Any OOM → revisit `mem_limit` to 2700MB and re-run; any pool leak → fix in Phase 21 and re-run; never enter Phase 23 with red metrics.
-
-**Avoids:** Discovering OOM or pool leaks in production.
-
-Plans:
 - [ ] TBD (run /gsd:plan-phase 22)
 
 ---
 
-### Phase 23: Cutover (maintenance window, ≤ 30 min) — IRREVERSIBLE
+### Phase 23: Concurrency & Memory Stress Test (GATE)
+
+**Goal:** Verify new architecture under load matching production burst patterns BEFORE the irreversible cutover.
+**Requirements:** DBM-32, DBM-33, DBM-34, DBM-35, DBM-36, DBM-37
+**Depends on:** Phase 22
+**Risk:** HIGH — gate for cutover; OOM here = bump nexus `mem_limit` to 2700MB before Phase 24
+**Plans:** 0/0 plans complete
+
+**Deliverable:** Test scenario: 10 concurrent agents × N scans + `cancel_all` mid-burst, repeated; `pg_stat_activity` clean (zero `idle in transaction`) after each cycle; `docker stats postgres` peak < 768MB; `docker stats nexus` peak < 2500MB; `/health` reports `pool.get_idle_size()` recovering between bursts; counter consistency under concurrency verified; slow-query log reviewed.
+
+**Gate criteria:** All four pass → proceed to Phase 24. Any OOM → revisit `mem_limit` to 2700MB and re-run; any pool leak → fix in Phase 22 and re-run; never enter Phase 24 with red metrics.
+
+**Avoids:** Discovering OOM or pool leaks in production.
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 23)
+
+---
+
+### Phase 24: Cutover (maintenance window, ≤ 30 min) — IRREVERSIBLE
 
 **Goal:** Execute the documented playbook exactly. No improvisation in the maintenance window.
 **Requirements:** DBM-38, DBM-39, DBM-40, DBM-41, DBM-42, DBM-43, DBM-44, DBM-45, DBM-46
-**Depends on:** Phase 22 (gate green)
+**Depends on:** Phase 23 (gate green)
 **Risk:** CRITICAL — irreversible; rollback is "restore SQLite snapshot + revert image tag"
 **Plans:** 0/0 plans complete
 
@@ -530,20 +552,20 @@ Plans:
 7. Read-only mode off; announce restored.
 8. SQLite file kept read-only on disk for 30 days.
 
-**Rollback playbook:** must be tested on staging beforehand. Failure to test = abort Phase 23.
+**Rollback playbook:** must be tested on staging beforehand. Failure to test = abort Phase 24.
 
 **Avoids:** Sequence collisions, lost in-flight writes, no rollback path.
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 23)
+- [ ] TBD (run /gsd:plan-phase 24)
 
 ---
 
-### Phase 24: Post-Migration Tuning + Backup Hardening (1-week observation)
+### Phase 25: Post-Migration Tuning + Backup Hardening (1-week observation)
 
 **Goal:** Tuning needs real production traffic data; defer optimization until measured.
 **Requirements:** DBM-47, DBM-48, DBM-49, DBM-50, DBM-51, DBM-52, DBM-53
-**Depends on:** Phase 23 (1 week production traffic minimum)
+**Depends on:** Phase 24 (1 week production traffic minimum)
 **Risk:** LOW — observation phase
 **Plans:** 0/0 plans complete
 
@@ -552,8 +574,8 @@ Plans:
 **Avoids:** Pre-optimizing without data; backup-you-have-not-restored anti-pattern (Pitfalls 10, 12).
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 24)
+- [ ] TBD (run /gsd:plan-phase 25)
 
 ---
 
-*Roadmap created: 2026-03-30 | Last updated: 2026-05-07 (v4.2 milestone roadmap added — Phases 17-24, SQLite → PostgreSQL migration)*
+*Roadmap created: 2026-03-30 | Last updated: 2026-05-09 (Redis7 cache backend folded into v4.2 as Phase 18; Postgres phases shifted 18-24 → 19-25)*

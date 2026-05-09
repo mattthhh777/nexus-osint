@@ -14,6 +14,13 @@ LOG_LEVEL       = os.getenv("LOG_LEVEL", "WARNING")
 JWT_ALGORITHM   = "HS256"
 JWT_EXPIRE_HOURS = int(os.getenv("JWT_EXPIRE_HOURS", "24"))
 
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
 # ── JWT security constants ────────────────────────────────────────────────────
 # Known weak defaults that must never be used in production.
 # Compared case-insensitively in _validate_jwt_secret().
@@ -68,6 +75,13 @@ MODULE_TIMEOUTS = {
 # Frontend paginates at BREACH_PAGE_SIZE=25; cursor API (/api/search/more-breaches)
 # fetches the rest on demand. 200 breaches ≈ 200KB JSON — acceptable for 1GB VPS.
 MAX_BREACH_SERIALIZE = 200
+
+# Redis7 search cache. Fail-open by default: cache outage must not break search.
+REDIS_URL: str = os.getenv("REDIS_URL", "redis://redis:6379/0")
+CACHE_TTL_SECONDS: int = int(os.getenv("CACHE_TTL_SECONDS", "300"))
+CACHE_KEY_PREFIX: str = os.getenv("CACHE_KEY_PREFIX", "nexus:v1:search")
+CACHE_FAIL_OPEN: bool = _env_bool("CACHE_FAIL_OPEN", True)
+CACHE_MAX_VALUE_BYTES: int = int(os.getenv("CACHE_MAX_VALUE_BYTES", "262144"))
 
 # ── Phase 16: Thordata residential proxy + Sherlock confidence thresholds ────
 # Per CONTEXT.md D-11 / D-15 / D-18 / D-H5. Backend-only enforcement (D-H1, D-H4).

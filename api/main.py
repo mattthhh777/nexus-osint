@@ -5,7 +5,7 @@ Security upgrade over v2.3:
   - Multi-user support via users.json (bcrypt passwords)
   - All API routes protected by Bearer token
   - slowapi rate limiting per IP + per user
-  - SQLite audit log (aiosqlite) — every search logged
+  - SQLite audit log via DatabaseManager — every search logged
   - Admin endpoints: /api/admin/logs, /api/admin/users, /api/admin/stats
   - Legacy APP_PASSWORD still works as single-user fallback
 """
@@ -39,8 +39,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 import tracemalloc
 
-import aiosqlite
 import psutil
+from api.cache import cache_backend
 from api.db import db as _db  # single-connection DatabaseManager (WAL + write queue)
 import api.budget as _budget
 from api.config import THORDATA_PROXY_URL
@@ -92,7 +92,6 @@ from api.services.auth_service import (
     _verify_user,
 )
 from api.services.search_service import (
-    _api_cache,
     _seen_breach_extra_keys,
     _serialize_breaches,
     _stream_search,
@@ -145,6 +144,7 @@ async def lifespan(application: FastAPI):
     tracemalloc.start(10)  # 10 frames — memory profiling for /health/memory
     _ensure_default_user()
     await _db.startup(db_path=AUDIT_DB)
+    await cache_backend.startup()
     # D-05: expose singletons via app.state for Depends(get_db) / Depends(get_orchestrator_dep)
     application.state.db = _db
     application.state.orchestrator = get_orchestrator()
@@ -168,6 +168,10 @@ async def lifespan(application: FastAPI):
     await _db.shutdown()
     if oathnet_client:
         await oathnet_client.close()
+    try:
+        await cache_backend.shutdown()
+    except (RuntimeError, OSError) as exc:
+        logger.warning("cache_backend.shutdown() error during shutdown: %s", type(exc).__name__)
     logger.info("NexusOSINT v3.0 shutdown complete")
 
 
