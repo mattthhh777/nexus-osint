@@ -127,6 +127,20 @@ APP_PASSWORD=<app password>
 ALLOWED_ORIGINS=https://nexusosint.uk
 ```
 
+## Phase 19 Postgres Secret Bootstrap
+
+Phase 19 adds a private parallel Postgres container, but it does not cut Nexus over to Postgres. The app remains on SQLite until the Phase 24 cutover.
+
+Before running `docker compose up -d --build` on the VPS, create the Docker secret backing file:
+
+```bash
+mkdir -p secrets && chmod 700 secrets
+printf '%s' 'REPLACE_WITH_STRONG_PASSWORD' > secrets/pg_password.txt
+chmod 600 secrets/pg_password.txt
+```
+
+Never commit `secrets/pg_password.txt`. The file is intentionally ignored by git and must exist on the VPS before Compose starts the `postgres` service.
+
 ## Initial Deploy
 
 ```bash
