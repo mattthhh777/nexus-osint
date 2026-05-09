@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v4.2.0
 milestone_name: Database Migration + Redis7 Cache Fold-In
-status: Executing Phase 19
-stopped_at: Completed 19-01-PLAN.md
-last_updated: "2026-05-09T17:10:13.545Z"
+status: Phase 19 complete; Postgres running in parallel on Hetzner
+stopped_at: Completed Phase 19; next action is plan/execute Phase 20
+last_updated: "2026-05-09T17:16:00.000Z"
 progress:
   total_phases: 25
-  completed_phases: 18
+  completed_phases: 19
   total_plans: 34
-  completed_plans: 31
+  completed_plans: 32
 ---
 
 # Project State
@@ -20,12 +20,12 @@ See: .planning/PROJECT.md (updated 2026-05-06 — milestone v4.2)
 
 **Core value:** From the same scan, show 2× more data without additional backend cost — rendering what already arrives in the pipeline.
 
-**Current focus:** Phase 19 — postgres-container-compose-wiring-parallel-deploy
+**Current focus:** Phase 20 — schema-as-code-alembic-async-test-infra
 
 ## Current Position
 
-Phase: 19 (postgres-container-compose-wiring-parallel-deploy) — EXECUTING
-Plan: 1 of 2
+Phase: 19 (postgres-container-compose-wiring-parallel-deploy) — COMPLETE
+Plan: 2 of 2
 
 ## Phase Map
 
@@ -38,7 +38,7 @@ Plan: 1 of 2
 | 16 | sherlock-false-positive-filter-thordata-proxy-integration | COMPLETE | Confidence scoring + Thordata proxy integration |
 | 17 | v4-2-pre-migration-audit-db-abstraction-layer | COMPLETE | SQL inventory + DB abstraction; 3/3 plans complete |
 | 18 | redis7-cache-backend | COMPLETE | Redis7 cache replacement; 2/2 plans complete |
-| 19 | postgres-container-compose-wiring | EXECUTING | 1/2 plans complete; Postgres service, secrets, healthcheck |
+| 19 | postgres-container-compose-wiring | COMPLETE | 2/2 plans complete; Postgres healthy in parallel on Hetzner |
 | 20 | schema-as-code-alembic-async-test-infra | PLANNED | Async Alembic + PG test infra |
 | 21 | data-port-script-searches-only | PLANNED | `searches` port script |
 | 22 | repository-layer-switch-code-audit-pass-2 | PLANNED | asyncpg pool swap behind Phase 17 abstraction |
@@ -99,10 +99,10 @@ not a data-availability issue. Phase 13 discovers real extra keys; Phase 14 rend
 
 ## Session Continuity
 
-Last session: 2026-05-09T17:10:13.538Z
-Stopped at: Completed 19-01-PLAN.md
+Last session: 2026-05-09T17:16:00Z
+Stopped at: Completed Phase 19; Postgres healthy on Hetzner, Nexus remains SQLite
 Resume file: None
-Next action: `/gsd:execute-phase 19` for Postgres container + compose wiring.
+Next action: plan/execute Phase 20 for schema-as-code + Alembic async test infra.
 
 ### Phase 16 Planning Summary (2026-04-30)
 

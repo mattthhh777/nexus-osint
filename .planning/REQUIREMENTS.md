@@ -130,12 +130,12 @@ Deferred to future milestone. Tracked but not in current roadmap.
 
 ### Container & Compose (Phase 19)
 
-- [ ] **DBM-05**: `docker-compose.yml` adds `postgres:16-alpine` service on private `nexus_net`, no public port mapping
-- [ ] **DBM-06**: Postgres `mem_limit=768MB`, `shm_size=256MB`, `command:` flags include `shared_buffers=256MB`, `work_mem=8MB`, `max_connections=20`
-- [ ] **DBM-07**: Named volume `postgres_data` (NOT bind mount — UID 999 permission trap)
-- [ ] **DBM-08**: Healthcheck + `depends_on: condition: service_healthy` gating on `nexus` service
-- [ ] **DBM-09**: Postgres password via Docker secret (not env var — leaks via `docker inspect`)
-- [ ] **DBM-10**: Nexus `mem_limit` adjusted to 2500MB; documented as Phase 23 gate
+- [x] **DBM-05**: `docker-compose.yml` adds `postgres:16-alpine` service on private `nexus_net`, no public port mapping
+- [x] **DBM-06**: Postgres `mem_limit=768MB`, `shm_size=256MB`, `command:` flags include `shared_buffers=256MB`, `work_mem=8MB`, `max_connections=20`
+- [x] **DBM-07**: Named volume `postgres_data` (NOT bind mount — UID 999 permission trap)
+- [x] **DBM-08**: Healthcheck + `depends_on: condition: service_healthy` gating on `nexus` service
+- [x] **DBM-09**: Postgres password via Docker secret (not env var — leaks via `docker inspect`)
+- [x] **DBM-10**: Nexus `mem_limit` adjusted to 2500MB; documented as Phase 23 gate
 
 ### Schema-as-Code (Phase 20)
 

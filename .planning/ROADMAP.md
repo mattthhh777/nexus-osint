@@ -451,7 +451,8 @@ Plans:
 **Requirements:** DBM-05, DBM-06, DBM-07, DBM-08, DBM-09, DBM-10
 **Depends on:** Phase 18
 **Risk:** MEDIUM — VPS RAM envelope tight; nexus `mem_limit` reduction observable in production
-**Plans:** 1/2 plans executed
+**Status:** COMPLETE
+**Plans:** 2/2 plans executed
 
 **Deliverable:** `docker-compose.yml` with `postgres:16-alpine`, named volume `postgres_data`, healthcheck, `condition: service_healthy` gating on nexus, password as Docker secret, `mem_limit=768MB`, `shm_size=256MB`, tuned `command:` flags (`shared_buffers=256MB`, `work_mem=8MB`, `max_connections=20`, `idle_in_transaction_session_timeout=60s`), no public port mapping. Nexus `mem_limit` reduced to 2500MB.
 
@@ -459,7 +460,9 @@ Plans:
 
 Plans:
 - [x] 19-01: Postgres service + secrets + memory wiring
-- [ ] 19-02: Compose validation + Hetzner parallel deploy smoke
+- [x] 19-02: Compose validation + Hetzner parallel deploy smoke
+
+**Verification note (2026-05-09):** Local and VPS `docker compose config --quiet` pass; Hetzner `nexus-postgres` is healthy; `pg_isready -U nexus -d nexusosint` accepts connections; public `/health` is healthy; Postgres has no public 5432 mapping; `DATABASE_URL` is absent so Nexus remains on SQLite.
 
 ---
 
