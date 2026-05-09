@@ -2,6 +2,7 @@
 .env
 *.env
 .streamlit/secrets.toml
+secrets/
 
 # Cases salvos localmente (dados de investigação)
 cases.json
