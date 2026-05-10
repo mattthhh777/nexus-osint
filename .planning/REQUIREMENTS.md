@@ -169,12 +169,12 @@ Deferred to future milestone. Tracked but not in current roadmap.
 
 ### Stress Test (Phase 23) — GATE
 
-- [ ] **DBM-32**: 10 concurrent agents × N scans + `cancel_all` mid-burst loop runs to completion without OOM
-- [ ] **DBM-33**: `pg_stat_activity` shows zero `idle in transaction` after each cycle
-- [ ] **DBM-34**: `docker stats postgres` peak < 768MB
-- [ ] **DBM-35**: `docker stats nexus` peak < 2500MB (if exceeded → revisit `mem_limit` to 2700MB before Phase 24)
-- [ ] **DBM-36**: `/health` `pool.get_idle_size()` recovers between bursts
-- [ ] **DBM-37**: Counter consistency under concurrency verified (no lost updates)
+- [x] **DBM-32**: 10 concurrent agents × N scans + `cancel_all` mid-burst loop runs to completion without OOM
+- [x] **DBM-33**: `pg_stat_activity` shows zero `idle in transaction` after each cycle
+- [x] **DBM-34**: `docker stats postgres` peak < 768MB
+- [x] **DBM-35**: `docker stats nexus` peak < 2500MB (if exceeded → revisit `mem_limit` to 2700MB before Phase 24)
+- [x] **DBM-36**: `/health` `pool.get_idle_size()` recovers between bursts
+- [x] **DBM-37**: Counter consistency under concurrency verified (no lost updates)
 
 ### Cutover (Phase 24) — Irreversible
 

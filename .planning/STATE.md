@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v4.2.0
 milestone_name: Database Migration + Redis7 Cache Fold-In
-status: Phase 22 complete; runtime DB layer switched to asyncpg pool and audited
-stopped_at: Completed Phase 22; next action is execute Phase 23 concurrency-memory-stress-test
-last_updated: "2026-05-10T14:32:50-03:00"
+status: Phase 23 complete; concurrency and memory stress gate passed
+stopped_at: Completed Phase 23; next action is execute Phase 24 postgres-cutover
+last_updated: "2026-05-10T16:27:11-03:00"
 progress:
   total_phases: 25
-  completed_phases: 22
-  total_plans: 35
-  completed_plans: 35
+  completed_phases: 23
+  total_plans: 36
+  completed_plans: 36
 ---
 
 # Project State
@@ -20,11 +20,11 @@ See: .planning/PROJECT.md (updated 2026-05-06 — milestone v4.2)
 
 **Core value:** From the same scan, show 2× more data without additional backend cost — rendering what already arrives in the pipeline.
 
-**Current focus:** Phase 22 — repository-layer-switch-code-audit-pass-2
+**Current focus:** Phase 23 — concurrency-memory-stress-test
 
 ## Current Position
 
-Phase: 22 (repository-layer-switch-code-audit-pass-2) - COMPLETE
+Phase: 23 (concurrency-memory-stress-test) - COMPLETE
 Plan: 1 of 1
 
 ## Phase Map
@@ -42,7 +42,7 @@ Plan: 1 of 1
 | 20 | schema-as-code-alembic-async-test-infra | COMPLETE | Async Alembic + PG test infra verified; 10 DB tests passed |
 | 21 | data-port-script-searches-only | COMPLETE | `searches` port script; live PG idempotency verified |
 | 22 | repository-layer-switch-code-audit-pass-2 | COMPLETE | asyncpg pool swap + RMW audit verified |
-| 23 | concurrency-memory-stress-test | PLANNED | Gate before cutover |
+| 23 | concurrency-memory-stress-test | COMPLETE | 10-way burst/cancel stress gate passed |
 | 24 | postgres-cutover | PLANNED | Maintenance window |
 | 25 | post-migration-tuning-backup-hardening | PLANNED | 1-week observation + backups |
 
@@ -100,10 +100,10 @@ not a data-availability issue. Phase 13 discovers real extra keys; Phase 14 rend
 
 ## Session Continuity
 
-Last session: 2026-05-10T14:32:50-03:00
-Stopped at: Completed Phase 22; asyncpg runtime DB layer tests passed
+Last session: 2026-05-10T16:27:11-03:00
+Stopped at: Completed Phase 23; Postgres pool stress gate passed
 Resume file: None
-Next action: execute Phase 23 concurrency-memory-stress-test.
+Next action: execute Phase 24 postgres-cutover.
 
 ### Phase 16 Planning Summary (2026-04-30)
 

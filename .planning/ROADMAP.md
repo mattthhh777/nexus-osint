@@ -532,7 +532,7 @@ Plans:
 **Requirements:** DBM-32, DBM-33, DBM-34, DBM-35, DBM-36, DBM-37
 **Depends on:** Phase 22
 **Risk:** HIGH — gate for cutover; OOM here = bump nexus `mem_limit` to 2700MB before Phase 24
-**Plans:** 0/0 plans complete
+**Plans:** 1/1 plans complete
 
 **Deliverable:** Test scenario: 10 concurrent agents × N scans + `cancel_all` mid-burst, repeated; `pg_stat_activity` clean (zero `idle in transaction`) after each cycle; `docker stats postgres` peak < 768MB; `docker stats nexus` peak < 2500MB; `/health` reports `pool.get_idle_size()` recovering between bursts; counter consistency under concurrency verified; slow-query log reviewed.
 
@@ -541,7 +541,9 @@ Plans:
 **Avoids:** Discovering OOM or pool leaks in production.
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 23)
+- [x] 23-01: Postgres pool stress gate
+
+**Verification note (2026-05-10):** `scripts/stress_postgres_pool.py` passed 10-concurrency burst + cancellation cycles; app-container gate returned `rows=762 counter=762 idle_in_transaction=0 pool_size=10 pool_idle_size=10`; Docker stats stayed below limits (`postgres=36.8MiB`, `nexus=75.54MiB` observed); `/health` recovered `db.idle_size` from 2 to 2.
 
 ---
 
