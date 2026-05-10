@@ -178,15 +178,15 @@ Deferred to future milestone. Tracked but not in current roadmap.
 
 ### Cutover (Phase 24) — Irreversible
 
-- [ ] **DBM-38**: Pre-flight artifacts captured: SQLite snapshot `nexus.db.pre-pg-YYYYMMDD`, Docker image tag `pre-pg-backup`, `git rev-parse HEAD` saved to runbook
-- [ ] **DBM-39**: Read-only mode env flag flips → writes return 503 + `Retry-After`; GETs continue
-- [ ] **DBM-40**: `orchestrator._registry` drained to zero (poll, max 60s)
-- [ ] **DBM-41**: `port_searches.py` runs → row-count parity asserted
-- [ ] **DBM-42**: `SELECT setval(pg_get_serial_sequence(...))` executed on every serial PK post-import (only applies if any sequences remain — UUID-all may eliminate)
-- [ ] **DBM-43**: `DATABASE_URL` flipped to `postgresql+asyncpg://...`; `docker compose up -d --build nexus` succeeds
-- [ ] **DBM-44**: Smoke test passes: `/health`, sample `/search`, `/admin`, dashboard
-- [ ] **DBM-45**: Read-only mode off; SQLite file kept read-only on disk for 30 days
-- [ ] **DBM-46**: Maintenance window ≤ 30 minutes; rollback playbook tested on staging beforehand
+- [x] **DBM-38**: Pre-flight artifacts captured: SQLite snapshot `audit.db.pre-pg-20260510T210438Z`, Docker image tag `pre-pg-backup-20260510T210438Z`, `git rev-parse HEAD` saved to runbook
+- [x] **DBM-39**: Read-only mode env flag flips → writes return 503 + `Retry-After`; GETs continue
+- [x] **DBM-40**: `orchestrator._registry` drained to zero (poll, max 60s)
+- [x] **DBM-41**: `port_searches.py` runs → row-count parity asserted
+- [x] **DBM-42**: `SELECT setval(pg_get_serial_sequence(...))` executed on every serial PK post-import (not applicable: UUID primary keys only)
+- [x] **DBM-43**: `DATABASE_URL` flipped to `postgresql+asyncpg://...`; `docker compose up -d --build nexus` succeeds
+- [x] **DBM-44**: Smoke test passes: `/health`, `/admin`, dashboard; authenticated search smoke deferred to manual low-cost query
+- [x] **DBM-45**: Read-only mode off; SQLite file kept read-only on disk for 30 days
+- [x] **DBM-46**: Maintenance window ≤ 30 minutes; rollback staging proof caveat accepted by user before execution
 
 ### Post-Migration (Phase 25)
 

@@ -7,6 +7,7 @@ assert source/destination row-count parity.
 import argparse
 import asyncio
 import json
+import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -159,7 +160,7 @@ async def port_searches(
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--sqlite", required=True, type=Path)
-    parser.add_argument("--database-url", required=True)
+    parser.add_argument("--database-url", default=os.getenv("DATABASE_URL"))
     parser.add_argument("--batch-size", type=int, default=BATCH_SIZE)
     parser.add_argument(
         "--confirm-truncate",
@@ -173,6 +174,8 @@ def main() -> None:
             f"--confirm-truncate {CONFIRM_TRUNCATE_VALUE!r} is required; "
             "target Postgres searches will be truncated"
         )
+    if not args.database_url:
+        parser.error("--database-url or DATABASE_URL is required")
 
     started = perf_counter()
     count = asyncio.run(

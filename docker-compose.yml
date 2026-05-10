@@ -15,13 +15,9 @@ services:
     # todos os usuários no mesmo bucket (IP do container nginx).
     command: >
       sh -c 'if [ -n "$${DATABASE_URL:-}" ]; then alembic upgrade head; fi;
-      exec uvicorn api.main:app
-        --host 0.0.0.0
-        --port 8000
-        --workers 1
-        --timeout-graceful-shutdown 30
-        --proxy-headers
-        --forwarded-allow-ips=172.16.0.0/12'
+      exec uvicorn api.main:app --host 0.0.0.0 --port 8000 --workers 1
+      --timeout-graceful-shutdown 30 --proxy-headers
+      --forwarded-allow-ips=172.16.0.0/12'
     environment:
       - OATHNET_API_KEY=${OATHNET_API_KEY}
       - SPIDERFOOT_URL=http://spiderfoot:5001

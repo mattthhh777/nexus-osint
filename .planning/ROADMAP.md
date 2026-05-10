@@ -553,7 +553,7 @@ Plans:
 **Requirements:** DBM-38, DBM-39, DBM-40, DBM-41, DBM-42, DBM-43, DBM-44, DBM-45, DBM-46
 **Depends on:** Phase 23 (gate green)
 **Risk:** CRITICAL — irreversible; rollback is "restore SQLite snapshot + revert image tag"
-**Plans:** 0/0 plans complete
+**Plans:** 1/1 plans complete
 
 **Deliverable:**
 1. Pre-flight: SQLite snapshot (`cp nexus.db nexus.db.pre-pg-$(date +%Y%m%d)`), Docker image tagged `pre-pg-backup`, `git rev-parse HEAD` saved to runbook.
@@ -569,8 +569,13 @@ Plans:
 
 **Avoids:** Sequence collisions, lost in-flight writes, no rollback path.
 
+**Verification note (2026-05-10):** Production cutover complete. SQLite snapshot
+`audit.db.pre-pg-20260510T210438Z` retained read-only, `DATABASE_URL` flipped to
+Postgres, `port_searches.py` asserted 19-row parity, `/health` reports healthy
+Postgres pool (`db.size=2`, `db.idle_size=2`), and public `/` returns 200.
+
 Plans:
-- [ ] TBD (run /gsd:plan-phase 24)
+- [x] 24-01-PLAN.md — Hetzner PostgreSQL cutover
 
 ---
 
