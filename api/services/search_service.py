@@ -122,7 +122,7 @@ async def _log_search(
     success: bool = True,
     db: DatabaseManager = None,
 ) -> None:
-    """Write a search audit record. Non-blocking — goes through write queue."""
+    """Write a search audit record through the Postgres pool."""
     await db.execute_nowait(
         """INSERT INTO searches
            (ts, username, ip, query, query_type, mode, modules_run,
@@ -717,7 +717,7 @@ async def _stream_search(
 
     elapsed = round(time.time() - t0, 1)
 
-    # ── Audit log — non-blocking via db write queue (no create_task needed) ──
+    # ── Audit log — awaited direct DB write; Postgres handles write concurrency ──
     await _log_search(
         username=username, ip=client_ip, query=query,
         query_type=q_type, mode=req.mode,

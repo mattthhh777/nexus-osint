@@ -513,14 +513,16 @@ Plans:
 **Requirements:** DBM-24, DBM-25, DBM-26, DBM-27, DBM-28, DBM-29, DBM-30, DBM-31
 **Depends on:** Phase 21
 **Risk:** HIGH — most code-touching phase; missed RMW pattern = silent lost-update bug in production
-**Plans:** 0/3 plans complete
+**Plans:** 1/1 plans complete
 
 **Deliverable:** `api/db.py` rewritten on asyncpg pool (max_size=10, min_size=2, command_timeout=30); `_writer_loop` and `asyncio.Queue` deleted (lines 34, 46-47, 193-222 of current `api/db.py`); `?` → `$N` placeholders rewritten at all call sites; `INSERT OR REPLACE` → `ON CONFLICT DO UPDATE`; every `SELECT then UPDATE` reviewed and replaced with atomic `UPDATE col = col + 1` or `SELECT FOR UPDATE`; pool always inside `async with`; `idle_in_transaction_session_timeout=60s`; `/health` exposes `pool.get_idle_size()`.
 
 **Avoids:** Pitfall 5 (cancellation leaks), Pitfall 6 (RMW races), Anti-Pattern 1 (re-implementing the queue).
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 22)
+- [x] 22-01: asyncpg driver swap
+
+**Verification note (2026-05-10):** `pytest tests/test_db.py tests/test_db_stream.py tests/test_db_abstraction.py tests/test_health.py tests/test_endpoints.py tests/integration/test_phase16_routes.py tests/test_port_searches.py -q` returned `39 passed`; runtime DB-path anti-pattern grep found no SQLite writer queue, `INSERT OR`, or forbidden future imports in Phase 22 files; RMW audit found no update sites.
 
 ---
 

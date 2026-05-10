@@ -1,5 +1,4 @@
 """Tests for DatabaseManager stream helpers on Postgres."""
-from __future__ import annotations
 
 import pytest
 import pytest_asyncio

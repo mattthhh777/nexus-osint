@@ -158,14 +158,14 @@ Deferred to future milestone. Tracked but not in current roadmap.
 
 ### Driver Swap (Phase 22)
 
-- [ ] **DBM-24**: `api/db.py` rewritten on `asyncpg.Pool` (max_size=10, min_size=2, command_timeout=30)
-- [ ] **DBM-25**: `_writer_loop` and `asyncio.Queue` deleted (lines 34, 46-47, 193-222 of current `api/db.py`)
-- [ ] **DBM-26**: Every DB call uses `async with pool.acquire() as conn:` + `async with conn.transaction():` (zero pool.acquire() outside async with)
-- [ ] **DBM-27**: `?` → `$N` placeholders rewritten at all call sites
-- [ ] **DBM-28**: All `INSERT OR REPLACE` → `INSERT ... ON CONFLICT DO UPDATE`
-- [ ] **DBM-29**: Every `SELECT then UPDATE` reviewed and replaced with atomic `UPDATE col = col + 1` or `SELECT FOR UPDATE` (PG READ COMMITTED ≠ SQLite SERIALIZABLE)
-- [ ] **DBM-30**: `idle_in_transaction_session_timeout=60s` set server-side
-- [ ] **DBM-31**: `/health` exposes `pool.get_idle_size()` for leak detection
+- [x] **DBM-24**: `api/db.py` rewritten on `asyncpg.Pool` (max_size=10, min_size=2, command_timeout=30)
+- [x] **DBM-25**: `_writer_loop` and `asyncio.Queue` deleted (lines 34, 46-47, 193-222 of current `api/db.py`)
+- [x] **DBM-26**: Every DB call uses `async with pool.acquire() as conn:` + `async with conn.transaction():` (zero pool.acquire() outside async with)
+- [x] **DBM-27**: `?` → `$N` placeholders rewritten at all call sites
+- [x] **DBM-28**: All `INSERT OR REPLACE` → `INSERT ... ON CONFLICT DO UPDATE`
+- [x] **DBM-29**: Every `SELECT then UPDATE` reviewed and replaced with atomic `UPDATE col = col + 1` or `SELECT FOR UPDATE` (PG READ COMMITTED ≠ SQLite SERIALIZABLE)
+- [x] **DBM-30**: `idle_in_transaction_session_timeout=60s` set server-side
+- [x] **DBM-31**: `/health` exposes `pool.get_idle_size()` for leak detection
 
 ### Stress Test (Phase 23) — GATE
 

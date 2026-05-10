@@ -1,5 +1,4 @@
 """Tests for the Phase 17 database abstraction contract."""
-from __future__ import annotations
 
 import asyncio
 

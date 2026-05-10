@@ -33,7 +33,7 @@ except ImportError:
 
 from api.config import JWT_ALGORITHM, JWT_SECRET
 from api.db import DatabaseError, db as _db, DatabaseManager
-from api.orchestrator import TaskOrchestrator
+from api.orchestrator import TaskOrchestrator, get_orchestrator
 
 logger = logging.getLogger("nexusosint.deps")
 
@@ -84,7 +84,7 @@ def _decode_token(token: str) -> dict:
 
 # ── Token blacklist check ─────────────────────────────────────────────────────
 
-async def _check_blacklist(jti: Optional[str]) -> None:
+async def _check_blacklist(jti: Optional[str], db: DatabaseManager | None = None) -> None:
     """Raises 401 if the jti is revoked.
 
     D-10 (FIND-06): Fail-CLOSED on DB error — any read failure returns HTTP 503
@@ -92,13 +92,14 @@ async def _check_blacklist(jti: Optional[str]) -> None:
     """
     if not jti:
         return
+    active_db = db or _db
     try:
         # Purge expired entries — fire-and-forget
-        await _db.execute_nowait(
+        await active_db.execute_nowait(
             "DELETE FROM token_blacklist WHERE exp < $1",
             (int(time.time()),),
         )
-        row = await _db.fetch_one(
+        row = await active_db.fetch_one(
             "SELECT 1 as found FROM token_blacklist WHERE jti = $1", (jti,)
         )
         if row is not None:
@@ -135,13 +136,13 @@ async def get_current_user(
     cookie_token = request.cookies.get("nx_session")
     if cookie_token:
         payload = _decode_token(cookie_token)
-        await _check_blacklist(payload.get("jti"))
+        await _check_blacklist(payload.get("jti"), db=get_db(request))
         return payload
 
     # Fallback de retrocompatibilidade: Authorization: Bearer <token>
     if credentials and credentials.credentials:
         payload = _decode_token(credentials.credentials)
-        await _check_blacklist(payload.get("jti"))
+        await _check_blacklist(payload.get("jti"), db=get_db(request))
         return payload
 
     raise HTTPException(
@@ -186,7 +187,10 @@ def get_db(request: Request) -> DatabaseManager:
         db: DatabaseManager = Depends(get_db)
     and pass `db` explicitly to service-layer functions (D-05).
     """
-    return request.app.state.db
+    override = request.app.dependency_overrides.get(_db)
+    if override is not None:
+        return override()
+    return getattr(request.app.state, "db", _db)
 
 
 def get_orchestrator_dep(request: Request) -> TaskOrchestrator:
@@ -196,4 +200,4 @@ def get_orchestrator_dep(request: Request) -> TaskOrchestrator:
     which is the module-level singleton accessor still used by lifespan
     and by callers that don't have a Request in scope.
     """
-    return request.app.state.orchestrator
+    return getattr(request.app.state, "orchestrator", get_orchestrator())

@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v4.2.0
 milestone_name: Database Migration + Redis7 Cache Fold-In
-status: Phase 21 complete; searches port script verified against live test Postgres
-stopped_at: Completed Phase 21; next action is execute Phase 22 repository-layer-switch-code-audit-pass-2
-last_updated: "2026-05-10T14:13:04-03:00"
+status: Phase 22 complete; runtime DB layer switched to asyncpg pool and audited
+stopped_at: Completed Phase 22; next action is execute Phase 23 concurrency-memory-stress-test
+last_updated: "2026-05-10T14:32:50-03:00"
 progress:
   total_phases: 25
-  completed_phases: 21
-  total_plans: 34
-  completed_plans: 34
+  completed_phases: 22
+  total_plans: 35
+  completed_plans: 35
 ---
 
 # Project State
@@ -20,11 +20,11 @@ See: .planning/PROJECT.md (updated 2026-05-06 — milestone v4.2)
 
 **Core value:** From the same scan, show 2× more data without additional backend cost — rendering what already arrives in the pipeline.
 
-**Current focus:** Phase 21 — data-port-script-searches-only
+**Current focus:** Phase 22 — repository-layer-switch-code-audit-pass-2
 
 ## Current Position
 
-Phase: 21 (data-port-script-searches-only) - COMPLETE
+Phase: 22 (repository-layer-switch-code-audit-pass-2) - COMPLETE
 Plan: 1 of 1
 
 ## Phase Map
@@ -41,7 +41,7 @@ Plan: 1 of 1
 | 19 | postgres-container-compose-wiring | COMPLETE | 2/2 plans complete; Postgres healthy in parallel on Hetzner |
 | 20 | schema-as-code-alembic-async-test-infra | COMPLETE | Async Alembic + PG test infra verified; 10 DB tests passed |
 | 21 | data-port-script-searches-only | COMPLETE | `searches` port script; live PG idempotency verified |
-| 22 | repository-layer-switch-code-audit-pass-2 | PLANNED | asyncpg pool swap behind Phase 17 abstraction |
+| 22 | repository-layer-switch-code-audit-pass-2 | COMPLETE | asyncpg pool swap + RMW audit verified |
 | 23 | concurrency-memory-stress-test | PLANNED | Gate before cutover |
 | 24 | postgres-cutover | PLANNED | Maintenance window |
 | 25 | post-migration-tuning-backup-hardening | PLANNED | 1-week observation + backups |
@@ -100,10 +100,10 @@ not a data-availability issue. Phase 13 discovers real extra keys; Phase 14 rend
 
 ## Session Continuity
 
-Last session: 2026-05-10T14:13:04-03:00
-Stopped at: Completed Phase 21; live Postgres copy/idempotency tests passed
+Last session: 2026-05-10T14:32:50-03:00
+Stopped at: Completed Phase 22; asyncpg runtime DB layer tests passed
 Resume file: None
-Next action: execute Phase 22 repository-layer-switch-code-audit-pass-2.
+Next action: execute Phase 23 concurrency-memory-stress-test.
 
 ### Phase 16 Planning Summary (2026-04-30)
 
