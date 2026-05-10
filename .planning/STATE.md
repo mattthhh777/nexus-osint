@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v4.2.0
 milestone_name: Database Migration + Redis7 Cache Fold-In
-status: Phase 19 complete; Postgres running in parallel on Hetzner
-stopped_at: Completed Phase 19; next action is plan/execute Phase 20
-last_updated: "2026-05-09T17:16:00.000Z"
+status: Phase 20 complete; schema-as-code and live Postgres test infra verified
+stopped_at: Completed Phase 20; next action is execute Phase 21 data-port-script-searches-only
+last_updated: "2026-05-10T02:05:00-03:00"
 progress:
   total_phases: 25
-  completed_phases: 19
+  completed_phases: 20
   total_plans: 34
-  completed_plans: 32
+  completed_plans: 33
 ---
 
 # Project State
@@ -24,8 +24,8 @@ See: .planning/PROJECT.md (updated 2026-05-06 — milestone v4.2)
 
 ## Current Position
 
-Phase: 19 (postgres-container-compose-wiring-parallel-deploy) — COMPLETE
-Plan: 2 of 2
+Phase: 20 (schema-as-code-alembic-async-test-infra) - COMPLETE
+Plan: 1 of 1
 
 ## Phase Map
 
@@ -39,7 +39,7 @@ Plan: 2 of 2
 | 17 | v4-2-pre-migration-audit-db-abstraction-layer | COMPLETE | SQL inventory + DB abstraction; 3/3 plans complete |
 | 18 | redis7-cache-backend | COMPLETE | Redis7 cache replacement; 2/2 plans complete |
 | 19 | postgres-container-compose-wiring | COMPLETE | 2/2 plans complete; Postgres healthy in parallel on Hetzner |
-| 20 | schema-as-code-alembic-async-test-infra | PLANNED | Async Alembic + PG test infra |
+| 20 | schema-as-code-alembic-async-test-infra | COMPLETE | Async Alembic + PG test infra verified; 10 DB tests passed |
 | 21 | data-port-script-searches-only | PLANNED | `searches` port script |
 | 22 | repository-layer-switch-code-audit-pass-2 | PLANNED | asyncpg pool swap behind Phase 17 abstraction |
 | 23 | concurrency-memory-stress-test | PLANNED | Gate before cutover |
@@ -93,16 +93,17 @@ not a data-availability issue. Phase 13 discovers real extra keys; Phase 14 rend
 
 ### Blockers/Concerns
 
+- Boundary drift: worktree already contains Phase 22-style `api/db.py` asyncpg driver switch; do not reset without explicit approval
 - No test suite for frontend JS — visual regressions caught only by manual testing
 - OathNet Starter plan: 100 lookups/day — test with real queries sparingly
 - VPS has nginx.conf with frame-ancestors fix — needs scp deploy
 
 ## Session Continuity
 
-Last session: 2026-05-09T17:16:00Z
-Stopped at: Completed Phase 19; Postgres healthy on Hetzner, Nexus remains SQLite
+Last session: 2026-05-10T02:05:00-03:00
+Stopped at: Completed Phase 20; test Postgres live Alembic upgrade and DB tests passed
 Resume file: None
-Next action: plan/execute Phase 20 for schema-as-code + Alembic async test infra.
+Next action: execute Phase 21 data-port-script-searches-only.
 
 ### Phase 16 Planning Summary (2026-04-30)
 

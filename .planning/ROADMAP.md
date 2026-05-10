@@ -472,7 +472,8 @@ Plans:
 **Requirements:** DBM-11, DBM-12, DBM-13, DBM-14, DBM-15, DBM-16, DBM-17, DBM-18, DBM-19
 **Depends on:** Phase 19
 **Risk:** MEDIUM — type-mapping landmines silent until Phase 21
-**Plans:** 0/0 plans complete
+**Status:** COMPLETE
+**Plans:** 1/1 plans complete
 
 **Deliverable:** `alembic init -t async migrations`; baseline migration with `MetaData`/`Table` for all tables (greenfield schema using TIMESTAMPTZ / BOOLEAN / JSONB / UUID `gen_random_uuid()` / `TEXT[]`); `pgcrypto` extension enabled; per-table indexes including FK indexes (Postgres does NOT auto-index FKs); CHECK constraints (not ENUM) for status fields; `searches.payload JSONB` + GIN index; template-database test fixtures; `docker-compose.test.yml` with tmpfs PG on port 5433.
 
@@ -481,7 +482,9 @@ Plans:
 **Avoids:** Pitfall 2 (type mapping), Performance Trap "Missing indexes on FKs".
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 20)
+- [x] 20-01: Postgres schema and test infra
+
+**Verification note (2026-05-10):** `docker compose -f docker-compose.test.yml up -d test-postgres` passed; `alembic upgrade head` passed against live test Postgres; `pytest tests/test_db.py tests/test_db_stream.py -q` returned `10 passed`; schema grep found no `TIMESTAMP` without TZ, `CREATE TYPE`, or `ENUM`.
 
 ---
 

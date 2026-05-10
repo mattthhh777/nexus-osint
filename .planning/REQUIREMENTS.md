@@ -139,15 +139,15 @@ Deferred to future milestone. Tracked but not in current roadmap.
 
 ### Schema-as-Code (Phase 20)
 
-- [ ] **DBM-11**: `alembic init -t async migrations` initialized; baseline migration committed
-- [ ] **DBM-12**: All tables use `TIMESTAMPTZ` (zero `TIMESTAMP` without TZ — `grep -i "TIMESTAMP[^T]" migrations/` returns zero)
-- [ ] **DBM-13**: All boolean fields are `BOOLEAN` (zero INTEGER-as-bool)
-- [ ] **DBM-14**: All variable agent payloads are `JSONB` (zero JSON, zero TEXT)
-- [ ] **DBM-15**: All PKs are UUID via `gen_random_uuid()` with `pgcrypto` extension enabled in baseline
-- [ ] **DBM-16**: `searches.payload JSONB` column added with GIN index
-- [ ] **DBM-17**: Every FK has explicit index (Postgres does NOT auto-index FKs)
-- [ ] **DBM-18**: Status fields use CHECK constraints, not ENUM
-- [ ] **DBM-19**: `docker-compose.test.yml` provides ephemeral PG on `tmpfs` port 5433; template-database test fixtures work in CI
+- [x] **DBM-11**: `alembic init -t async migrations` initialized; baseline migration committed
+- [x] **DBM-12**: All tables use `TIMESTAMPTZ` (zero `TIMESTAMP` without TZ — `grep -i "TIMESTAMP[^T]" migrations/` returns zero)
+- [x] **DBM-13**: All boolean fields are `BOOLEAN` (zero INTEGER-as-bool)
+- [x] **DBM-14**: All variable agent payloads are `JSONB` (zero JSON, zero TEXT)
+- [x] **DBM-15**: All PKs are UUID via `gen_random_uuid()` with `pgcrypto` extension enabled in baseline
+- [x] **DBM-16**: `searches.payload JSONB` column added with GIN index
+- [x] **DBM-17**: Every FK has explicit index (Postgres does NOT auto-index FKs)
+- [x] **DBM-18**: Status fields use CHECK constraints, not ENUM
+- [x] **DBM-19**: `docker-compose.test.yml` provides ephemeral PG on `tmpfs` port 5433; template-database test fixtures work in CI
 
 ### Data Port (Phase 21)
 
