@@ -494,14 +494,16 @@ Plans:
 **Requirements:** DBM-20, DBM-21, DBM-22, DBM-23
 **Depends on:** Phase 20
 **Risk:** MEDIUM — type fixups must be exact; row-count parity is the safety net
-**Plans:** 0/0 plans complete
+**Plans:** 1/1 plans complete
 
 **Deliverable:** `scripts/port_searches.py` using `asyncpg.copy_records_to_table` in 1000-row batches; type fixups (ISO TEXT → datetime → TIMESTAMPTZ; CSV `modules_run` → `TEXT[]`; INTEGER `success` → BOOLEAN; legacy NULL payload → `'{}'::jsonb`); row-count parity assertion; idempotent (truncate-then-load on rerun); timed on staging copy of production.
 
 **Avoids:** Pitfall 11 (cutover data loss — script tested before maintenance window).
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 21)
+- [x] 21-01: Idempotent searches port script
+
+**Verification note (2026-05-10):** `pytest tests/test_port_searches.py -q` returned `6 passed`; `pytest tests/test_db.py tests/test_db_stream.py tests/test_port_searches.py -q` returned `16 passed`; CLI truncate guard exits before mutation unless `--confirm-truncate truncate-and-port-searches` is supplied.
 
 ---
 

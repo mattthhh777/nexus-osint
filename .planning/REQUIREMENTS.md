@@ -151,10 +151,10 @@ Deferred to future milestone. Tracked but not in current roadmap.
 
 ### Data Port (Phase 21)
 
-- [ ] **DBM-20**: `scripts/port_searches.py` uses `asyncpg.copy_records_to_table` in 1000-row batches
-- [ ] **DBM-21**: Type fixups applied: SQLite ISO TEXT → datetime → `TIMESTAMPTZ`; CSV `modules_run` → `TEXT[]`; INTEGER `success` → `BOOLEAN`
-- [ ] **DBM-22**: Row-count parity assertion passes on staging copy of production
-- [ ] **DBM-23**: Script is idempotent (truncate-then-load on rerun)
+- [x] **DBM-20**: `scripts/port_searches.py` uses `asyncpg.copy_records_to_table` in 1000-row batches
+- [x] **DBM-21**: Type fixups applied: SQLite ISO TEXT → datetime → `TIMESTAMPTZ`; CSV `modules_run` → `TEXT[]`; INTEGER `success` → `BOOLEAN`
+- [x] **DBM-22**: Row-count parity assertion passes on staging copy of production
+- [x] **DBM-23**: Script is idempotent (truncate-then-load on rerun)
 
 ### Driver Swap (Phase 22)
 
