@@ -45,12 +45,13 @@ class VictimsSearchRequest(BaseModel):
     q: str = ""
     page_size: int = 10
     cursor: str = ""
+    search_id: str = ""
     email: str = ""
     ip: str = ""
     discord_id: str = ""
     username: str = ""
 
-    @field_validator("q", "cursor", "email", "ip", "discord_id", "username")
+    @field_validator("q", "cursor", "search_id", "email", "ip", "discord_id", "username")
     @classmethod
     def sanitize_text(cls, v: str) -> str:
         v = (v or "").strip()
@@ -64,6 +65,20 @@ class VictimsSearchRequest(BaseModel):
         if v < 1:
             return 1
         return min(v, 50)
+
+
+class SearchMoreBreachesRequest(BaseModel):
+    query: str
+    cursor: str
+    search_id: str = ""
+
+    @field_validator("query", "cursor", "search_id")
+    @classmethod
+    def sanitize_text(cls, v: str) -> str:
+        v = (v or "").strip()
+        if len(v) > 256:
+            raise ValueError("Input too long")
+        return re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", v)
 
 
 class SherlockUsernameRequest(BaseModel):

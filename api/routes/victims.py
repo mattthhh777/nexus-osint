@@ -28,7 +28,11 @@ async def victims_search_endpoint(
     if body.discord_id: filters["discord_id"] = body.discord_id
     if body.username:   filters["username"]   = body.username
     ok, data = await oathnet_client.victims_search(
-        body.q, body.page_size, body.cursor, "", **filters
+        body.q,
+        body.page_size,
+        body.cursor,
+        body.search_id,
+        **filters,
     )
     if not ok:
         raise HTTPException(status_code=400, detail=data.get("error", "Search failed"))

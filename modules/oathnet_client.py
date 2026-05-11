@@ -32,6 +32,26 @@ OATHNET_BASE_URL = "https://oathnet.org/api"
 DEFAULT_TIMEOUT  = 20
 MAX_VICTIM_FILE_BYTES = 1_048_576
 
+DEFAULT_BREACH_PAGE_SIZE = 25
+DEFAULT_STEALER_PAGE_SIZE = 25
+DEFAULT_VICTIMS_PAGE_SIZE = 10
+DEFAULT_STEALER_FIELDS = (
+    "url",
+    "domain",
+    "username",
+    "email",
+    "log_id",
+    "pwned_at",
+)
+DEFAULT_VICTIMS_FIELDS = (
+    "log_id",
+    "computer_name",
+    "ip",
+    "country",
+    "total_docs",
+    "last_seen",
+)
+
 
 @dataclass
 class BreachRecord:
@@ -225,6 +245,12 @@ class OathnetClient:
         m.duration_ms  = perf.get("duration_ms", 0.0)
         return m
 
+    @staticmethod
+    def _add_list_param(params: dict, name: str, values: list[str] | tuple[str, ...] | None) -> None:
+        clean = [str(value) for value in (values or []) if str(value).strip()]
+        if clean:
+            params[name] = clean
+
     # ── Session ───────────────────────────────────────────────────────────────
 
     async def init_session(self, query: str) -> Optional[str]:
@@ -236,15 +262,22 @@ class OathnetClient:
 
     # ── Breach search ─────────────────────────────────────────────────────────
 
-    async def search_breach(self, query: str, cursor: str = "", session_id: str = "") -> OathnetResult:
+    async def search_breach(
+        self,
+        query: str,
+        cursor: str = "",
+        session_id: str = "",
+        page_size: int = DEFAULT_BREACH_PAGE_SIZE,
+    ) -> OathnetResult:
         result = OathnetResult(query=query, query_type="breach")
-        params: dict = {"q": query}
+        result.session_id = session_id
+        params: dict = {"q": query, "page_size": max(1, min(page_size, 50))}
         if cursor:
             params["cursor"] = cursor
         if session_id:
             params["search_id"] = session_id
 
-        ok, data = await self._get("service/search-breach", params=params)
+        ok, data = await self._get("service/v2/breach/search", params=params)
         if not ok:
             result.error = data.get("error", "Breach search failed.")
             return result
@@ -252,22 +285,27 @@ class OathnetClient:
         result.success      = True
         result.raw_response = data
         payload             = data.get("data", data)
-        result.results_found = payload.get("results_found", 0)
-        result.next_cursor   = payload.get("nextCursorMark") or payload.get("next_cursor_mark", "")
+        meta                = payload.get("meta", {})
+        result.results_found = payload.get("results_found") or meta.get("total", 0)
+        result.next_cursor   = (
+            payload.get("next_cursor")
+            or payload.get("nextCursorMark")
+            or payload.get("next_cursor_mark", "")
+        )
         result.meta          = self._parse_meta(payload)
 
         KNOWN_FIELDS = {"dbname", "email", "username", "password", "ip", "domain",
                         "date", "created_at", "country", "discordid", "discord_id",
                         "phone", "phone_number", "id", "_version_", "_meta"}
 
-        for item in payload.get("results", []):
+        for item in payload.get("items") or payload.get("results", []):
             if not isinstance(item, dict):
                 continue
             u   = item.get("username", "")
             e   = item.get("email", "")
             c   = item.get("country", "")
             did = item.get("discordid") or item.get("discord_id", "")
-            ph  = item.get("phone") or item.get("phone_number", "")
+            ph  = item.get("phone") or item.get("phone_number") or item.get("phone_national", "")
 
             extra = {
                 k: (v[0] if isinstance(v, list) and v else v)
@@ -293,13 +331,22 @@ class OathnetClient:
 
     # ── Stealer v2 ────────────────────────────────────────────────────────────
 
-    async def search_stealer_v2(self, query: str, cursor: str = "", session_id: str = "", page_size: int = 25) -> OathnetResult:
+    async def search_stealer_v2(
+        self,
+        query: str,
+        cursor: str = "",
+        session_id: str = "",
+        page_size: int = DEFAULT_STEALER_PAGE_SIZE,
+        fields: list[str] | tuple[str, ...] | None = DEFAULT_STEALER_FIELDS,
+    ) -> OathnetResult:
         result = OathnetResult(query=query, query_type="stealer")
-        params: dict = {"q": query, "page_size": page_size}
+        result.session_id = session_id
+        params: dict = {"q": query, "page_size": max(1, min(page_size, 50))}
         if cursor:
             params["cursor"] = cursor
         if session_id:
             params["search_id"] = session_id
+        self._add_list_param(params, "fields[]", fields)
 
         ok, data = await self._get("service/v2/stealer/search", params=params)
         if not ok:
@@ -468,19 +515,21 @@ class OathnetClient:
     async def victims_search(
         self,
         query: str = "",
-        page_size: int = 10,
+        page_size: int = DEFAULT_VICTIMS_PAGE_SIZE,
         cursor: str = "",
         session_id: str = "",
+        fields: list[str] | tuple[str, ...] | None = DEFAULT_VICTIMS_FIELDS,
         **filters: Any,
     ) -> tuple[bool, dict]:
         """Search victim profiles (compromised machines)."""
-        params: dict = {"page_size": page_size}
+        params: dict = {"page_size": max(1, min(page_size, 50))}
         if query:
             params["q"] = query
         if cursor:
             params["cursor"] = cursor
         if session_id:
             params["search_id"] = session_id
+        self._add_list_param(params, "fields[]", fields)
 
         for key in ("email", "ip", "hwid", "discord_id", "username"):
             val = filters.get(key)

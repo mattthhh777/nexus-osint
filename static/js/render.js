@@ -375,7 +375,7 @@ async function loadMoreBreaches() {
   try {
     const r = await apiFetch('/api/search/more-breaches', {
       method: 'POST',
-      body: JSON.stringify({ query, cursor }),
+      body: JSON.stringify({ query, cursor, search_id: currentResult.searchId || '' }),
     });
 
     if (!r.ok) {
@@ -1263,7 +1263,12 @@ async function loadMoreVictims() {
     const r = await apiFetch('/api/victims/search', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({q, cursor: v.next_cursor, page_size: 10})
+      body: JSON.stringify({
+        q,
+        cursor: v.next_cursor,
+        page_size: 10,
+        search_id: currentResult.searchId || v.search_id || ''
+      })
     });
     const data = await r.json();
     const newItems = data.items || [];
