@@ -56,8 +56,8 @@ def _load_sites() -> dict | None:
         sites = db.ranked_sites_dict(top=_TOP_SITES)
         logger.info("Maigret DB loaded: %d sites (top=%d)", len(sites), _TOP_SITES)
         return sites
-    except Exception as exc:
-        logger.error("Maigret DB load failed: %s", exc)
+    except (ImportError, OSError, ValueError, RuntimeError) as exc:
+        logger.error("Maigret DB load failed: %s", type(exc).__name__)
         return None
 
 
@@ -175,12 +175,12 @@ async def search_username(
             max_connections=_MAX_CONNECTIONS,
             retries=1,
         )
-    except Exception as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         logger.error("Maigret search error: %s", type(exc).__name__)
         return SherlockResult(
             username=username,
             success=False,
-            error=str(exc)[:200],
+            error="Maigret search failed",
             source="maigret",
             proxy_used=use_proxy,
         )

@@ -213,7 +213,7 @@ def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONRespons
     try:
         # limits.Limit exposes .get_expiry_length() in some versions; fall back to 60
         retry_after = int(limit.get_expiry_length()) if limit and hasattr(limit, "get_expiry_length") else 60
-    except Exception:
+    except (AttributeError, TypeError, ValueError):
         retry_after = 60
     return JSONResponse(
         {"detail": "rate limit exceeded", "retry_after": retry_after},

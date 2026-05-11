@@ -51,7 +51,7 @@ def get_client_ip(request: Request) -> str:
     """Extrai IP real com cadeia de confiança: Cloudflare → Nginx → direto.
     Valida formato antes de retornar — nunca retorna um header forjável bruto.
     """
-    for header in ("CF-Connecting-IP", "X-Real-IP"):
+    for header in ("X-Real-IP",):
         val = request.headers.get(header, "").strip()
         if val:
             try:
@@ -77,7 +77,7 @@ def _decode_token(token: str) -> dict:
     except JWTError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid or expired token: {e}",
+            detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
