@@ -20,6 +20,7 @@ Import contract (D-05):
 import ipaddress
 import logging
 import time
+from datetime import datetime
 from typing import Optional
 
 from fastapi import Depends, HTTPException, Request, status
@@ -34,6 +35,7 @@ except ImportError:
 from api.config import JWT_ALGORITHM, JWT_SECRET
 from api.db import DatabaseError, db as _db, DatabaseManager
 from api.orchestrator import TaskOrchestrator, get_orchestrator
+from api.services.auth_service import _load_users
 
 logger = logging.getLogger("nexusosint.deps")
 
@@ -80,6 +82,57 @@ def _decode_token(token: str) -> dict:
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+def _enforce_user_session_state(payload: dict) -> dict:
+    """Reject stale JWTs after password rotation or user deactivation."""
+    username = payload.get("sub")
+    if not username:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    users = _load_users()
+    if not users:
+        return payload
+
+    user = users.get(username)
+    if not user or not user.get("active", True):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User inactive",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    changed_at = user.get("password_changed_at")
+    if changed_at:
+        try:
+            changed_ts = datetime.fromisoformat(changed_at).timestamp()
+            issued_at = payload.get("iat", 0)
+            issued_ts = (
+                issued_at.timestamp()
+                if isinstance(issued_at, datetime)
+                else float(issued_at)
+            )
+        except (TypeError, ValueError, OSError) as exc:
+            logger.warning(
+                "session state timestamp invalid | user=%s err=%s",
+                username,
+                type(exc).__name__,
+            )
+            raise HTTPException(status_code=503, detail="security policy unavailable")
+        if issued_ts < changed_ts:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session expired",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+    current_payload = dict(payload)
+    current_payload["role"] = user.get("role", "user")
+    return current_payload
 
 
 # ── Token blacklist check ─────────────────────────────────────────────────────
@@ -136,12 +189,14 @@ async def get_current_user(
     cookie_token = request.cookies.get("nx_session")
     if cookie_token:
         payload = _decode_token(cookie_token)
+        payload = _enforce_user_session_state(payload)
         await _check_blacklist(payload.get("jti"), db=get_db(request))
         return payload
 
     # Fallback de retrocompatibilidade: Authorization: Bearer <token>
     if credentials and credentials.credentials:
         payload = _decode_token(credentials.credentials)
+        payload = _enforce_user_session_state(payload)
         await _check_blacklist(payload.get("jti"), db=get_db(request))
         return payload
 
