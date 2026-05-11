@@ -151,44 +151,46 @@ function renderResults() {
   badge.textContent = `${risk} — ${rl}`;
   badge.setAttribute('data-tooltip', breakdown);
   badge.setAttribute('title', breakdown);
-  badge.style.cssText = `background:${rc}18;border:1px solid ${rc}44;color:${rc}`;
+  badge.className = `risk-badge ${riskCssClass(risk)}`;
 
   // Stat grid — Phase 17: clickable jump + risk tinting + correct token refs
   // TECH DEBT: coverage totals not in backend yet — frontend constants until backend exposes them
   const COVERAGE = { breach: 847, stealer: 12, social: 2500, email: 120 };
   const grid = document.getElementById('statGrid');
   grid.innerHTML = [
-    {val:nTotal,   lbl:'Total Found', bar:'var(--color-accent)',   panel:'',             risk:'',
-     note:''},
-    {val:nBreach,  lbl:'Breaches',    bar:'var(--color-critical)', panel:'panelBreach',
+    {val:nTotal,   lbl:'Total Found', bar:'stat-bar-accent',   panel:'',             risk:'',
+     note:'', noteClass:'stat-note-muted'},
+    {val:nBreach,  lbl:'Breaches',    bar:'stat-bar-critical', panel:'panelBreach',
      risk: nBreach>10?'risk-critical':nBreach>0?'risk-high':'',
      note: nBreach>10?'⚠ High risk':nBreach>0?'⚠ Attention':'✓ Clean',
-     nc:   nBreach>10?'var(--color-critical)':nBreach>0?'var(--color-high)':'var(--color-success)',
+     noteClass: nBreach>10?'stat-note-critical':nBreach>0?'stat-note-high':'stat-note-success',
      coverage:`of ${COVERAGE.breach} DBs`},
-    {val:nStealer, lbl:'Stolen Info', bar:'var(--color-high)',     panel:'panelStealer',
+    {val:nStealer, lbl:'Stolen Info', bar:'stat-bar-high',     panel:'panelStealer',
      risk: nStealer>0?'risk-critical':'',
      note: nStealer>0?'🚨 Compromised':'✓ Clean',
-     nc:   nStealer>0?'var(--color-critical)':'var(--color-success)',
+     noteClass: nStealer>0?'stat-note-critical':'stat-note-success',
      coverage:`of ${COVERAGE.stealer} logs`},
-    {val:nSocial,  lbl:'Social',      bar:'var(--color-info)',     panel:'panelSocial',
+    {val:nSocial,  lbl:'Social',      bar:'stat-bar-info',     panel:'panelSocial',
      risk: nSocial>0?'risk-found':'',
      note: `${s?.total_checked||0} checked`,
+     noteClass:'stat-note-muted',
      coverage:`of ${COVERAGE.social} sites`},
-    {val:nHolehe,  lbl:'Email Svcs',  bar:'#9b59b6',              panel:'panelEmail',
+    {val:nHolehe,  lbl:'Email Svcs',  bar:'stat-bar-purple',              panel:'panelEmail',
      risk: nHolehe>0?'risk-found':'',
      note:'',
+     noteClass:'stat-note-muted',
      coverage:`of ${COVERAGE.email} services`},
   ].map((c, i) => {
     const attrs = c.panel
       ? ` data-action="jump-to-panel" data-panel="${c.panel}" role="button" tabindex="0"`
       : '';
     return `
-    <div class="stat-card animated${c.risk ? ' '+c.risk : ''}"${attrs} style="animation-delay:${i * 0.07}s">
-      <div class="stat-card-bar" style="background:${c.bar}"></div>
+    <div class="stat-card animated stat-delay-${i}${c.risk ? ' '+c.risk : ''}"${attrs}>
+      <div class="stat-card-bar ${c.bar}"></div>
       <div class="stat-card-val${c.val === 0 ? ' stat-card-val--zero' : ''}">${c.val}</div>
       <div class="stat-card-lbl">${c.lbl}</div>
       ${c.coverage ? `<div class="stat-card-coverage">${c.val} ${c.coverage}</div>` : ''}
-      ${c.note ? `<div class="stat-card-note" style="color:${c.nc||'var(--color-text-tertiary)'};">${c.note}</div>` : ''}
+      ${c.note ? `<div class="stat-card-note ${c.noteClass}">${c.note}</div>` : ''}
       ${c.panel ? '<div class="stat-card-jump">↓ view</div>' : ''}
     </div>`;
   }).join('');
@@ -538,7 +540,7 @@ function renderSocial(s) {
     const avatarHtml = avatarUrl
       ? '<img class="social-card-avatar" src="' + avatarUrl + '" alt="" loading="lazy">'
         + '<div class="social-card-avatar-fallback">' + iconHtml + '</div>'
-      : '<div class="social-card-avatar-fallback" style="display:flex">' + iconHtml + '</div>';
+      : '<div class="social-card-avatar-fallback is-flex">' + iconHtml + '</div>';
 
     // Card modifier class: social-card--likely for muted/unverified state (D-13)
     const cardClass = isLikely ? 'social-card social-card--likely' : 'social-card';
@@ -573,9 +575,9 @@ function renderSocial(s) {
   // Attach avatar error handlers (CSP-safe -- no inline onerror attribute)
   el.querySelectorAll('.social-card-avatar').forEach(function(img) {
     img.addEventListener('error', function() {
-      this.style.display = 'none';
+      this.classList.add('is-hidden');
       const fallback = this.nextElementSibling;
-      if (fallback) fallback.style.display = 'flex';
+      if (fallback) fallback.classList.add('is-flex');
     });
     // Handle already-failed cached 404s
     if (img.complete && !img.naturalWidth) img.dispatchEvent(new Event('error'));
@@ -805,7 +807,7 @@ function renderExtras() {
     const xboxSvg     = `<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true"><path d="${_SI.xbox}"/></svg>`;
     const safeXboxAvatar = sanitizeImageUrl(d.avatar);
     const xboxAvatarHtml = safeXboxAvatar
-      ? `<img class="social-avatar" src="${safeXboxAvatar}" alt="avatar" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0" onerror="this.style.display='none'">`
+      ? `<img class="social-avatar gaming-avatar" src="${safeXboxAvatar}" alt="avatar" data-fallback="true">`
       : '';
     parts.push(`<div>
       <div class="section-label" style="margin-bottom:8px">Xbox Live Profile</div>
@@ -1085,9 +1087,9 @@ function renderExtras() {
   // Attach error handlers to images with data-fallback (replaces inline onerror)
   el.querySelectorAll('img[data-fallback]').forEach(img => {
     img.addEventListener('error', function() {
-      this.style.display = 'none';
+      this.classList.add('is-hidden');
       const sibling = this.nextElementSibling;
-      if (sibling) sibling.style.display = 'flex';
+      if (sibling) sibling.classList.add('is-flex');
     });
   });
 }

@@ -304,7 +304,7 @@ async def _stream_search(
         "user": username,
     })
 
-    from modules.maigret_wrapper import search_username
+    from modules.sherlock_wrapper import search_username
 
     if oathnet_client is None:
         yield event({"type": "error", "message": "OATHNET_API_KEY not configured"})
@@ -537,7 +537,7 @@ async def _stream_search(
                             "likely": [_serialize_platform(p) for p in sherl.likely],
                         })
                 except (ValueError, KeyError, TypeError) as exc:
-                    logger.error("Maigret failed: %s", exc)
+                    logger.error("Sherlock failed: %s", exc)
                     yield event({"type": "module_error", "module": "sherlock", "error": str(exc)})
 
     # ── Discord ───────────────────────────────────────────────────────────
