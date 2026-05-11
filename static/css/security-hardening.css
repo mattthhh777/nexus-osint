@@ -11,7 +11,7 @@
 .is-flex { display: flex !important; }
 
 /* ── Elements hidden by default, revealed by JS ── */
-#authScreen     { display: none; }
+#authScreen     { display: grid; }
 #quotaPill      { display: none; }
 #quotaBar       { display: none; }
 #navUserBadge   { display: none; }
