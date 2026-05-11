@@ -1260,7 +1260,11 @@ async function loadMoreVictims() {
   if (!v?.next_cursor) return;
   const q = currentResult.query;
   try {
-    const r = await apiFetch(`/api/victims/search?q=${encodeURIComponent(q)}&cursor=${encodeURIComponent(v.next_cursor)}&page_size=10`);
+    const r = await apiFetch('/api/victims/search', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({q, cursor: v.next_cursor, page_size: 10})
+    });
     const data = await r.json();
     const newItems = data.items || [];
     v.items        = [...v.items, ...newItems];

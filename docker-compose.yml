@@ -9,15 +9,9 @@ services:
     restart: unless-stopped
     stop_grace_period: 35s
     working_dir: /app
-    # SEC-HIGH-2 (2026-04-23): --proxy-headers + --forwarded-allow-ips faz
-    # uvicorn ler X-Forwarded-For do nginx (rede interna 172.16/12) para
-    # popular request.client.host. Sem isso, slowapi ratelimit agrupa
-    # todos os usuários no mesmo bucket (IP do container nginx).
-    command: >
-      sh -c 'if [ -n "$${DATABASE_URL:-}" ]; then alembic upgrade head; fi;
-      exec uvicorn api.main:app --host 0.0.0.0 --port 8000 --workers 1
-      --timeout-graceful-shutdown 30 --proxy-headers
-      --forwarded-allow-ips=172.16.0.0/12'
+    # Uvicorn starts via entrypoint.sh so Alembic runs before privilege drop.
+    security_opt:
+      - no-new-privileges:true
     environment:
       - OATHNET_API_KEY=${OATHNET_API_KEY}
       - SPIDERFOOT_URL=http://spiderfoot:5001
@@ -90,6 +84,7 @@ services:
         -c work_mem=8MB
         -c max_connections=20
         -c idle_in_transaction_session_timeout=60s
+        -c shared_preload_libraries=pg_stat_statements
         -c maintenance_work_mem=64MB
         -c effective_cache_size=768MB
         -c jit=off

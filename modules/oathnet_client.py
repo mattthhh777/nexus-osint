@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 OATHNET_BASE_URL = "https://oathnet.org/api"
 DEFAULT_TIMEOUT  = 20
+MAX_VICTIM_FILE_BYTES = 1_048_576
 
 
 @dataclass
@@ -514,12 +515,20 @@ class OathnetClient:
         """Get raw text content of a specific file from a victim log."""
         url = f"service/v2/victims/{log_id}/files/{file_id}"
         try:
-            resp = await self._client.get(url)
-            if resp.status_code == 200:
-                return True, resp.text
-            if resp.status_code == 404:
-                return False, "File not found."
-            return False, f"HTTP {resp.status_code}"
+            async with self._client.stream("GET", url) as resp:
+                if resp.status_code == 404:
+                    return False, "File not found."
+                if resp.status_code != 200:
+                    return False, f"HTTP {resp.status_code}"
+
+                chunks: list[bytes] = []
+                total = 0
+                async for chunk in resp.aiter_bytes(chunk_size=8192):
+                    total += len(chunk)
+                    if total > MAX_VICTIM_FILE_BYTES:
+                        return False, "File too large."
+                    chunks.append(chunk)
+                return True, b"".join(chunks).decode("utf-8", errors="replace")
         except httpx.ConnectError as exc:
             logger.error("OathNet connect error | endpoint=%s error=%s", url, exc)
             return False, str(exc)

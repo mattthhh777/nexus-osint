@@ -1,4 +1,5 @@
 ﻿"""Admin routes: stats, logs, user CRUD."""
+import logging
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -12,6 +13,7 @@ from api.limiter import limiter
 from api.services.auth_service import _load_users, _safe_hash, _save_users
 
 router = APIRouter()
+logger = logging.getLogger("nexusosint.admin")
 
 
 @router.get("/api/admin/stats")
@@ -70,7 +72,8 @@ async def admin_stats(
             "quota_limit":       quota_limit,
         }
     except DatabaseError as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        logger.error("admin_stats database error: %s", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Database unavailable")
 
 
 @router.get("/api/admin/logs")
@@ -85,6 +88,10 @@ async def admin_logs(
 ):
     """Recent audit logs with optional user filter."""
     try:
+        limit = max(1, min(limit, 100))
+        offset = max(0, min(offset, 10_000))
+        if username and not re.match(r'^[a-zA-Z0-9_.\\-]{1,64}$', username):
+            raise HTTPException(status_code=400, detail="Invalid username format")
         if username:
             rows = [
                 row async for row in db.fetch_stream(
@@ -100,8 +107,11 @@ async def admin_logs(
                 )
             ]
         return {"logs": rows, "limit": limit, "offset": offset}
+    except HTTPException:
+        raise
     except DatabaseError as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        logger.error("admin_logs database error: %s", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Database unavailable")
 
 
 @router.get("/api/admin/users")

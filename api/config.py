@@ -51,7 +51,7 @@ DATABASE_URL: str = os.getenv("DATABASE_URL", "")
 READ_ONLY_MODE: bool = _env_bool("READ_ONLY_MODE", False)
 
 # ── Memory watchdog thresholds ───────────────────────────────────────────────
-MEMORY_ALERT_MB: int = 400       # log warning, investigate (watchdog uses this)
+MEMORY_ALERT_MB: int = 2000      # log warning, investigate (watchdog uses this)
 MEMORY_CRITICAL_PCT: int = 85    # Phase 10: watchdog CRITICAL threshold (85%)
 
 # ── Per-module timeouts ──────────────────────────────────────────────────────

@@ -206,13 +206,17 @@ async def _stream_search(
     async def _search_sentinel() -> None:
         await _sentinel_done.wait()
 
+    sentinel_coro = _search_sentinel()
     try:
-        orch.submit(
+        submit_result = orch.submit(
             f"search-{id(_sentinel_done)}",
-            _search_sentinel(),
+            sentinel_coro,
             is_oathnet=False,
         )
+        if submit_result is not None:
+            sentinel_coro.close()
     except RuntimeError:
+        sentinel_coro.close()
         # Ceiling reached (REDUCED mode at capacity) — search continues untracked.
         # CRITICAL mode is already blocked at the /api/search gate.
         logger.warning("Orchestrator ceiling reached — search proceeds untracked (degradation=%s)", orch.degradation_mode.value)
@@ -281,6 +285,7 @@ async def _stream_search(
 
     if oathnet_client is None:
         yield event({"type": "error", "message": "OATHNET_API_KEY not configured"})
+        _sentinel_done.set()
         return
 
     t0 = time.time()
@@ -718,19 +723,20 @@ async def _stream_search(
     elapsed = round(time.time() - t0, 1)
 
     # ── Audit log — awaited direct DB write; Postgres handles write concurrency ──
-    await _log_search(
-        username=username, ip=client_ip, query=query,
-        query_type=q_type, mode=req.mode,
-        modules_run=list(set(ran)),
-        breach_count=breach_count,
-        stealer_count=stealer_count,
-        social_count=social_count,
-        elapsed_s=elapsed,
-        db=db,
-    )
-
-    # Phase 10: release sentinel so orchestrator deregisters this search
-    _sentinel_done.set()
+    try:
+        await _log_search(
+            username=username, ip=client_ip, query=query,
+            query_type=q_type, mode=req.mode,
+            modules_run=list(set(ran)),
+            breach_count=breach_count,
+            stealer_count=stealer_count,
+            social_count=social_count,
+            elapsed_s=elapsed,
+            db=db,
+        )
+    finally:
+        # Phase 10: release sentinel so orchestrator deregisters this search
+        _sentinel_done.set()
 
     yield event({
         "type": "done",
