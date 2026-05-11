@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v4.2.0
 milestone_name: Database Migration + Redis7 Cache Fold-In
-status: Phase 24 complete; production cutover to Postgres passed
-stopped_at: Completed Phase 24; next action is Phase 25 post-migration tuning and backup hardening
-last_updated: "2026-05-10T18:13:30-03:00"
+status: Executing Phase 25
+stopped_at: Executing Phase 25 post-migration tuning and backup hardening
+last_updated: "2026-05-11T03:35:00-03:00"
 progress:
   total_phases: 25
   completed_phases: 24
-  total_plans: 37
+  total_plans: 38
   completed_plans: 37
 ---
 
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-05-06 — milestone v4.2)
 
 ## Current Position
 
-Phase: 24 (postgres-cutover) - COMPLETE
+Phase: 25 (post-migration-tuning-backup-hardening) — EXECUTING
 Plan: 1 of 1
 
 ## Phase Map
