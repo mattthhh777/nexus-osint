@@ -192,11 +192,11 @@ Deferred to future milestone. Tracked but not in current roadmap.
 
 - [ ] **DBM-47**: `pg_stat_statements` reviewed after 1 week production traffic; partial indexes added only on confirmed hot paths
 - [ ] **DBM-48**: Per-table autovacuum tuning applied to `searches` if churn justifies (`autovacuum_vacuum_scale_factor=0.05`)
-- [ ] **DBM-49**: Bloat report (`n_dead_tup / n_live_tup`) baselined
-- [ ] **DBM-50**: `pg_dump` cron at 03:00 with 7-day retention active
-- [ ] **DBM-51**: Restore drill on staging passes
-- [ ] **DBM-52**: `aiosqlite` removed from `requirements.txt`
-- [ ] **DBM-53**: CLAUDE.md updated to reflect F2 obsoletion (asyncio.Queue write serializer removed)
+- [x] **DBM-49**: Bloat report (`n_dead_tup / n_live_tup`) baselined
+- [x] **DBM-50**: `pg_dump` cron at 03:00 with 7-day retention active
+- [x] **DBM-51**: Restore drill on staging passes
+- [x] **DBM-52**: `aiosqlite` removed from `requirements.txt`
+- [x] **DBM-53**: CLAUDE.md updated to reflect F2 obsoletion (asyncio.Queue write serializer removed)
 
 ## Anti-Features (Explicitly Rejected)
 

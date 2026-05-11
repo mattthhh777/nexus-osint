@@ -585,14 +585,22 @@ Plans:
 **Requirements:** DBM-47, DBM-48, DBM-49, DBM-50, DBM-51, DBM-52, DBM-53
 **Depends on:** Phase 24 (1 week production traffic minimum)
 **Risk:** LOW — observation phase
-**Plans:** 0/0 plans complete
+**Plans:** 1/1 plans complete; DBM-47/48 remain time-gated until one week of production traffic is available
 
 **Deliverable:** `pg_stat_statements` review → partial indexes on confirmed hot paths only; per-table autovacuum tuning for `searches` if churn justifies (`autovacuum_vacuum_scale_factor=0.05`); bloat report (`n_dead_tup / n_live_tup`) baselined; `pg_dump` cron at 03:00 with 7-day retention; restore drill on staging passes; `aiosqlite` removed from `requirements.txt`; CLAUDE.md updated to reflect F2 obsoletion (asyncio.Queue write serializer removed, SQLite section archived).
 
 **Avoids:** Pre-optimizing without data; backup-you-have-not-restored anti-pattern (Pitfalls 10, 12).
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 25)
+- [x] 25-01-PLAN.md — Backup hardening and Postgres docs
+
+**Execution note (2026-05-11):** Backup automation is active on the VPS at
+03:00 with 7-day retention, restore drill passed against
+`nexusosint-20260511T033857Z.sql.gz` with `searches_count=19`, bloat baseline
+shows `searches` live `19` / dead `0`, `requirements.txt` has no `aiosqlite`,
+and `CLAUDE.md` now reflects the Postgres/asyncpg architecture. DBM-47/48 are
+not complete yet because the Phase 24 cutover happened on 2026-05-10; earliest
+honest one-week traffic review is 2026-05-17.
 
 ---
 

@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v4.2.0
 milestone_name: Database Migration + Redis7 Cache Fold-In
-status: Executing Phase 25
-stopped_at: Executing Phase 25 post-migration tuning and backup hardening
-last_updated: "2026-05-11T03:35:00-03:00"
+status: Phase 25 plan complete; DBM-47/48 pending one-week traffic observation
+stopped_at: Completed Phase 25 backup hardening; next action is one-week Postgres tuning review on or after 2026-05-17
+last_updated: "2026-05-11T00:45:00-03:00"
 progress:
   total_phases: 25
   completed_phases: 24
   total_plans: 38
-  completed_plans: 37
+  completed_plans: 38
 ---
 
 # Project State
@@ -20,11 +20,11 @@ See: .planning/PROJECT.md (updated 2026-05-06 — milestone v4.2)
 
 **Core value:** From the same scan, show 2× more data without additional backend cost — rendering what already arrives in the pipeline.
 
-**Current focus:** Phase 25 — post-migration-tuning-backup-hardening
+**Current focus:** Phase 25 — DBM-47/48 one-week Postgres observation remains
 
 ## Current Position
 
-Phase: 25 (post-migration-tuning-backup-hardening) — EXECUTING
+Phase: 25 (post-migration-tuning-backup-hardening) — PARTIAL / OBSERVATION
 Plan: 1 of 1
 
 ## Phase Map
@@ -44,7 +44,7 @@ Plan: 1 of 1
 | 22 | repository-layer-switch-code-audit-pass-2 | COMPLETE | asyncpg pool swap + RMW audit verified |
 | 23 | concurrency-memory-stress-test | COMPLETE | 10-way burst/cancel stress gate passed |
 | 24 | postgres-cutover | COMPLETE | Postgres production cutover passed |
-| 25 | post-migration-tuning-backup-hardening | PLANNED | 1-week observation + backups |
+| 25 | post-migration-tuning-backup-hardening | PARTIAL | Backups complete; DBM-47/48 need review on/after 2026-05-17 |
 
 ## Accumulated Context
 
@@ -103,7 +103,7 @@ not a data-availability issue. Phase 13 discovers real extra keys; Phase 14 rend
 Last session: 2026-05-10T18:13:30-03:00
 Stopped at: Completed Phase 24; production runs on Postgres
 Resume file: None
-Next action: execute Phase 25 post-migration tuning and backup hardening.
+Next action: review pg_stat_statements and searches autovacuum evidence on or after 2026-05-17.
 
 ### Phase 16 Planning Summary (2026-04-30)
 
