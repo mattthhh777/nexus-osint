@@ -185,11 +185,13 @@ async function loadChart() {
     bars.innerHTML = vals.map((v, i) => {
       const pct  = Math.round((v / maxVal) * 100);
       const date = keys[i].slice(5); // MM-DD
-      // Note: style="height:..." on chart bars is set dynamically — CSP-compliant (JS inline style)
-      return `<div class="chart-bar" style="height:${Math.max(pct,2)}%">
+      return `<div class="chart-bar" data-pct="${Math.max(pct, 2)}">
         <div class="chart-bar-tooltip">${date}: ${v}</div>
       </div>`;
     }).join('');
+    bars.querySelectorAll('.chart-bar').forEach(bar => {
+      bar.style.height = bar.dataset.pct + '%';
+    });
   } catch(e) {}
 }
 
@@ -348,7 +350,8 @@ async function createUser() {
 }
 
 async function deactivateUser(username) {
-  if (!confirm(`Deactivate user "${username}"? They will lose access immediately.`)) return;
+  const safeUsername = username.replace(/[\n\r\t]/g, '');
+  if (!confirm(`Deactivate user "${safeUsername}"? They will lose access immediately.`)) return;
   try {
     const r = await api(`/api/admin/users/${encodeURIComponent(username)}`, { method: 'DELETE' });
     if (r.ok) {
