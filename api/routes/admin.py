@@ -90,7 +90,7 @@ async def admin_logs(
     try:
         limit = max(1, min(limit, 100))
         offset = max(0, min(offset, 10_000))
-        if username and not re.match(r'^[a-zA-Z0-9_.\\-]{1,64}$', username):
+        if username and not re.match(r'^[a-zA-Z0-9_.-]{1,64}$', username):
             raise HTTPException(status_code=400, detail="Invalid username format")
         if username:
             rows = [
@@ -141,7 +141,7 @@ async def admin_create_user(
         raise HTTPException(status_code=400, detail="username and password required")
     if len(password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
-    if not re.match(r'^[a-zA-Z0-9_.\\-]{1,64}$', uname):
+    if not re.match(r'^[a-zA-Z0-9_.-]{1,64}$', uname):
         raise HTTPException(status_code=400, detail="Username: only letters, numbers, _ - . (max 64)")
     if role not in ("admin", "user"):
         role = "user"
@@ -173,7 +173,7 @@ async def admin_delete_user(
     admin: dict = Depends(get_admin_user),
 ):
     """Deactivate a user (soft delete)."""
-    if not re.match(r'^[a-zA-Z0-9_.\\-]{1,64}$', username):
+    if not re.match(r'^[a-zA-Z0-9_.-]{1,64}$', username):
         raise HTTPException(status_code=400, detail="Invalid username format")
     if username == admin["sub"]:
         raise HTTPException(status_code=400, detail="Cannot deactivate yourself")
