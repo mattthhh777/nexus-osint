@@ -116,13 +116,6 @@ def _ensure_default_user() -> None:
 
 def _verify_user(username: str, password: str) -> Optional[dict]:
     users = _load_users()
-
-    # Legacy: single APP_PASSWORD with username "admin"
-    if not users and APP_PASSWORD:
-        if username == "admin" and password == APP_PASSWORD:
-            return {"username": "admin", "role": "admin"}
-        return None
-
     user = users.get(username)
     if not user or not user.get("active", True):
         return None
