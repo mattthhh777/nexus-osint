@@ -10,6 +10,7 @@ from api.config import MAX_USERS, RL_ADMIN_LIMIT, RL_REGISTER_LIMIT
 from api.db import DatabaseError, DatabaseManager
 from api.deps import get_admin_user, get_db
 from api.limiter import limiter
+from api.schemas import CreateUserRequest
 from api.services.auth_service import _load_users, _safe_hash, _save_users
 
 router = APIRouter()
@@ -129,40 +130,27 @@ async def admin_list_users(request: Request, _: dict = Depends(get_admin_user)):
 @limiter.limit(RL_REGISTER_LIMIT)
 async def admin_create_user(
     request: Request,
-    body: dict,
+    body: CreateUserRequest,
     _: dict = Depends(get_admin_user),
 ):
-    """Create a new user. Body: {username, password, role}"""
-    uname    = body.get("username", "").strip()
-    password = body.get("password", "")
-    role     = body.get("role", "user")
-
-    if not uname or not password:
-        raise HTTPException(status_code=400, detail="username and password required")
-    if len(password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
-    if not re.match(r'^[a-zA-Z0-9_.\\-]{1,64}$', uname):
-        raise HTTPException(status_code=400, detail="Username: only letters, numbers, _ - . (max 64)")
-    if role not in ("admin", "user"):
-        role = "user"
-
+    """Create a new user."""
     users = _load_users()
 
     # D-12: Registration capacity cap — fail before writing
     if len(users) >= MAX_USERS:
         raise HTTPException(status_code=403, detail="registration capacity reached")
 
-    if uname in users:
+    if body.username in users:
         raise HTTPException(status_code=409, detail="User already exists")
 
-    users[uname] = {
-        "password_hash": _safe_hash(password),
-        "role":          role,
+    users[body.username] = {
+        "password_hash": _safe_hash(body.password),
+        "role":          body.role,
         "created_at":    datetime.now(timezone.utc).isoformat(),
         "active":        True,
     }
     _save_users(users)
-    return {"ok": True, "username": uname, "role": role}
+    return {"ok": True, "username": body.username, "role": body.role}
 
 
 @router.delete("/api/admin/users/{username}")
