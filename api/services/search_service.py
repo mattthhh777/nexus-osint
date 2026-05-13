@@ -453,7 +453,7 @@ async def _stream_search(
 
                 if discord_ids_from_breach and req.mode == "automated":
                     for disc_id in discord_ids_from_breach[:3]:
-                        yield progress(f"Discord lookup: {disc_id}")
+                        yield progress("Discord lookup…")
                         ran.append("discord")
                         try:
                             (ok_u, user_data), td1 = await with_timeout(
@@ -468,7 +468,7 @@ async def _stream_search(
                                 "history": _parse_discord_history(raw_hist) if ok_h else None,
                             })
                         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
-                            logger.warning("Auto Discord failed %s: %s", disc_id, exc)
+                            logger.warning("Auto Discord failed %s: %s", hash(disc_id), type(exc).__name__)
 
         except (httpx.HTTPError, DatabaseError, ValueError, KeyError, TypeError) as exc:
             logger.error("OathNet failed: %s", exc)
