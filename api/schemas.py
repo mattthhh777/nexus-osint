@@ -1,11 +1,44 @@
 """Pydantic I/O schemas for the FastAPI app. Leaf module — imports nothing from api/* or modules/*."""
 import re
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+    @field_validator("username", "password")
+    @classmethod
+    def cap_length(cls, v: str) -> str:
+        if len(v) > 128:
+            raise ValueError("Field too long (max 128 chars)")
+        return v
+
+
+class CreateUserRequest(BaseModel):
+    model_config = ConfigDict(hide_input_in_errors=True)
+
+    username: str
+    password: str
+    role: Literal["user", "admin"] = "user"
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, v: str) -> str:
+        if not re.fullmatch(r"^[a-zA-Z0-9_.\-]{1,64}$", v):
+            raise ValueError("Invalid username")
+        return v
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        if len(v) > 128:
+            raise ValueError("Password too long (max 128 chars)")
+        return v
 
 
 class SearchRequest(BaseModel):
