@@ -471,7 +471,7 @@ async def _stream_search(
                             logger.warning("Auto Discord failed %s: %s", hash(disc_id), type(exc).__name__)
 
         except (httpx.HTTPError, DatabaseError, ValueError, KeyError, TypeError) as exc:
-            logger.error("OathNet failed: %s", exc)
+            logger.error("OathNet failed: %s", type(exc).__name__)
             yield event({"type": "module_error", "module": "oathnet", "error": str(exc)})
 
     # ── Sherlock ──────────────────────────────────────────────────────────
@@ -537,7 +537,7 @@ async def _stream_search(
                             "likely": [_serialize_platform(p) for p in sherl.likely],
                         })
                 except (ValueError, KeyError, TypeError) as exc:
-                    logger.error("Sherlock failed: %s", exc)
+                    logger.error("Sherlock failed: %s", type(exc).__name__)
                     yield event({"type": "module_error", "module": "sherlock", "error": str(exc)})
 
     # ── Discord ───────────────────────────────────────────────────────────
@@ -581,7 +581,7 @@ async def _stream_search(
                         "timeout": td1,
                     })
             except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
-                logger.error("Discord failed: %s", exc)
+                logger.error("Discord failed: %s", type(exc).__name__)
                 yield event({"type": "module_error", "module": "discord", "error": str(exc)})
 
     # ── IP Info ───────────────────────────────────────────────────────────
@@ -603,7 +603,7 @@ async def _stream_search(
                         await _set_cached("ip_info", query, data)
                     yield event({"type": "ip_info", "ok": ok, "data": data if ok else None})
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
-            logger.error("IP info failed: %s", exc)
+            logger.error("IP info failed: %s", type(exc).__name__)
             yield event({"type": "module_error", "module": "ip_info", "error": str(exc)})
 
     # ── Subdomains ────────────────────────────────────────────────────────
@@ -620,7 +620,7 @@ async def _stream_search(
                 subs = data.get("subdomains", []) if ok else []
                 yield event({"type": "subdomains", "ok": ok, "data": subs, "count": len(subs)})
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
-            logger.error("Subdomains failed: %s", exc)
+            logger.error("Subdomains failed: %s", type(exc).__name__)
             yield event({"type": "module_error", "module": "subdomains", "error": str(exc)})
 
     # ── Steam ─────────────────────────────────────────────────────────────
@@ -644,7 +644,7 @@ async def _stream_search(
                                  "data": data if ok else None,
                                  "error": data.get("error") if not ok else None})
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
-            logger.error("Steam failed: %s", exc)
+            logger.error("Steam failed: %s", type(exc).__name__)
             yield event({"type": "module_error", "module": "steam", "error": str(exc)})
 
     # ── Xbox ──────────────────────────────────────────────────────────────
@@ -667,7 +667,7 @@ async def _stream_search(
                     logger.info("Xbox lookup ok=%s data_keys=%s", ok, list(data.keys()) if isinstance(data, dict) else type(data).__name__)
                     yield event({"type": "xbox", "ok": ok, "data": data})
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
-            logger.error("Xbox failed: %s", exc)
+            logger.error("Xbox failed: %s", type(exc).__name__)
             yield event({"type": "module_error", "module": "xbox", "error": str(exc)})
 
     # ── Roblox ────────────────────────────────────────────────────────────
@@ -689,7 +689,7 @@ async def _stream_search(
                         await _set_cached("roblox", query, data)
                     yield event({"type": "roblox", "ok": ok, "data": data if ok else None})
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
-            logger.error("Roblox failed: %s", exc)
+            logger.error("Roblox failed: %s", type(exc).__name__)
             yield event({"type": "module_error", "module": "roblox", "error": str(exc)})
 
     # ── GHunt ─────────────────────────────────────────────────────────────
@@ -707,7 +707,7 @@ async def _stream_search(
                              "data": data if ok else None,
                              "error": data.get("error") if not ok else None})
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
-            logger.error("GHunt failed: %s", exc)
+            logger.error("GHunt failed: %s", type(exc).__name__)
             yield event({"type": "module_error", "module": "ghunt", "error": str(exc)})
 
 
@@ -748,7 +748,7 @@ async def _stream_search(
                 yield event({"type": "victims", "ok": False,
                              "error": data.get("error", ""), "items": []})
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
-            logger.error("Victims failed: %s", exc)
+            logger.error("Victims failed: %s", type(exc).__name__)
             yield event({"type": "module_error", "module": "victims", "error": str(exc)})
 
     # ── Discord → Roblox ─────────────────────────────────────────────────
@@ -768,7 +768,7 @@ async def _stream_search(
                              "data": data if ok else None,
                              "error": data.get("error") if not ok else None})
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
-            logger.error("Discord→Roblox failed: %s", exc)
+            logger.error("Discord→Roblox failed: %s", type(exc).__name__)
             yield event({"type": "module_error", "module": "discord_roblox", "error": str(exc)})
 
     # ── SpiderFoot ────────────────────────────────────────────────────────
@@ -879,7 +879,7 @@ async def _run_spiderfoot(target: str, scan_mode: str) -> AsyncGenerator[str, No
                              "scan_id": scan_id, "results": filtered[:500],
                              "total": len(filtered)})
     except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
-        logger.error("SpiderFoot failed: %s", exc)
+        logger.error("SpiderFoot failed: %s", type(exc).__name__)
         yield event({"type": "spiderfoot", "available": False, "error": str(exc)})
 
 
