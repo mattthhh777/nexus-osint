@@ -679,9 +679,6 @@ function renderExtras() {
         + `<div class="discord-avatar-placeholder" style="display:none">💬</div>`
       : `<div class="discord-avatar-placeholder">💬</div>`;
     const safeBannerUrl = sanitizeImageUrl(u.banner_url);
-    const bannerStyle = safeBannerUrl
-      ? `class="discord-banner has-banner" style="background-image:url('${safeBannerUrl}')"`
-      : `class="discord-banner"`;
     const histHtml = histList.length
       ? `<div class="discord-history-section">
            <div class="discord-history-label">Username History</div>
@@ -703,7 +700,7 @@ function renderExtras() {
     parts.push(`<div>
       <div class="section-label" style="margin-bottom:10px">Discord Profile</div>
       <div class="discord-card">
-        ${safeBannerUrl ? `<div class="discord-banner has-banner" style="background-image:url('${safeBannerUrl}')"></div>` : ''}
+        ${safeBannerUrl ? `<div class="discord-banner has-banner" data-banner-url="${safeBannerUrl}"></div>` : ''}
         <div class="discord-card-inner">
           <div class="discord-avatar-wrap">${avatarHtml}</div>
           <div class="discord-card-content">
@@ -1083,6 +1080,11 @@ function renderExtras() {
   el.innerHTML = parts.length
     ? parts.join('<hr style="border-color:var(--line);margin:14px 0">')
     : `<div style="color:var(--text3);font-family:var(--mono);font-size:.8rem">No network or gaming data.</div>`;
+
+  // Apply banner background-image via DOM (avoids CSP inline style violation)
+  el.querySelectorAll('[data-banner-url]').forEach(banner => {
+    banner.style.backgroundImage = `url('${banner.dataset.bannerUrl}')`;
+  });
 
   // Attach error handlers to images with data-fallback (replaces inline onerror)
   el.querySelectorAll('img[data-fallback]').forEach(img => {
