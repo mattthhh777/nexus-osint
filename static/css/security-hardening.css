@@ -7,9 +7,11 @@
 
 /* ── Generic visibility utility (replaces style="display:none") ── */
 .hidden { display: none !important; }
+.is-hidden { display: none !important; }
+.is-flex { display: flex !important; }
 
 /* ── Elements hidden by default, revealed by JS ── */
-#authScreen     { display: none; }
+#authScreen     { display: grid; }
 #quotaPill      { display: none; }
 #quotaBar       { display: none; }
 #navUserBadge   { display: none; }
@@ -74,6 +76,64 @@
 .text-secondary { color: var(--color-text-secondary, var(--text2, #8891a5)); }
 .text-critical  { color: var(--color-critical, var(--red, #ef4444)); }
 .text-sm-muted  { font-size: .78rem; color: var(--color-text-tertiary, var(--text3, #4a5168)); }
+.text-success-inline {
+  color: var(--color-success, var(--green, #22c55e));
+  font-family: var(--font-data, var(--mono, monospace));
+  font-size: .8rem;
+}
+.text-muted-inline {
+  color: var(--color-text-tertiary, var(--text3, #4a5168));
+  font-family: var(--font-data, var(--mono, monospace));
+  font-size: .8rem;
+}
+.risk-badge.risk-low {
+  background: rgba(62, 199, 140, .10);
+  border-color: rgba(62, 199, 140, .27);
+  color: var(--color-success, var(--green, #3ec78c));
+}
+.risk-badge.risk-medium {
+  background: rgba(245, 166, 35, .10);
+  border-color: rgba(245, 166, 35, .27);
+  color: var(--color-accent, var(--amber, #f5a623));
+}
+.risk-badge.risk-high {
+  background: rgba(232, 130, 42, .10);
+  border-color: rgba(232, 130, 42, .27);
+  color: var(--color-high, var(--orange, #e8822a));
+}
+.risk-badge.risk-critical {
+  background: rgba(232, 64, 64, .10);
+  border-color: rgba(232, 64, 64, .27);
+  color: var(--color-critical, var(--red, #e84040));
+}
+.stat-delay-0 { animation-delay: 0s; }
+.stat-delay-1 { animation-delay: .07s; }
+.stat-delay-2 { animation-delay: .14s; }
+.stat-delay-3 { animation-delay: .21s; }
+.stat-delay-4 { animation-delay: .28s; }
+.stat-bar-accent { background: var(--color-accent); }
+.stat-bar-critical { background: var(--color-critical); }
+.stat-bar-high { background: var(--color-high); }
+.stat-bar-info { background: var(--color-info); }
+.stat-bar-purple { background: #9b59b6; }
+.stat-note-success { color: var(--color-success); }
+.stat-note-critical { color: var(--color-critical); }
+.stat-note-high { color: var(--color-high); }
+.stat-note-muted { color: var(--color-text-tertiary); }
+.social-card-avatar-fallback.is-flex,
+.platform-col-avatar-fallback.is-flex {
+  display: flex;
+}
+.platform-col-avatar-fallback.is-hidden {
+  display: none;
+}
+.gaming-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
 .td-bold { font-weight: 600; }
 .td-xs   { font-size: .68rem; }
 .td-nowrap { white-space: nowrap; }

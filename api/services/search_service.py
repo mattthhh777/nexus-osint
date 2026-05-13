@@ -19,6 +19,11 @@ from api.schemas import SearchRequest, SherlockUsernameRequest
 import api.budget as _budget
 from modules.oathnet_client import (
     BreachRecord,
+    DEFAULT_BREACH_PAGE_SIZE,
+    DEFAULT_STEALER_FIELDS,
+    DEFAULT_STEALER_PAGE_SIZE,
+    DEFAULT_VICTIMS_FIELDS,
+    DEFAULT_VICTIMS_PAGE_SIZE,
     OathnetMeta,
     OathnetResult,
     StealerRecord,
@@ -78,9 +83,27 @@ def _oathnet_result_from_cache(data: dict) -> OathnetResult:
     return OathnetResult(**result_kwargs)
 
 
-async def _get_cached(endpoint: str, query: str):
+def _cache_query(query: str, **params) -> str:
+    if not params:
+        return query
+    clean = {
+        key: value
+        for key, value in sorted(params.items())
+        if value not in (None, "", [], {})
+    }
+    if not clean:
+        return query
+    return json.dumps(
+        {"query": query, "params": clean},
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+
+
+async def _get_cached(endpoint: str, query: str, **params):
     """Return cached API response or None if absent / expired."""
-    data = await cache_backend.get(endpoint, query)
+    data = await cache_backend.get(endpoint, _cache_query(query, **params))
     if data is None:
         return None
     if endpoint in {"breach", "stealer"} and isinstance(data, dict):
@@ -88,11 +111,11 @@ async def _get_cached(endpoint: str, query: str):
     return data
 
 
-async def _set_cached(endpoint: str, query: str, data) -> None:
+async def _set_cached(endpoint: str, query: str, data, **params) -> None:
     """Store a successful API response in cache. Never cache None / errors."""
     if data is not None:
         value = _oathnet_result_to_cache(data) if isinstance(data, OathnetResult) else data
-        await cache_backend.set(endpoint, query, value)
+        await cache_backend.set(endpoint, _cache_query(query, **params), value)
 
 
 async def _save_quota(used: int, left: int, daily_limit: int, db: DatabaseManager) -> None:
@@ -122,7 +145,7 @@ async def _log_search(
     success: bool = True,
     db: DatabaseManager = None,
 ) -> None:
-    """Write a search audit record. Non-blocking — goes through write queue."""
+    """Write a search audit record through the Postgres pool."""
     await db.execute_nowait(
         """INSERT INTO searches
            (ts, username, ip, query, query_type, mode, modules_run,
@@ -206,13 +229,17 @@ async def _stream_search(
     async def _search_sentinel() -> None:
         await _sentinel_done.wait()
 
+    sentinel_coro = _search_sentinel()
     try:
-        orch.submit(
+        submit_result = orch.submit(
             f"search-{id(_sentinel_done)}",
-            _search_sentinel(),
+            sentinel_coro,
             is_oathnet=False,
         )
+        if submit_result is not None:
+            sentinel_coro.close()
     except RuntimeError:
+        sentinel_coro.close()
         # Ceiling reached (REDUCED mode at capacity) — search continues untracked.
         # CRITICAL mode is already blocked at the /api/search gate.
         logger.warning("Orchestrator ceiling reached — search proceeds untracked (degradation=%s)", orch.degradation_mode.value)
@@ -277,35 +304,66 @@ async def _stream_search(
         "user": username,
     })
 
-    from modules.maigret_wrapper import search_username
+    from modules.sherlock_wrapper import search_username
 
     if oathnet_client is None:
         yield event({"type": "error", "message": "OATHNET_API_KEY not configured"})
+        _sentinel_done.set()
         return
 
     t0 = time.time()
+    session_id = ""
+    uses_oathnet = any(run.get(name) for name in (
+        "breach", "stealer", "holehe", "discord", "ip_info", "subdomain",
+        "steam", "xbox", "roblox", "ghunt", "victims", "discord_roblox",
+    ))
+    if uses_oathnet:
+        session_value, session_timed_out = await with_timeout(
+            oathnet_client.init_session(query), "breach", default=""
+        )
+        if not session_timed_out and session_value:
+            session_id = session_value
 
     # ── Breach + Stealer parallel ─────────────────────────────────────────
     if run.get("breach") or run.get("stealer") or run.get("holehe"):
         yield progress("Searching breach databases & stealer logs…")
-        ran += ["breach", "stealer"]
+        if run.get("breach"):
+            ran.append("breach")
+        if run.get("stealer"):
+            ran.append("stealer")
         try:
             # Check breach cache first — avoids OathNet API call within 5-min TTL
-            cached_breach = await _get_cached("breach", query)
+            cached_breach = await _get_cached(
+                "breach", query, page_size=DEFAULT_BREACH_PAGE_SIZE
+            )
             if cached_breach is not None:
                 tasks = []
                 breach_future = cached_breach
             else:
-                tasks = [oathnet_client.search_breach(query)]
+                tasks = [oathnet_client.search_breach(
+                    query,
+                    session_id=session_id,
+                    page_size=DEFAULT_BREACH_PAGE_SIZE,
+                )]
                 breach_future = None
 
             stealer_future = None
             if run.get("stealer"):
-                cached_stealer = await _get_cached("stealer", query)
+                cached_stealer = await _get_cached(
+                    "stealer",
+                    query,
+                    page_size=DEFAULT_STEALER_PAGE_SIZE,
+                    fields=list(DEFAULT_STEALER_FIELDS),
+                )
                 if cached_stealer is not None:
                     stealer_future = cached_stealer
                 else:
-                    tasks.append(oathnet_client.search_stealer_v2(query))
+                    tasks.append(oathnet_client.search_stealer_v2(
+                        query,
+                        session_id=session_id,
+                        page_size=DEFAULT_STEALER_PAGE_SIZE,
+                        fields=DEFAULT_STEALER_FIELDS,
+                    ))
 
             results_gathered = await asyncio.gather(*tasks, return_exceptions=True) if tasks else []
 
@@ -317,7 +375,9 @@ async def _stream_search(
                 raw = results_gathered[gather_idx] if gather_idx < len(results_gathered) else None
                 res = raw if not isinstance(raw, Exception) else None
                 if res is not None:
-                    await _set_cached("breach", query, res)
+                    await _set_cached(
+                        "breach", query, res, page_size=DEFAULT_BREACH_PAGE_SIZE
+                    )
                 gather_idx += 1
 
             if run.get("stealer"):
@@ -327,7 +387,13 @@ async def _stream_search(
                     raw_sts = results_gathered[gather_idx] if gather_idx < len(results_gathered) else None
                     sts_result = raw_sts if not isinstance(raw_sts, Exception) else None
                     if sts_result is not None:
-                        await _set_cached("stealer", query, sts_result)
+                        await _set_cached(
+                            "stealer",
+                            query,
+                            sts_result,
+                            page_size=DEFAULT_STEALER_PAGE_SIZE,
+                            fields=list(DEFAULT_STEALER_FIELDS),
+                        )
                     gather_idx += 1
             else:
                 sts_result = None
@@ -347,7 +413,7 @@ async def _stream_search(
                         res.holehe_domains = cached_holehe
                     else:
                         h, timed_out = await with_timeout(
-                            oathnet_client.holehe(query), "holehe"
+                            oathnet_client.holehe(query, session_id=session_id), "holehe"
                         )
                         if timed_out:
                             logger.warning("Holehe timed out")
@@ -379,6 +445,8 @@ async def _stream_search(
                     "used_today": res.meta.used_today,
                     "left_today": res.meta.left_today,
                     "daily_limit": res.meta.daily_limit,
+                    "search_id": session_id or res.session_id,
+                    "next_cursor": res.next_cursor,
                     "error": res.error,
                     "discord_ids_found": discord_ids_from_breach,
                 })
@@ -389,10 +457,10 @@ async def _stream_search(
                         ran.append("discord")
                         try:
                             (ok_u, user_data), td1 = await with_timeout(
-                                oathnet_client.discord_userinfo(disc_id), "discord_auto", default=(False, None)
+                                oathnet_client.discord_userinfo(disc_id, session_id=session_id), "discord_auto", default=(False, None)
                             )
                             (ok_h, raw_hist), td2 = await with_timeout(
-                                oathnet_client.discord_username_history(disc_id), "discord_auto", default=(False, None)
+                                oathnet_client.discord_username_history(disc_id, session_id=session_id), "discord_auto", default=(False, None)
                             )
                             yield event({
                                 "type": "discord", "query_id": disc_id,
@@ -469,7 +537,7 @@ async def _stream_search(
                             "likely": [_serialize_platform(p) for p in sherl.likely],
                         })
                 except (ValueError, KeyError, TypeError) as exc:
-                    logger.error("Maigret failed: %s", exc)
+                    logger.error("Sherlock failed: %s", exc)
                     yield event({"type": "module_error", "module": "sherlock", "error": str(exc)})
 
     # ── Discord ───────────────────────────────────────────────────────────
@@ -497,10 +565,10 @@ async def _stream_search(
                     })
                 else:
                     (ok_u, user_data), td1 = await with_timeout(
-                        oathnet_client.discord_userinfo(query), "discord", default=(False, None)
+                        oathnet_client.discord_userinfo(query, session_id=session_id), "discord", default=(False, None)
                     )
                     (ok_h, raw_hist), td2 = await with_timeout(
-                        oathnet_client.discord_username_history(query), "discord", default=(False, None)
+                        oathnet_client.discord_username_history(query, session_id=session_id), "discord", default=(False, None)
                     )
                     if ok_u and user_data is not None:
                         await _set_cached("discord_user", query, user_data)
@@ -526,7 +594,7 @@ async def _stream_search(
                 yield event({"type": "ip_info", "ok": True, "data": cached_ip})
             else:
                 (ok, data), timed_out = await with_timeout(
-                    oathnet_client.ip_info(query), "ip_info"
+                    oathnet_client.ip_info(query, session_id=session_id), "ip_info"
                 )
                 if timed_out:
                     yield event({"type": "module_error", "module": "ip_info", "error": "IP lookup timed out"})
@@ -544,7 +612,7 @@ async def _stream_search(
         ran.append("subdomain")
         try:
             (ok, data), timed_out = await with_timeout(
-                oathnet_client.extract_subdomains(query), "subdomain"
+                oathnet_client.extract_subdomains(query, session_id=session_id), "subdomain"
             )
             if timed_out:
                 yield event({"type": "module_error", "module": "subdomains", "error": "Subdomain lookup timed out"})
@@ -565,7 +633,7 @@ async def _stream_search(
                 yield event({"type": "steam", "ok": True, "data": cached_steam})
             else:
                 (ok, data), timed_out = await with_timeout(
-                    oathnet_client.steam_lookup(query), "steam"
+                    oathnet_client.steam_lookup(query, session_id=session_id), "steam"
                 )
                 if timed_out:
                     yield event({"type": "module_error", "module": "steam", "error": "Steam lookup timed out"})
@@ -589,7 +657,7 @@ async def _stream_search(
                 yield event({"type": "xbox", "ok": True, "data": cached_xbox})
             else:
                 (ok, data), timed_out = await with_timeout(
-                    oathnet_client.xbox_lookup(query), "xbox"
+                    oathnet_client.xbox_lookup(query, session_id=session_id), "xbox"
                 )
                 if timed_out:
                     yield event({"type": "module_error", "module": "xbox", "error": "Xbox lookup timed out"})
@@ -612,7 +680,7 @@ async def _stream_search(
                 yield event({"type": "roblox", "ok": True, "data": cached_roblox})
             else:
                 (ok, data), timed_out = await with_timeout(
-                    oathnet_client.roblox_lookup(username=query), "roblox"
+                    oathnet_client.roblox_lookup(username=query, session_id=session_id), "roblox"
                 )
                 if timed_out:
                     yield event({"type": "module_error", "module": "roblox", "error": "Roblox lookup timed out"})
@@ -630,7 +698,7 @@ async def _stream_search(
         ran.append("ghunt")
         try:
             (ok, data), timed_out = await with_timeout(
-                oathnet_client.ghunt(query), "ghunt"
+                oathnet_client.ghunt(query, session_id=session_id), "ghunt"
             )
             if timed_out:
                 yield event({"type": "module_error", "module": "ghunt", "error": "GHunt timed out"})
@@ -658,7 +726,11 @@ async def _stream_search(
 
             ok, data = await oathnet_client.victims_search(
                 query if not v_filters else "",
-                10, "", "", **v_filters
+                DEFAULT_VICTIMS_PAGE_SIZE,
+                "",
+                session_id,
+                fields=DEFAULT_VICTIMS_FIELDS,
+                **v_filters,
             )
             if ok:
                 items = data.get("items", [])
@@ -670,6 +742,7 @@ async def _stream_search(
                     "total":       meta.get("total", len(items)),
                     "has_more":    meta.get("has_more", False),
                     "next_cursor": data.get("next_cursor", ""),
+                    "search_id":    session_id,
                 })
             else:
                 yield event({"type": "victims", "ok": False,
@@ -684,7 +757,7 @@ async def _stream_search(
         ran.append("discord_roblox")
         try:
             (ok, data), timed_out = await with_timeout(
-                oathnet_client.discord_to_roblox(query), "discord_roblox", default=(False, {"error": "timed out"})
+                oathnet_client.discord_to_roblox(query, session_id=session_id), "discord_roblox", default=(False, {"error": "timed out"})
             )
             if timed_out:
                 logger.warning("Module 'discord_roblox' timed out")
@@ -717,20 +790,21 @@ async def _stream_search(
 
     elapsed = round(time.time() - t0, 1)
 
-    # ── Audit log — non-blocking via db write queue (no create_task needed) ──
-    await _log_search(
-        username=username, ip=client_ip, query=query,
-        query_type=q_type, mode=req.mode,
-        modules_run=list(set(ran)),
-        breach_count=breach_count,
-        stealer_count=stealer_count,
-        social_count=social_count,
-        elapsed_s=elapsed,
-        db=db,
-    )
-
-    # Phase 10: release sentinel so orchestrator deregisters this search
-    _sentinel_done.set()
+    # ── Audit log — awaited direct DB write; Postgres handles write concurrency ──
+    try:
+        await _log_search(
+            username=username, ip=client_ip, query=query,
+            query_type=q_type, mode=req.mode,
+            modules_run=list(set(ran)),
+            breach_count=breach_count,
+            stealer_count=stealer_count,
+            social_count=social_count,
+            elapsed_s=elapsed,
+            db=db,
+        )
+    finally:
+        # Phase 10: release sentinel so orchestrator deregisters this search
+        _sentinel_done.set()
 
     yield event({
         "type": "done",

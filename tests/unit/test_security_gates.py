@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import os
 import sys
+import json
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -63,6 +65,96 @@ def test_validate_jwt_secret_passes_strong_value(monkeypatch):
     # Should return None without raising
     result = _validate_jwt_secret()
     assert result is None
+
+
+def test_ensure_default_user_syncs_admin_password_rotation(monkeypatch, tmp_path):
+    """Changing APP_PASSWORD must update stored admin hash on startup."""
+    import api.services.auth_service as auth_svc
+
+    tmp_users_file = tmp_path / "users.json"
+    tmp_users_file.write_text(json.dumps({
+        "admin": {
+            "password_hash": auth_svc._safe_hash("OldAdminPass1!"),
+            "role": "admin",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "active": True,
+        }
+    }))
+
+    monkeypatch.setattr(auth_svc, "USERS_FILE", tmp_users_file)
+    monkeypatch.setattr(auth_svc, "_users_cache", None)
+    monkeypatch.setattr(auth_svc, "_users_cache_mtime", 0.0)
+    monkeypatch.setattr(auth_svc, "APP_PASSWORD", "NewAdminPass1!")
+
+    auth_svc._ensure_default_user()
+    users = json.loads(tmp_users_file.read_text())
+
+    assert auth_svc._safe_verify("NewAdminPass1!", users["admin"]["password_hash"])
+    assert not auth_svc._safe_verify("OldAdminPass1!", users["admin"]["password_hash"])
+    assert users["admin"]["password_changed_at"]
+
+
+def test_enforce_user_session_state_rejects_token_before_password_change(monkeypatch, tmp_path):
+    """JWTs issued before password_changed_at must be rejected."""
+    import api.services.auth_service as auth_svc
+    import api.deps as deps
+    from fastapi import HTTPException
+
+    changed_at = datetime.now(timezone.utc)
+    tmp_users_file = tmp_path / "users.json"
+    tmp_users_file.write_text(json.dumps({
+        "admin": {
+            "password_hash": auth_svc._safe_hash("NewAdminPass1!"),
+            "role": "admin",
+            "created_at": (changed_at - timedelta(days=1)).isoformat(),
+            "active": True,
+            "password_changed_at": changed_at.isoformat(),
+        }
+    }))
+
+    monkeypatch.setattr(auth_svc, "USERS_FILE", tmp_users_file)
+    monkeypatch.setattr(auth_svc, "_users_cache", None)
+    monkeypatch.setattr(auth_svc, "_users_cache_mtime", 0.0)
+
+    with pytest.raises(HTTPException) as exc_info:
+        deps._enforce_user_session_state({
+            "sub": "admin",
+            "role": "admin",
+            "iat": int((changed_at - timedelta(seconds=5)).timestamp()),
+        })
+
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.detail == "Session expired"
+
+
+def test_enforce_user_session_state_uses_current_role(monkeypatch, tmp_path):
+    """Role changes in users.json must override stale role embedded in JWT."""
+    import api.services.auth_service as auth_svc
+    import api.deps as deps
+
+    changed_at = datetime.now(timezone.utc) - timedelta(minutes=10)
+    tmp_users_file = tmp_path / "users.json"
+    tmp_users_file.write_text(json.dumps({
+        "alice": {
+            "password_hash": auth_svc._safe_hash("UserPass1!"),
+            "role": "user",
+            "created_at": changed_at.isoformat(),
+            "active": True,
+            "password_changed_at": changed_at.isoformat(),
+        }
+    }))
+
+    monkeypatch.setattr(auth_svc, "USERS_FILE", tmp_users_file)
+    monkeypatch.setattr(auth_svc, "_users_cache", None)
+    monkeypatch.setattr(auth_svc, "_users_cache_mtime", 0.0)
+
+    payload = deps._enforce_user_session_state({
+        "sub": "alice",
+        "role": "admin",
+        "iat": int(datetime.now(timezone.utc).timestamp()),
+    })
+
+    assert payload["role"] == "user"
 
 
 # ── D-12: MAX_USERS registration cap ─────────────────────────────────────────

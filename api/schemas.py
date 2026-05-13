@@ -1,11 +1,44 @@
 """Pydantic I/O schemas for the FastAPI app. Leaf module — imports nothing from api/* or modules/*."""
 import re
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+    @field_validator("username", "password")
+    @classmethod
+    def cap_length(cls, v: str) -> str:
+        if len(v) > 128:
+            raise ValueError("Field too long (max 128 chars)")
+        return v
+
+
+class CreateUserRequest(BaseModel):
+    model_config = ConfigDict(hide_input_in_errors=True)
+
+    username: str
+    password: str
+    role: Literal["user", "admin"] = "user"
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, v: str) -> str:
+        if not re.fullmatch(r"^[a-zA-Z0-9_.\-]{1,64}$", v):
+            raise ValueError("Invalid username")
+        return v
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        if len(v) > 128:
+            raise ValueError("Password too long (max 128 chars)")
+        return v
 
 
 class SearchRequest(BaseModel):
@@ -39,6 +72,46 @@ class SearchRequest(BaseModel):
     @classmethod
     def validate_sf_mode(cls, v: str) -> str:
         return v if v in ("passive", "footprint", "investigate") else "passive"
+
+
+class VictimsSearchRequest(BaseModel):
+    q: str = ""
+    page_size: int = 10
+    cursor: str = ""
+    search_id: str = ""
+    email: str = ""
+    ip: str = ""
+    discord_id: str = ""
+    username: str = ""
+
+    @field_validator("q", "cursor", "search_id", "email", "ip", "discord_id", "username")
+    @classmethod
+    def sanitize_text(cls, v: str) -> str:
+        v = (v or "").strip()
+        if len(v) > 256:
+            raise ValueError("Input too long")
+        return re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", v)
+
+    @field_validator("page_size")
+    @classmethod
+    def cap_page_size(cls, v: int) -> int:
+        if v < 1:
+            return 1
+        return min(v, 50)
+
+
+class SearchMoreBreachesRequest(BaseModel):
+    query: str
+    cursor: str
+    search_id: str = ""
+
+    @field_validator("query", "cursor", "search_id")
+    @classmethod
+    def sanitize_text(cls, v: str) -> str:
+        v = (v or "").strip()
+        if len(v) > 256:
+            raise ValueError("Input too long")
+        return re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", v)
 
 
 class SherlockUsernameRequest(BaseModel):

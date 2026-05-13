@@ -155,7 +155,7 @@ def test_confirmed_only_sse_shape(monkeypatch):
     Verifies the serializer correctly separates confirmed from likely=[] when
     sherlock_wrapper returns no likely-state results.
     """
-    import modules.maigret_wrapper as mw
+    import modules.sherlock_wrapper as mw
 
     stub = build_sherlock_stub(found_count=3, likely_count=0)
     monkeypatch.setattr(mw, "search_username", AsyncMock(return_value=stub))
@@ -182,7 +182,7 @@ def test_mixed_found_and_likely_sse_shape(monkeypatch):
 
     Verifies the extended SSE serializer populates both found and likely lists.
     """
-    import modules.maigret_wrapper as mw
+    import modules.sherlock_wrapper as mw
 
     stub = build_sherlock_stub(found_count=2, likely_count=3)
     monkeypatch.setattr(mw, "search_username", AsyncMock(return_value=stub))
@@ -211,7 +211,7 @@ def test_mixed_found_and_likely_sse_shape(monkeypatch):
 
 def test_proxy_used_true_reflected_in_sse(monkeypatch):
     """Test 3: mock returns proxy_used=True -> SSE event reflects proxy_used=True."""
-    import modules.maigret_wrapper as mw
+    import modules.sherlock_wrapper as mw
 
     stub = build_sherlock_stub(found_count=1, likely_count=0, proxy_used=True)
     monkeypatch.setattr(mw, "search_username", AsyncMock(return_value=stub))
@@ -237,7 +237,7 @@ def test_budget_exceeded_yields_module_error_before_sherlock(monkeypatch):
 
     Verifies D-H12: circuit breaker fires before any outbound Sherlock work.
     """
-    import modules.maigret_wrapper as mw
+    import modules.sherlock_wrapper as mw
 
     monkeypatch.setattr(budget, "_bytes_today", THORDATA_DAILY_BUDGET_BYTES + 1)
 
@@ -276,7 +276,7 @@ def test_invalid_username_yields_module_error_before_sherlock(monkeypatch):
 
     Verifies D-H8/D-H9: validator rejects at boundary; input not echoed.
     """
-    import modules.maigret_wrapper as mw
+    import modules.sherlock_wrapper as mw
 
     call_count = {"n": 0}
 
@@ -316,7 +316,7 @@ def test_dh2_dh3_no_internal_scoring_fields_in_sse_bytes(monkeypatch):
     D-H3: negative_markers never in payload.
     Byte-level: if the string appears anywhere in the raw SSE stream it fails.
     """
-    import modules.maigret_wrapper as mw
+    import modules.sherlock_wrapper as mw
 
     stub = build_sherlock_stub(found_count=2, likely_count=2)
     monkeypatch.setattr(mw, "search_username", AsyncMock(return_value=stub))
@@ -341,34 +341,34 @@ def test_dh2_dh3_no_internal_scoring_fields_in_sse_bytes(monkeypatch):
 
 
 def test_dh13_audit_log_uses_hash_not_plaintext(monkeypatch):
-    """Test 7: Maigret audit log contains username_hash= and NOT plaintext username.
+    """Test 7: Sherlock audit log contains username_hash= and NOT plaintext username.
 
     D-H13: per-search log line uses SHA256-truncated hash; username never plaintext.
-    Uses stdlib logging capture on nexusosint.maigret logger.
-    Mocks search_username to avoid real Maigret calls.
+    Uses stdlib logging capture on nexusosint.sherlock logger.
+    Mocks search_username to avoid real Sherlock calls.
     """
-    import modules.maigret_wrapper as mw
+    import modules.sherlock_wrapper as mw
 
     test_username = "alice42"
     stub = build_sherlock_stub(found_count=0, likely_count=0, username=test_username)
     monkeypatch.setattr(mw, "search_username", AsyncMock(return_value=stub))
 
-    # Capture stdlib logging output from nexusosint.maigret
+    # Capture stdlib logging output from nexusosint.sherlock
     log_capture = io.StringIO()
     handler = logging.StreamHandler(log_capture)
     handler.setLevel(logging.DEBUG)
-    maigret_logger = logging.getLogger("nexusosint.maigret")
-    original_level = maigret_logger.level
-    maigret_logger.addHandler(handler)
-    maigret_logger.setLevel(logging.DEBUG)
+    sherlock_logger = logging.getLogger("nexusosint.sherlock")
+    original_level = sherlock_logger.level
+    sherlock_logger.addHandler(handler)
+    sherlock_logger.setLevel(logging.DEBUG)
 
     try:
         req = SearchRequest(query=test_username, mode="manual", modules=["sherlock"])
         events = asyncio.get_event_loop().run_until_complete(_collect_sse(req))
         log_output = log_capture.getvalue()
     finally:
-        maigret_logger.removeHandler(handler)
-        maigret_logger.setLevel(original_level)
+        sherlock_logger.removeHandler(handler)
+        sherlock_logger.setLevel(original_level)
 
     # Verify SSE path executed — sherlock event present or module_error (mock returns empty result)
     event_types = {e.get("type") for e in events}
@@ -397,7 +397,7 @@ def test_platform_result_serialization_exact_keys(monkeypatch):
     Forbidden: found, error, negative_markers, or any other internal field.
     D-H2: internal scoring signals must not leak to client.
     """
-    import modules.maigret_wrapper as mw
+    import modules.sherlock_wrapper as mw
 
     stub = build_sherlock_stub(found_count=2, likely_count=2)
     monkeypatch.setattr(mw, "search_username", AsyncMock(return_value=stub))

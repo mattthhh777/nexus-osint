@@ -393,11 +393,16 @@ footer.site{{color:var(--muted-foreground);text-align:center;padding:28px 0;font
   NexusOSINT v{APP_VERSION} · Relatório gerado em {_e(now_str)} · For legal &amp; ethical use only.
 </footer>
 
-<button class="btn-top" onclick="window.scrollTo({{top:0,behavior:'smooth'}})">▲ Topo</button>
+<button class="btn-top" type="button" data-action="scroll-top">▲ Topo</button>
 
 <script>
 document.addEventListener('click', function(e) {{
   var t = e.target;
+  if (t && t.getAttribute && t.getAttribute('data-action') === 'scroll-top') {{
+    e.preventDefault();
+    window.scrollTo({{top:0,behavior:'smooth'}});
+    return;
+  }}
   if (!t || !t.classList || !t.classList.contains('copy-btn')) return;
   e.preventDefault();
   var val = t.getAttribute('data-copy') || '';

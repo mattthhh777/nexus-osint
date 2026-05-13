@@ -51,7 +51,7 @@ DATABASE_URL: str = os.getenv("DATABASE_URL", "")
 READ_ONLY_MODE: bool = _env_bool("READ_ONLY_MODE", False)
 
 # ── Memory watchdog thresholds ───────────────────────────────────────────────
-MEMORY_ALERT_MB: int = 400       # log warning, investigate (watchdog uses this)
+MEMORY_ALERT_MB: int = 2000      # log warning, investigate (watchdog uses this)
 MEMORY_CRITICAL_PCT: int = 85    # Phase 10: watchdog CRITICAL threshold (85%)
 
 # ── Per-module timeouts ──────────────────────────────────────────────────────
@@ -59,7 +59,7 @@ MODULE_TIMEOUTS = {
     "breach":         45,   # OathNet breach search — can be slow with many results
     "stealer":        45,   # OathNet stealer v2
     "holehe":         20,   # Email account checker
-    "sherlock":       120,  # Maigret — checks 500 platforms concurrently
+    "sherlock":       120,  # Internal Sherlock-style social platform checks
     "discord":        15,   # Simple Discord API
     "discord_auto":   10,   # Auto Discord from breach
     "ip_info":        15,   # IP geolocation

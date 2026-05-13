@@ -89,17 +89,30 @@ def _safe_verify(password: str, hashed: str) -> bool:
         return False
 
 def _ensure_default_user() -> None:
-    """Create admin user from APP_PASSWORD if no users exist."""
+    """Create or sync admin user from APP_PASSWORD."""
     users = _load_users()
     if not users and APP_PASSWORD:
+        now = datetime.now(timezone.utc).isoformat()
         users["admin"] = {
             "password_hash": _safe_hash(APP_PASSWORD),
             "role":          "admin",
-            "created_at":    datetime.now(timezone.utc).isoformat(),
+            "created_at":    now,
             "active":        True,
+            "password_changed_at": now,
         }
         _save_users(users)
         logger.info("Created admin user from APP_PASSWORD")
+        return
+
+    admin = users.get("admin")
+    if APP_PASSWORD and admin and not _safe_verify(APP_PASSWORD, admin.get("password_hash", "")):
+        admin["password_hash"] = _safe_hash(APP_PASSWORD)
+        admin["role"] = "admin"
+        admin["active"] = True
+        admin["password_changed_at"] = datetime.now(timezone.utc).isoformat()
+        users["admin"] = admin
+        _save_users(users)
+        logger.warning("Synced admin password from APP_PASSWORD; older admin sessions invalidated")
 
 def _verify_user(username: str, password: str) -> Optional[dict]:
     users = _load_users()

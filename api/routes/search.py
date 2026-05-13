@@ -8,7 +8,7 @@ from api.db import DatabaseManager
 from api.deps import get_admin_user, get_client_ip, get_current_user, get_db, get_orchestrator_dep
 from api.limiter import limiter
 from api.orchestrator import DegradationMode, TaskOrchestrator
-from api.schemas import SearchRequest
+from api.schemas import SearchMoreBreachesRequest, SearchRequest
 from api.services.search_service import (
     _seen_breach_extra_keys,
     _serialize_breaches,
@@ -47,20 +47,22 @@ async def search(
 @limiter.limit(RL_SEARCH_LIMIT)
 async def more_breaches(
     request: Request,
-    body: dict,
+    body: SearchMoreBreachesRequest,
     user: dict = Depends(get_current_user),
 ):
     """Fetch next page of breach results using OathNet cursor."""
-    query  = body.get("query", "").strip()
-    cursor = body.get("cursor", "")
+    query  = body.query
+    cursor = body.cursor
     if not query or not cursor:
         raise HTTPException(status_code=400, detail="query and cursor required")
-    if len(query) > 256:
-        raise HTTPException(status_code=400, detail="Query too long")
     if oathnet_client is None:
         raise HTTPException(status_code=503, detail="OATHNET_API_KEY not configured")
     try:
-        result = await oathnet_client.search_breach(query, cursor)
+        result = await oathnet_client.search_breach(
+            query,
+            cursor=cursor,
+            session_id=body.search_id,
+        )
         if not result.success:
             raise HTTPException(status_code=502, detail=result.error or "Breach search failed")
         breaches_data = _serialize_breaches(result.breaches)
@@ -69,6 +71,7 @@ async def more_breaches(
             "breach_count":  len(breaches_data),
             "results_found": result.results_found,
             "next_cursor":   result.next_cursor,
+            "search_id":     body.search_id or result.session_id,
             "has_more":      bool(result.next_cursor),
         }
     except HTTPException:

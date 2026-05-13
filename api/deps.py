@@ -2,28 +2,26 @@
 FastAPI dependency providers for NexusOSINT.
 
 Scope: Only Depends()-compatible callables live here.
-  - security  — HTTPBearer instance (credentials extractor)
   - get_client_ip — real IP extraction through Cloudflare/Nginx
   - _decode_token  — JWT decode + 401 on failure
   - _check_blacklist — blacklist look-up + fail-closed on DB error
-  - get_current_user — primary auth dependency (cookie → Bearer fallback)
+  - get_current_user — primary auth dependency (httpOnly cookie only)
   - get_admin_user   — role-guard on top of get_current_user
   - get_db            — request.app.state.db (DatabaseManager singleton)
   - get_orchestrator_dep — request.app.state.orchestrator (TaskOrchestrator singleton)
 
 Import contract (D-05):
   - stdlib: time, typing, ipaddress
-  - 3rd party: fastapi, fastapi.security, jwt (PyJWT)
+  - 3rd party: fastapi, jwt (PyJWT)
   - internal: api.db — allowed (db is below deps in the import graph)
   - PROHIBITED: api.main — would create a circular import
 """
 import ipaddress
 import logging
 import time
-from typing import Optional
+from datetime import datetime
 
 from fastapi import Depends, HTTPException, Request, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 import jwt
 try:
@@ -33,12 +31,10 @@ except ImportError:
 
 from api.config import JWT_ALGORITHM, JWT_SECRET
 from api.db import DatabaseError, db as _db, DatabaseManager
-from api.orchestrator import TaskOrchestrator
+from api.orchestrator import TaskOrchestrator, get_orchestrator
+from api.services.auth_service import _load_users
 
 logger = logging.getLogger("nexusosint.deps")
-
-# ── Credentials extractor ─────────────────────────────────────────────────────
-security = HTTPBearer(auto_error=False)
 
 # ── Blacklist rate-limit state ────────────────────────────────────────────────
 # Rate-limit duplicate blacklist-failure log messages to once per minute.
@@ -51,7 +47,7 @@ def get_client_ip(request: Request) -> str:
     """Extrai IP real com cadeia de confiança: Cloudflare → Nginx → direto.
     Valida formato antes de retornar — nunca retorna um header forjável bruto.
     """
-    for header in ("CF-Connecting-IP", "X-Real-IP"):
+    for header in ("X-Real-IP",):
         val = request.headers.get(header, "").strip()
         if val:
             try:
@@ -77,14 +73,65 @@ def _decode_token(token: str) -> dict:
     except JWTError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid or expired token: {e}",
+            detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
 
+def _enforce_user_session_state(payload: dict) -> dict:
+    """Reject stale JWTs after password rotation or user deactivation."""
+    username = payload.get("sub")
+    if not username:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    users = _load_users()
+    if not users:
+        return payload
+
+    user = users.get(username)
+    if not user or not user.get("active", True):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User inactive",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    changed_at = user.get("password_changed_at")
+    if changed_at:
+        try:
+            changed_ts = datetime.fromisoformat(changed_at).timestamp()
+            issued_at = payload.get("iat", 0)
+            issued_ts = (
+                issued_at.timestamp()
+                if isinstance(issued_at, datetime)
+                else float(issued_at)
+            )
+        except (TypeError, ValueError, OSError) as exc:
+            logger.warning(
+                "session state timestamp invalid | user=%s err=%s",
+                username,
+                type(exc).__name__,
+            )
+            raise HTTPException(status_code=503, detail="security policy unavailable")
+        if issued_ts < changed_ts:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session expired",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+    current_payload = dict(payload)
+    current_payload["role"] = user.get("role", "user")
+    return current_payload
+
+
 # ── Token blacklist check ─────────────────────────────────────────────────────
 
-async def _check_blacklist(jti: Optional[str]) -> None:
+async def _check_blacklist(jti: str | None, db: DatabaseManager | None = None) -> None:
     """Raises 401 if the jti is revoked.
 
     D-10 (FIND-06): Fail-CLOSED on DB error — any read failure returns HTTP 503
@@ -92,13 +139,14 @@ async def _check_blacklist(jti: Optional[str]) -> None:
     """
     if not jti:
         return
+    active_db = db or _db
     try:
         # Purge expired entries — fire-and-forget
-        await _db.execute_nowait(
+        await active_db.execute_nowait(
             "DELETE FROM token_blacklist WHERE exp < $1",
             (int(time.time()),),
         )
-        row = await _db.fetch_one(
+        row = await active_db.fetch_one(
             "SELECT 1 as found FROM token_blacklist WHERE jti = $1", (jti,)
         )
         if row is not None:
@@ -126,22 +174,13 @@ async def _check_blacklist(jti: Optional[str]) -> None:
 
 # ── Auth dependencies ─────────────────────────────────────────────────────────
 
-async def get_current_user(
-    request: Request,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-) -> dict:
-    """Dependency: valida JWT — lê cookie nx_session primeiro, Bearer como fallback."""
-    # VULN-01: cookie HttpOnly tem prioridade
+async def get_current_user(request: Request) -> dict:
+    """Dependency: valida JWT via cookie httpOnly nx_session."""
     cookie_token = request.cookies.get("nx_session")
     if cookie_token:
         payload = _decode_token(cookie_token)
-        await _check_blacklist(payload.get("jti"))
-        return payload
-
-    # Fallback de retrocompatibilidade: Authorization: Bearer <token>
-    if credentials and credentials.credentials:
-        payload = _decode_token(credentials.credentials)
-        await _check_blacklist(payload.get("jti"))
+        payload = _enforce_user_session_state(payload)
+        await _check_blacklist(payload.get("jti"), db=get_db(request))
         return payload
 
     raise HTTPException(
@@ -168,7 +207,7 @@ async def get_optional_admin_user(request: Request) -> dict | None:
     since Depends() injection is not available outside FastAPI's request lifecycle).
     """
     try:
-        user = await get_current_user(request, credentials=None)
+        user = await get_current_user(request)
         if user.get("role") != "admin":
             return None
         return user
@@ -186,7 +225,10 @@ def get_db(request: Request) -> DatabaseManager:
         db: DatabaseManager = Depends(get_db)
     and pass `db` explicitly to service-layer functions (D-05).
     """
-    return request.app.state.db
+    override = request.app.dependency_overrides.get(_db)
+    if override is not None:
+        return override()
+    return getattr(request.app.state, "db", _db)
 
 
 def get_orchestrator_dep(request: Request) -> TaskOrchestrator:
@@ -196,4 +238,4 @@ def get_orchestrator_dep(request: Request) -> TaskOrchestrator:
     which is the module-level singleton accessor still used by lifespan
     and by callers that don't have a Request in scope.
     """
-    return request.app.state.orchestrator
+    return getattr(request.app.state, "orchestrator", get_orchestrator())

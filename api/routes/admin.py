@@ -1,4 +1,5 @@
 ﻿"""Admin routes: stats, logs, user CRUD."""
+import logging
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -9,9 +10,11 @@ from api.config import MAX_USERS, RL_ADMIN_LIMIT, RL_REGISTER_LIMIT
 from api.db import DatabaseError, DatabaseManager
 from api.deps import get_admin_user, get_db
 from api.limiter import limiter
+from api.schemas import CreateUserRequest
 from api.services.auth_service import _load_users, _safe_hash, _save_users
 
 router = APIRouter()
+logger = logging.getLogger("nexusosint.admin")
 
 
 @router.get("/api/admin/stats")
@@ -70,7 +73,8 @@ async def admin_stats(
             "quota_limit":       quota_limit,
         }
     except DatabaseError as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        logger.error("admin_stats database error: %s", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Database unavailable")
 
 
 @router.get("/api/admin/logs")
@@ -85,6 +89,10 @@ async def admin_logs(
 ):
     """Recent audit logs with optional user filter."""
     try:
+        limit = max(1, min(limit, 100))
+        offset = max(0, min(offset, 10_000))
+        if username and not re.match(r'^[a-zA-Z0-9_.\\-]{1,64}$', username):
+            raise HTTPException(status_code=400, detail="Invalid username format")
         if username:
             rows = [
                 row async for row in db.fetch_stream(
@@ -100,8 +108,11 @@ async def admin_logs(
                 )
             ]
         return {"logs": rows, "limit": limit, "offset": offset}
+    except HTTPException:
+        raise
     except DatabaseError as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        logger.error("admin_logs database error: %s", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Database unavailable")
 
 
 @router.get("/api/admin/users")
@@ -119,40 +130,27 @@ async def admin_list_users(request: Request, _: dict = Depends(get_admin_user)):
 @limiter.limit(RL_REGISTER_LIMIT)
 async def admin_create_user(
     request: Request,
-    body: dict,
+    body: CreateUserRequest,
     _: dict = Depends(get_admin_user),
 ):
-    """Create a new user. Body: {username, password, role}"""
-    uname    = body.get("username", "").strip()
-    password = body.get("password", "")
-    role     = body.get("role", "user")
-
-    if not uname or not password:
-        raise HTTPException(status_code=400, detail="username and password required")
-    if len(password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
-    if not re.match(r'^[a-zA-Z0-9_.\\-]{1,64}$', uname):
-        raise HTTPException(status_code=400, detail="Username: only letters, numbers, _ - . (max 64)")
-    if role not in ("admin", "user"):
-        role = "user"
-
+    """Create a new user."""
     users = _load_users()
 
     # D-12: Registration capacity cap — fail before writing
     if len(users) >= MAX_USERS:
         raise HTTPException(status_code=403, detail="registration capacity reached")
 
-    if uname in users:
+    if body.username in users:
         raise HTTPException(status_code=409, detail="User already exists")
 
-    users[uname] = {
-        "password_hash": _safe_hash(password),
-        "role":          role,
+    users[body.username] = {
+        "password_hash": _safe_hash(body.password),
+        "role":          body.role,
         "created_at":    datetime.now(timezone.utc).isoformat(),
         "active":        True,
     }
     _save_users(users)
-    return {"ok": True, "username": uname, "role": role}
+    return {"ok": True, "username": body.username, "role": body.role}
 
 
 @router.delete("/api/admin/users/{username}")
