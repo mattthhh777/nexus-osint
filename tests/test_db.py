@@ -1,5 +1,4 @@
 """Tests for the asyncpg-backed DatabaseManager."""
-from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
@@ -29,6 +28,13 @@ async def test_pool_stats_expose_idle_size(tmp_db: DatabaseManager) -> None:
     assert stats["started"] is True
     assert stats["max_size"] == 4
     assert isinstance(stats["idle_size"], int)
+
+
+@pytest.mark.asyncio
+async def test_idle_transaction_timeout_is_configured(tmp_db: DatabaseManager) -> None:
+    row = await tmp_db.fetch_one("SHOW idle_in_transaction_session_timeout")
+    assert row is not None
+    assert row["idle_in_transaction_session_timeout"] in {"1min", "60s"}
 
 
 @pytest.mark.asyncio

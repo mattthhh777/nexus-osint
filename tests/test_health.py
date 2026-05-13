@@ -37,7 +37,7 @@ class FakeDb:
 
 
 @pytest.mark.asyncio
-async def test_health_contains_cache_backend_and_legacy_entries(monkeypatch):
+async def test_public_health_hides_internal_state(monkeypatch):
     monkeypatch.setattr(health_route, "cache_backend", FakeCacheBackend())
 
     payload = await health_route.health.__wrapped__(
@@ -45,6 +45,25 @@ async def test_health_contains_cache_backend_and_legacy_entries(monkeypatch):
         orch=FakeOrchestrator(),
         db=FakeDb(),
         maybe_admin=None,
+    )
+
+    assert payload["status"] == "healthy"
+    assert payload["version"] == "3.0.0"
+    assert "timestamp" in payload
+    assert "cache" not in payload
+    assert "db" not in payload
+    assert "rss_mb" not in payload
+
+
+@pytest.mark.asyncio
+async def test_admin_health_contains_cache_backend_and_legacy_entries(monkeypatch):
+    monkeypatch.setattr(health_route, "cache_backend", FakeCacheBackend())
+
+    payload = await health_route.health.__wrapped__(
+        request=None,
+        orch=FakeOrchestrator(),
+        db=FakeDb(),
+        maybe_admin={"sub": "admin", "role": "admin"},
     )
 
     assert payload["cache"]["backend"] == "memory"

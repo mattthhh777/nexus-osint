@@ -1,10 +1,28 @@
-"""Rate limiter singleton — extracted to break api.main circular import."""
+"""Rate limiter singleton - extracted to break api.main circular import."""
+import ipaddress
+
 import jwt
 from fastapi import Request
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from api.config import JWT_ALGORITHM, JWT_SECRET
+
+
+def _request_ip(request: Request) -> str:
+    """Use only proxy-normalized X-Real-IP; never trust client-supplied XFF."""
+    val = request.headers.get("X-Real-IP", "").strip()
+    if val:
+        try:
+            ipaddress.ip_address(val)
+            return val
+        except ValueError:
+            pass
+    host = request.client.host if request.client else "unknown"
+    try:
+        ipaddress.ip_address(host)
+        return host
+    except ValueError:
+        return "unknown"
 
 
 def _rate_key(request: Request) -> str:
@@ -18,7 +36,7 @@ def _rate_key(request: Request) -> str:
                 return f"u:{sub}"
         except (jwt.InvalidTokenError, jwt.ExpiredSignatureError):
             pass
-    return f"ip:{get_remote_address(request)}"
+    return f"ip:{_request_ip(request)}"
 
 
 limiter = Limiter(key_func=_rate_key, storage_uri="memory://")

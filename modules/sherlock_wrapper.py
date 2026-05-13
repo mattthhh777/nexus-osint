@@ -665,7 +665,7 @@ def _try_sherlock_cli(username: str) -> Optional[SherlockResult]:
             source="sherlock_cli",
         )
         return result
-    except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError, ValueError):
         return None
 
 

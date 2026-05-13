@@ -107,6 +107,7 @@ function handleEvent(evt) {
       break;
     case 'oathnet':
       currentResult.oathnet = evt;
+      currentResult.searchId = evt.search_id || currentResult.searchId || '';
       currentResult.breachCursor = evt.next_cursor || '';
       currentResult.breachTotal  = evt.results_found || evt.breach_count || 0;
       updateQuota(evt);
@@ -143,6 +144,7 @@ function handleEvent(evt) {
       break;
     case 'victims':
       currentResult.extras.victims = evt;
+      currentResult.searchId = evt.search_id || currentResult.searchId || '';
       break;
     case 'discord_roblox':
       currentResult.extras.discord_roblox = evt;

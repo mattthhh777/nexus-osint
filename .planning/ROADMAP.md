@@ -472,7 +472,8 @@ Plans:
 **Requirements:** DBM-11, DBM-12, DBM-13, DBM-14, DBM-15, DBM-16, DBM-17, DBM-18, DBM-19
 **Depends on:** Phase 19
 **Risk:** MEDIUM — type-mapping landmines silent until Phase 21
-**Plans:** 0/0 plans complete
+**Status:** COMPLETE
+**Plans:** 1/1 plans complete
 
 **Deliverable:** `alembic init -t async migrations`; baseline migration with `MetaData`/`Table` for all tables (greenfield schema using TIMESTAMPTZ / BOOLEAN / JSONB / UUID `gen_random_uuid()` / `TEXT[]`); `pgcrypto` extension enabled; per-table indexes including FK indexes (Postgres does NOT auto-index FKs); CHECK constraints (not ENUM) for status fields; `searches.payload JSONB` + GIN index; template-database test fixtures; `docker-compose.test.yml` with tmpfs PG on port 5433.
 
@@ -481,7 +482,9 @@ Plans:
 **Avoids:** Pitfall 2 (type mapping), Performance Trap "Missing indexes on FKs".
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 20)
+- [x] 20-01: Postgres schema and test infra
+
+**Verification note (2026-05-10):** `docker compose -f docker-compose.test.yml up -d test-postgres` passed; `alembic upgrade head` passed against live test Postgres; `pytest tests/test_db.py tests/test_db_stream.py -q` returned `10 passed`; schema grep found no `TIMESTAMP` without TZ, `CREATE TYPE`, or `ENUM`.
 
 ---
 
@@ -491,14 +494,16 @@ Plans:
 **Requirements:** DBM-20, DBM-21, DBM-22, DBM-23
 **Depends on:** Phase 20
 **Risk:** MEDIUM — type fixups must be exact; row-count parity is the safety net
-**Plans:** 0/0 plans complete
+**Plans:** 1/1 plans complete
 
 **Deliverable:** `scripts/port_searches.py` using `asyncpg.copy_records_to_table` in 1000-row batches; type fixups (ISO TEXT → datetime → TIMESTAMPTZ; CSV `modules_run` → `TEXT[]`; INTEGER `success` → BOOLEAN; legacy NULL payload → `'{}'::jsonb`); row-count parity assertion; idempotent (truncate-then-load on rerun); timed on staging copy of production.
 
 **Avoids:** Pitfall 11 (cutover data loss — script tested before maintenance window).
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 21)
+- [x] 21-01: Idempotent searches port script
+
+**Verification note (2026-05-10):** `pytest tests/test_port_searches.py -q` returned `6 passed`; `pytest tests/test_db.py tests/test_db_stream.py tests/test_port_searches.py -q` returned `16 passed`; CLI truncate guard exits before mutation unless `--confirm-truncate truncate-and-port-searches` is supplied.
 
 ---
 
@@ -508,14 +513,16 @@ Plans:
 **Requirements:** DBM-24, DBM-25, DBM-26, DBM-27, DBM-28, DBM-29, DBM-30, DBM-31
 **Depends on:** Phase 21
 **Risk:** HIGH — most code-touching phase; missed RMW pattern = silent lost-update bug in production
-**Plans:** 0/3 plans complete
+**Plans:** 1/1 plans complete
 
 **Deliverable:** `api/db.py` rewritten on asyncpg pool (max_size=10, min_size=2, command_timeout=30); `_writer_loop` and `asyncio.Queue` deleted (lines 34, 46-47, 193-222 of current `api/db.py`); `?` → `$N` placeholders rewritten at all call sites; `INSERT OR REPLACE` → `ON CONFLICT DO UPDATE`; every `SELECT then UPDATE` reviewed and replaced with atomic `UPDATE col = col + 1` or `SELECT FOR UPDATE`; pool always inside `async with`; `idle_in_transaction_session_timeout=60s`; `/health` exposes `pool.get_idle_size()`.
 
 **Avoids:** Pitfall 5 (cancellation leaks), Pitfall 6 (RMW races), Anti-Pattern 1 (re-implementing the queue).
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 22)
+- [x] 22-01: asyncpg driver swap
+
+**Verification note (2026-05-10):** `pytest tests/test_db.py tests/test_db_stream.py tests/test_db_abstraction.py tests/test_health.py tests/test_endpoints.py tests/integration/test_phase16_routes.py tests/test_port_searches.py -q` returned `39 passed`; runtime DB-path anti-pattern grep found no SQLite writer queue, `INSERT OR`, or forbidden future imports in Phase 22 files; RMW audit found no update sites.
 
 ---
 
@@ -525,7 +532,7 @@ Plans:
 **Requirements:** DBM-32, DBM-33, DBM-34, DBM-35, DBM-36, DBM-37
 **Depends on:** Phase 22
 **Risk:** HIGH — gate for cutover; OOM here = bump nexus `mem_limit` to 2700MB before Phase 24
-**Plans:** 0/0 plans complete
+**Plans:** 1/1 plans complete
 
 **Deliverable:** Test scenario: 10 concurrent agents × N scans + `cancel_all` mid-burst, repeated; `pg_stat_activity` clean (zero `idle in transaction`) after each cycle; `docker stats postgres` peak < 768MB; `docker stats nexus` peak < 2500MB; `/health` reports `pool.get_idle_size()` recovering between bursts; counter consistency under concurrency verified; slow-query log reviewed.
 
@@ -534,7 +541,9 @@ Plans:
 **Avoids:** Discovering OOM or pool leaks in production.
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 23)
+- [x] 23-01: Postgres pool stress gate
+
+**Verification note (2026-05-10):** `scripts/stress_postgres_pool.py` passed 10-concurrency burst + cancellation cycles; app-container gate returned `rows=762 counter=762 idle_in_transaction=0 pool_size=10 pool_idle_size=10`; Docker stats stayed below limits (`postgres=36.8MiB`, `nexus=75.54MiB` observed); `/health` recovered `db.idle_size` from 2 to 2.
 
 ---
 
@@ -544,7 +553,7 @@ Plans:
 **Requirements:** DBM-38, DBM-39, DBM-40, DBM-41, DBM-42, DBM-43, DBM-44, DBM-45, DBM-46
 **Depends on:** Phase 23 (gate green)
 **Risk:** CRITICAL — irreversible; rollback is "restore SQLite snapshot + revert image tag"
-**Plans:** 0/0 plans complete
+**Plans:** 1/1 plans complete
 
 **Deliverable:**
 1. Pre-flight: SQLite snapshot (`cp nexus.db nexus.db.pre-pg-$(date +%Y%m%d)`), Docker image tagged `pre-pg-backup`, `git rev-parse HEAD` saved to runbook.
@@ -560,8 +569,13 @@ Plans:
 
 **Avoids:** Sequence collisions, lost in-flight writes, no rollback path.
 
+**Verification note (2026-05-10):** Production cutover complete. SQLite snapshot
+`audit.db.pre-pg-20260510T210438Z` retained read-only, `DATABASE_URL` flipped to
+Postgres, `port_searches.py` asserted 19-row parity, `/health` reports healthy
+Postgres pool (`db.size=2`, `db.idle_size=2`), and public `/` returns 200.
+
 Plans:
-- [ ] TBD (run /gsd:plan-phase 24)
+- [x] 24-01-PLAN.md — Hetzner PostgreSQL cutover
 
 ---
 
@@ -571,14 +585,22 @@ Plans:
 **Requirements:** DBM-47, DBM-48, DBM-49, DBM-50, DBM-51, DBM-52, DBM-53
 **Depends on:** Phase 24 (1 week production traffic minimum)
 **Risk:** LOW — observation phase
-**Plans:** 0/0 plans complete
+**Plans:** 1/1 plans complete; DBM-47/48 remain time-gated until one week of production traffic is available
 
 **Deliverable:** `pg_stat_statements` review → partial indexes on confirmed hot paths only; per-table autovacuum tuning for `searches` if churn justifies (`autovacuum_vacuum_scale_factor=0.05`); bloat report (`n_dead_tup / n_live_tup`) baselined; `pg_dump` cron at 03:00 with 7-day retention; restore drill on staging passes; `aiosqlite` removed from `requirements.txt`; CLAUDE.md updated to reflect F2 obsoletion (asyncio.Queue write serializer removed, SQLite section archived).
 
 **Avoids:** Pre-optimizing without data; backup-you-have-not-restored anti-pattern (Pitfalls 10, 12).
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 25)
+- [x] 25-01-PLAN.md — Backup hardening and Postgres docs
+
+**Execution note (2026-05-11):** Backup automation is active on the VPS at
+03:00 with 7-day retention, restore drill passed against
+`nexusosint-20260511T033857Z.sql.gz` with `searches_count=19`, bloat baseline
+shows `searches` live `19` / dead `0`, `requirements.txt` has no `aiosqlite`,
+and `CLAUDE.md` now reflects the Postgres/asyncpg architecture. DBM-47/48 are
+not complete yet because the Phase 24 cutover happened on 2026-05-10; earliest
+honest one-week traffic review is 2026-05-17.
 
 ---
 

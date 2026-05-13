@@ -5,7 +5,7 @@ Security upgrade over v2.3:
   - Multi-user support via users.json (bcrypt passwords)
   - All API routes protected by Bearer token
   - slowapi rate limiting per IP + per user
-  - SQLite audit log via DatabaseManager — every search logged
+  - Postgres audit log via DatabaseManager — every search logged
   - Admin endpoints: /api/admin/logs, /api/admin/users, /api/admin/stats
   - Legacy APP_PASSWORD still works as single-user fallback
 """
@@ -41,7 +41,7 @@ import tracemalloc
 
 import psutil
 from api.cache import cache_backend
-from api.db import db as _db  # single-connection DatabaseManager (WAL + write queue)
+from api.db import db as _db  # asyncpg pool DatabaseManager
 import api.budget as _budget
 from api.config import READ_ONLY_MODE, THORDATA_PROXY_URL
 from modules.sherlock_wrapper import _masked_proxy_log
@@ -213,7 +213,7 @@ def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONRespons
     try:
         # limits.Limit exposes .get_expiry_length() in some versions; fall back to 60
         retry_after = int(limit.get_expiry_length()) if limit and hasattr(limit, "get_expiry_length") else 60
-    except Exception:
+    except (AttributeError, TypeError, ValueError):
         retry_after = 60
     return JSONResponse(
         {"detail": "rate limit exceeded", "retry_after": retry_after},

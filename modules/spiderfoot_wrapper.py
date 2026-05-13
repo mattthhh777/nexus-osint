@@ -254,7 +254,7 @@ def get_spiderfoot_version() -> str:
         for line in (result.stdout + result.stderr).splitlines():
             if "SpiderFoot" in line:
                 return line.strip()
-    except Exception:
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError, ValueError):
         pass
     return "unknown"
 
@@ -375,9 +375,9 @@ def run_spiderfoot_scan(
             result.error = "python3 ou sf.py não encontrado."
             logger.error("SpiderFoot executable not found")
 
-        except Exception as exc:
-            result.error = f"Erro inesperado: {exc}"
-            logger.error("SpiderFoot scan exception: %s", exc, exc_info=True)
+        except (OSError, ValueError, RuntimeError) as exc:
+            result.error = "SpiderFoot scan failed unexpectedly."
+            logger.error("SpiderFoot scan exception: %s", type(exc).__name__, exc_info=True)
 
     result.elapsed_s = round(time.time() - t_start, 1)
     return result
