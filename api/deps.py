@@ -131,7 +131,7 @@ def _enforce_user_session_state(payload: dict) -> dict:
 
 # ── Token blacklist check ─────────────────────────────────────────────────────
 
-async def _check_blacklist(jti: Optional[str], db: DatabaseManager | None = None) -> None:
+async def _check_blacklist(jti: str | None, db: DatabaseManager | None = None) -> None:
     """Raises 401 if the jti is revoked.
 
     D-10 (FIND-06): Fail-CLOSED on DB error — any read failure returns HTTP 503
@@ -207,7 +207,7 @@ async def get_optional_admin_user(request: Request) -> dict | None:
     since Depends() injection is not available outside FastAPI's request lifecycle).
     """
     try:
-        user = await get_current_user(request, credentials=None)
+        user = await get_current_user(request)
         if user.get("role") != "admin":
             return None
         return user
