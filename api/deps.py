@@ -2,18 +2,17 @@
 FastAPI dependency providers for NexusOSINT.
 
 Scope: Only Depends()-compatible callables live here.
-  - security  — HTTPBearer instance (credentials extractor)
   - get_client_ip — real IP extraction through Cloudflare/Nginx
   - _decode_token  — JWT decode + 401 on failure
   - _check_blacklist — blacklist look-up + fail-closed on DB error
-  - get_current_user — primary auth dependency (cookie → Bearer fallback)
+  - get_current_user — primary auth dependency (httpOnly cookie only)
   - get_admin_user   — role-guard on top of get_current_user
   - get_db            — request.app.state.db (DatabaseManager singleton)
   - get_orchestrator_dep — request.app.state.orchestrator (TaskOrchestrator singleton)
 
 Import contract (D-05):
   - stdlib: time, typing, ipaddress
-  - 3rd party: fastapi, fastapi.security, jwt (PyJWT)
+  - 3rd party: fastapi, jwt (PyJWT)
   - internal: api.db — allowed (db is below deps in the import graph)
   - PROHIBITED: api.main — would create a circular import
 """
@@ -21,10 +20,8 @@ import ipaddress
 import logging
 import time
 from datetime import datetime
-from typing import Optional
 
 from fastapi import Depends, HTTPException, Request, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 import jwt
 try:
@@ -38,9 +35,6 @@ from api.orchestrator import TaskOrchestrator, get_orchestrator
 from api.services.auth_service import _load_users
 
 logger = logging.getLogger("nexusosint.deps")
-
-# ── Credentials extractor ─────────────────────────────────────────────────────
-security = HTTPBearer(auto_error=False)
 
 # ── Blacklist rate-limit state ────────────────────────────────────────────────
 # Rate-limit duplicate blacklist-failure log messages to once per minute.
@@ -180,22 +174,11 @@ async def _check_blacklist(jti: Optional[str], db: DatabaseManager | None = None
 
 # ── Auth dependencies ─────────────────────────────────────────────────────────
 
-async def get_current_user(
-    request: Request,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-) -> dict:
-    """Dependency: valida JWT — lê cookie nx_session primeiro, Bearer como fallback."""
-    # VULN-01: cookie HttpOnly tem prioridade
+async def get_current_user(request: Request) -> dict:
+    """Dependency: valida JWT via cookie httpOnly nx_session."""
     cookie_token = request.cookies.get("nx_session")
     if cookie_token:
         payload = _decode_token(cookie_token)
-        payload = _enforce_user_session_state(payload)
-        await _check_blacklist(payload.get("jti"), db=get_db(request))
-        return payload
-
-    # Fallback de retrocompatibilidade: Authorization: Bearer <token>
-    if credentials and credentials.credentials:
-        payload = _decode_token(credentials.credentials)
         payload = _enforce_user_session_state(payload)
         await _check_blacklist(payload.get("jti"), db=get_db(request))
         return payload

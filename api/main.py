@@ -47,7 +47,6 @@ from api.config import READ_ONLY_MODE, THORDATA_PROXY_URL
 from modules.sherlock_wrapper import _masked_proxy_log
 from api.schemas import LoginRequest, SearchRequest  # I/O models — defined in leaf module
 from api.deps import (  # auth dependency providers — extracted in Phase 15 Plan 02
-    security,
     get_client_ip,
     _decode_token,
     _check_blacklist,
