@@ -153,9 +153,11 @@ async def lifespan(application: FastAPI):
     watchdog_task = asyncio.create_task(
         memory_watchdog_loop(), name="memory-watchdog"
     )
+    application.state.orchestrator._registry["watchdog"] = watchdog_task
     logger.info("NexusOSINT v3.0 started — %d allowed origins, tracemalloc active, memory watchdog active", len(_ALLOWED_ORIGINS))
     yield
     # shutdown — Phase 10: cancel watchdog + drain orchestrator before DB shutdown
+    application.state.orchestrator._registry.pop("watchdog", None)
     watchdog_task.cancel()
     await asyncio.gather(watchdog_task, return_exceptions=True)
     try:
