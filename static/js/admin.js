@@ -6,9 +6,11 @@
 
 // ── State ──────────────────────────────────────────────────────────────────
 // VULN-01: zero localStorage — autenticação exclusivamente via cookie HttpOnly
-let currentUser = null;
-let logsOffset  = 0;
-const LOGS_LIMIT = 25;
+let currentUser      = null;
+let logsCursorStack  = [];  // cursors for going back (keyset pagination)
+let logsCurrent      = { before_ts: null, before_id: null };  // current page cursor
+let logsNext         = null;  // next page cursor from last response
+const LOGS_LIMIT     = 25;
 
 // ── API ───────────────────────────────────────────────────────────────────
 async function api(path, opts = {}) {
@@ -104,7 +106,7 @@ function showSection(name) {
   document.getElementById('nav-' + name).classList.add('active');
 
   if (name === 'dashboard') loadDashboard();
-  if (name === 'logs')      { logsOffset = 0; loadLogs(); }
+  if (name === 'logs')      { logsCursorStack = []; logsCurrent = { before_ts: null, before_id: null }; logsNext = null; loadLogs(); }
   if (name === 'users')     loadUsers();
   if (name === 'uptime')    checkUptime();
   if (name === 'health')    loadHealth();
@@ -156,10 +158,10 @@ async function loadDashboard() {
 
 async function loadChart() {
   try {
-    // Get last 7 days of logs
-    const r    = await api('/api/admin/logs?limit=500');
+    // Get last 7 days of logs (first page — sufficient for chart)
+    const r    = await api('/api/admin/logs?limit=100');
     const data = await r.json();
-    const logs = data.logs || [];
+    const logs = data.items || [];
 
     // Group by day
     const days = {};
@@ -198,15 +200,18 @@ async function loadLogs() {
   const user  = document.getElementById('logFilterUser').value.trim();
   const query = document.getElementById('logFilterQuery').value.trim();
 
-  let url = `/api/admin/logs?limit=${LOGS_LIMIT}&offset=${logsOffset}`;
-  if (user)  url += `&username=${encodeURIComponent(user)}`;
+  let url = `/api/admin/logs?limit=${LOGS_LIMIT}`;
+  if (user) url += `&username=${encodeURIComponent(user)}`;
+  if (logsCurrent.before_ts)  url += `&before_ts=${encodeURIComponent(logsCurrent.before_ts)}`;
+  if (logsCurrent.before_id != null) url += `&before_id=${logsCurrent.before_id}`;
 
   try {
     const r    = await api(url);
     const data = await r.json();
-    let logs   = data.logs || [];
+    let logs   = data.items || [];
+    logsNext   = data.next || null;
 
-    // Client-side query filter
+    // Client-side query filter (current page only)
     if (query) logs = logs.filter(l => l.query?.toLowerCase().includes(query.toLowerCase()));
 
     const body = document.getElementById('logsBody');
@@ -235,26 +240,30 @@ async function loadLogs() {
       }).join('');
     }
 
-    const hasMore = logs.length === LOGS_LIMIT;
-    document.getElementById('logsPaginationInfo').textContent =
-      `Showing ${logsOffset + 1}–${logsOffset + logs.length}`;
-    document.getElementById('logsPrev').disabled = logsOffset === 0;
-    document.getElementById('logsNext').disabled = !hasMore;
+    const pageNum = logsCursorStack.length + 1;
+    document.getElementById('logsPaginationInfo').textContent = `Page ${pageNum}`;
+    document.getElementById('logsPrev').disabled = logsCursorStack.length === 0;
+    document.getElementById('logsNext').disabled = !logsNext;
   } catch(e) {
     console.error('Logs error:', e);
   }
 }
 
 function logsPage(dir) {
-  logsOffset = Math.max(0, logsOffset + dir * LOGS_LIMIT);
+  if (dir > 0 && logsNext) {
+    logsCursorStack.push({ ...logsCurrent });
+    logsCurrent = { before_ts: logsNext.before_ts, before_id: logsNext.before_id };
+  } else if (dir < 0 && logsCursorStack.length > 0) {
+    logsCurrent = logsCursorStack.pop();
+  }
   loadLogs();
 }
 
 async function exportLogsCSV() {
   try {
-    const r    = await api('/api/admin/logs?limit=10000');
+    const r    = await api('/api/admin/logs?limit=100');
     const data = await r.json();
-    const logs = data.logs || [];
+    const logs = data.items || [];
 
     const rows = [['Timestamp','Username','IP','Query','Type','Mode','Modules','Breaches','Stealers','Social','Elapsed']];
     logs.forEach(l => rows.push([
@@ -429,7 +438,7 @@ async function loadHealth() {
   try {
     const r    = await api('/api/admin/logs?limit=50');
     const data = await r.json();
-    const logs = (data.logs || []).filter(l => l.elapsed_s > 0);
+    const logs = (data.items || []).filter(l => l.elapsed_s > 0);
 
     const perfBody = document.getElementById('perfBody');
     if (!logs.length) {
@@ -507,8 +516,14 @@ document.getElementById('newPassword')?.addEventListener('keydown', e => {
 });
 
 // ── Log filter inputs — oninput converted to addEventListener ─────────────
-document.getElementById('logFilterUser')?.addEventListener('input', () => loadLogs());
-document.getElementById('logFilterQuery')?.addEventListener('input', () => loadLogs());
+function _resetLogsAndLoad() {
+  logsCursorStack = [];
+  logsCurrent = { before_ts: null, before_id: null };
+  logsNext = null;
+  loadLogs();
+}
+document.getElementById('logFilterUser')?.addEventListener('input', _resetLogsAndLoad);
+document.getElementById('logFilterQuery')?.addEventListener('input', _resetLogsAndLoad);
 
 // ── Boot ──────────────────────────────────────────────────────────────────
 init();
