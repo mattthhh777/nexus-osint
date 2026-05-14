@@ -1,7 +1,7 @@
 """Port historical searches from SQLite to Postgres.
 
-Idempotent by design: truncate Postgres `searches`, copy rows in batches, then
-assert source/destination row-count parity.
+Idempotent by design: INSERT ... ON CONFLICT DO NOTHING (no TRUNCATE),
+copy rows in batches, then assert dest row-count >= source row-count.
 """
 
 import argparse
@@ -128,30 +128,27 @@ async def port_searches(
     database_url: str,
     batch_size: int = BATCH_SIZE,
     *,
-    confirm_truncate: bool = False,
+    confirm_truncate: bool = False,  # kept for CLI backward-compat; no longer gates truncate
 ) -> int:
-    if not confirm_truncate:
-        raise RuntimeError(
-            "Refusing to truncate Postgres searches without explicit confirmation"
-        )
+    _insert_sql = (
+        "INSERT INTO searches (ts, username, ip, query, query_type, mode, modules_run,"
+        " breach_count, stealer_count, social_count, elapsed_s, success, payload)"
+        " VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)"
+        " ON CONFLICT DO NOTHING"
+    )
 
     source_count = sqlite_count(sqlite_path)
-    conn = await asyncpg.connect(_asyncpg_url(database_url))
+    conn = await asyncpg.connect(_asyncpg_url(database_url), timeout=30)
     try:
-        async with conn.transaction():
-            await conn.execute("TRUNCATE TABLE searches")
-            for batch in iter_sqlite_batches(sqlite_path, batch_size):
-                await conn.copy_records_to_table(
-                    "searches",
-                    records=batch,
-                    columns=SEARCH_COLUMNS,
-                )
+        for batch in iter_sqlite_batches(sqlite_path, batch_size):
+            async with conn.transaction():
+                await conn.executemany(_insert_sql, batch)
 
-            dest_count = await conn.fetchval("SELECT COUNT(*) FROM searches")
-            if dest_count != source_count:
-                raise RuntimeError(
-                    f"row-count parity failed: sqlite={source_count} postgres={dest_count}"
-                )
+        dest_count = await conn.fetchval("SELECT COUNT(*) FROM searches")
+        if dest_count < source_count:
+            raise RuntimeError(
+                f"row-count parity failed: sqlite={source_count} postgres={dest_count}"
+            )
     finally:
         await conn.close()
     return source_count

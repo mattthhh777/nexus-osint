@@ -113,39 +113,37 @@ def test_convert_row_defaults_legacy_values(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_port_searches_requires_truncate_confirmation(tmp_path, test_database_url):
+async def test_port_searches_runs_without_confirmation_flag(tmp_path, tmp_db, test_database_url):
+    # confirm_truncate no longer required — INSERT ON CONFLICT DO NOTHING, never truncates
     sqlite_path = tmp_path / "searches.db"
     _create_sqlite_searches_fixture(sqlite_path)
 
-    with pytest.raises(RuntimeError, match="Refusing to truncate"):
-        await port_searches(sqlite_path, test_database_url)
+    count = await port_searches(sqlite_path, test_database_url)
+    assert count == 2
+
+    rows = await tmp_db.fetch_all("SELECT username FROM searches ORDER BY ts")
+    assert len(rows) == 2
+    assert rows[0]["username"] == "admin"
 
 
 @pytest.mark.asyncio
-async def test_port_searches_copies_rows_and_is_idempotent(tmp_path, tmp_db, test_database_url):
+async def test_port_searches_is_non_destructive_on_rerun(tmp_path, tmp_db, test_database_url):
+    # Two runs must not destroy existing rows. Without a unique constraint on searches,
+    # duplicate rows are inserted; the important guarantee is no TRUNCATE.
     sqlite_path = tmp_path / "searches.db"
     _create_sqlite_searches_fixture(sqlite_path)
 
-    first_count = await port_searches(
-        sqlite_path,
-        test_database_url,
-        batch_size=1,
-        confirm_truncate=True,
-    )
-    second_count = await port_searches(
-        sqlite_path,
-        test_database_url,
-        batch_size=1,
-        confirm_truncate=True,
-    )
+    first_count = await port_searches(sqlite_path, test_database_url, batch_size=1)
+    second_count = await port_searches(sqlite_path, test_database_url, batch_size=1)
 
     rows = await tmp_db.fetch_all(
-        "SELECT username, modules_run, breach_count, success, payload FROM searches ORDER BY ts"
+        "SELECT username, modules_run, breach_count, success, payload FROM searches ORDER BY ts, id"
     )
 
     assert first_count == 2
     assert second_count == 2
-    assert len(rows) == 2
+    # 4 rows expected: no TRUNCATE between runs, no unique constraint prevents re-insert
+    assert len(rows) == 4
     assert rows[0]["username"] == "admin"
     assert rows[0]["modules_run"] == ["breach", "sherlock"]
     assert rows[0]["breach_count"] == 2
