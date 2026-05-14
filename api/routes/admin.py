@@ -47,7 +47,7 @@ async def admin_stats(
 
         per_user = await db.fetch_all(
             """SELECT username, COUNT(*) as cnt FROM searches
-               WHERE ts >= $1 AND ts < $2 GROUP BY username ORDER BY cnt DESC""",
+               WHERE ts >= $1 AND ts < $2 GROUP BY username ORDER BY cnt DESC LIMIT 100""",
             (today_start, tomorrow_start),
         )
 
