@@ -120,15 +120,15 @@ async def _set_cached(endpoint: str, query: str, data, **params) -> None:
 
 async def _save_quota(used: int, left: int, daily_limit: int, db: DatabaseManager) -> None:
     """Save current OathNet quota to DB for admin dashboard."""
-    await db.execute_nowait(
-        "INSERT INTO quota_log (ts, used_today, left_today, daily_limit) VALUES ($1, $2, $3, $4)",
-        (datetime.now(timezone.utc), used, left, daily_limit),
-    )
-    # Keep only last 100 entries — fire-and-forget trim
-    await db.execute_nowait(
-        "DELETE FROM quota_log WHERE id NOT IN "
-        "(SELECT id FROM quota_log ORDER BY ts DESC LIMIT 100)",
-    )
+    async with db.transaction() as tx:
+        await tx.execute(
+            "INSERT INTO quota_log (ts, used_today, left_today, daily_limit) VALUES ($1, $2, $3, $4)",
+            (datetime.now(timezone.utc), used, left, daily_limit),
+        )
+        await tx.execute(
+            "DELETE FROM quota_log WHERE id NOT IN "
+            "(SELECT id FROM quota_log ORDER BY ts DESC LIMIT 100)",
+        )
 
 
 async def _log_search(
@@ -143,7 +143,8 @@ async def _log_search(
     social_count: int = 0,
     elapsed_s: float = 0.0,
     success: bool = True,
-    db: DatabaseManager = None,
+    *,
+    db: DatabaseManager,
 ) -> None:
     """Write a search audit record through the Postgres pool."""
     await db.execute_nowait(
@@ -214,8 +215,8 @@ async def _stream_search(
     req: SearchRequest,
     username: str,
     client_ip: str,
-    db: DatabaseManager = None,
-    orch: TaskOrchestrator = None,
+    db: DatabaseManager,
+    orch: TaskOrchestrator,
 ) -> AsyncGenerator[str, None]:
 
     def event(data: dict) -> str:
@@ -227,7 +228,10 @@ async def _stream_search(
     _sentinel_done: asyncio.Event = asyncio.Event()
 
     async def _search_sentinel() -> None:
-        await _sentinel_done.wait()
+        try:
+            await asyncio.wait_for(_sentinel_done.wait(), timeout=300)
+        except asyncio.TimeoutError:
+            logger.warning("search sentinel timed out | id=%s", id(_sentinel_done))
 
     sentinel_coro = _search_sentinel()
     try:
