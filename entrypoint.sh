@@ -2,7 +2,19 @@
 set -e
 
 if [ -n "${DATABASE_URL:-}" ]; then
+    LOCK_ID=8765432100
+    TIMEOUT_S=30
+    START=$(date +%s)
+    while true; do
+        GOT=$(psql "$DATABASE_URL" -tAc "SELECT pg_try_advisory_lock($LOCK_ID)")
+        [ "$GOT" = "t" ] && break
+        [ $(($(date +%s) - START)) -ge $TIMEOUT_S ] && { echo "alembic lock timeout after ${TIMEOUT_S}s — another container may be wedged"; exit 1; }
+        sleep 1
+    done
     alembic upgrade head
+    RC=$?
+    psql "$DATABASE_URL" -tAc "SELECT pg_advisory_unlock($LOCK_ID)" >/dev/null
+    exit $RC
 fi
 
 # Fix data dir ownership at runtime (volume mounts may reset it).
