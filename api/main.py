@@ -56,6 +56,7 @@ from api.deps import (  # auth dependency providers — extracted in Phase 15 Pl
 )
 from api.orchestrator import get_orchestrator, DegradationMode  # Phase 10: singleton + degradation
 from api.watchdog import memory_watchdog_loop  # Phase 10: memory pressure watchdog
+from api.tasks import blacklist_purge_loop  # C3/D1: scheduled token blacklist cleanup
 from api.config import (
     _ALLOWED_ORIGINS,
     _WEAK_JWT_SECRETS,
@@ -154,11 +155,17 @@ async def lifespan(application: FastAPI):
     watchdog_task = asyncio.create_task(
         memory_watchdog_loop(), name="memory-watchdog"
     )
+    # C3/D1: token blacklist purge loop — tracked so cancel_all() cleans it up
+    purge_task = asyncio.create_task(
+        blacklist_purge_loop(_db, interval=60), name="blacklist-purge"
+    )
+    get_orchestrator()._registry["blacklist_purge"] = purge_task
     logger.info("NexusOSINT v3.0 started — %d allowed origins, tracemalloc active, memory watchdog active", len(_ALLOWED_ORIGINS))
     yield
     # shutdown — Phase 10: cancel watchdog + drain orchestrator before DB shutdown
     watchdog_task.cancel()
-    await asyncio.gather(watchdog_task, return_exceptions=True)
+    purge_task.cancel()
+    await asyncio.gather(watchdog_task, purge_task, return_exceptions=True)
     try:
         await get_orchestrator().cancel_all()
     except asyncio.CancelledError:

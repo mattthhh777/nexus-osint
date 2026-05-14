@@ -147,11 +147,6 @@ async def _check_blacklist(jti: Optional[str], db: DatabaseManager | None = None
         return
     active_db = db or _db
     try:
-        # Purge expired entries — fire-and-forget
-        await active_db.execute_nowait(
-            "DELETE FROM token_blacklist WHERE exp < $1",
-            (int(time.time()),),
-        )
         row = await active_db.fetch_one(
             "SELECT 1 as found FROM token_blacklist WHERE jti = $1", (jti,)
         )
