@@ -413,3 +413,22 @@ class TestBuildStickyUrl:
         assert "Per-search byte cap" in log_text, (
             f"Expected 'Per-search byte cap' in log, got: {log_text!r}"
         )
+
+
+class TestPhaseACompatibility:
+
+    def test_21_legacy_module_aliases_runner_state(self, monkeypatch):
+        """modules.sherlock_wrapper remains the same mutable module as the runner."""
+        import modules.username_check.runner as runner
+
+        assert sw is runner
+        monkeypatch.setattr(sw, "THORDATA_PROXY_URL", "http://proxy.example")
+        assert runner.THORDATA_PROXY_URL == "http://proxy.example"
+
+    def test_22_public_package_exports_search_username(self):
+        """modules.username_check exposes the same public entrypoint."""
+        from modules.username_check import PlatformResult as exported_platform_result
+        from modules.username_check import search_username as exported_search_username
+
+        assert exported_search_username is search_username
+        assert exported_platform_result is PlatformResult
