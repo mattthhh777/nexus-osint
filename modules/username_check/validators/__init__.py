@@ -8,9 +8,15 @@ from modules.username_check.validators.base import (
     Validator,
     ValidatorError,
 )
+from modules.username_check.validators.baseline_compare import (
+    BaselineCompareValidator,
+    BaselineValidationContext,
+)
 from modules.username_check.validators.registry import default_validators, validate_all
 
 __all__ = [
+    "BaselineCompareValidator",
+    "BaselineValidationContext",
     "Signal",
     "ValidationContext",
     "ValidationOutcome",

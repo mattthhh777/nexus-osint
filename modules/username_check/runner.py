@@ -34,8 +34,10 @@ from api.config import (
     SHERLOCK_LIKELY_THRESHOLD,
     THORDATA_PER_SEARCH_CAP_BYTES,
     THORDATA_PROXY_URL,
+    USERNAME_CHECK_BASELINE_ENABLED,
 )
 import modules.username_check.budget as _budget
+from modules.username_check.baseline import get_baseline
 
 logger = logging.getLogger("nexusosint.sherlock")
 
@@ -52,7 +54,13 @@ from modules.username_check.proxy import (
     _masked_proxy_log,
 )
 from modules.username_check.rate_limit import OutboundRateLimiter, _outbound_limiter
-from modules.username_check.validators import ValidationContext, ValidationOutcome, validate_all
+from modules.username_check.validators import (
+    BaselineCompareValidator,
+    BaselineValidationContext,
+    ValidationContext,
+    ValidationOutcome,
+    validate_all,
+)
 
 # â”€â”€ Platform definitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Each entry: name, url_template, claim_type, claim_value, category, icon,
@@ -243,15 +251,28 @@ async def _check_platform(
         return result
 
     body_text = fetch_result.body.decode("utf-8", errors="replace")
-    result._outcomes = validate_all(
-        ValidationContext(
-            username=username,
-            platform=platform,
-            fetch_result=fetch_result,
-            body_text=body_text,
-            original_url=url,
-        )
+    validation_ctx = ValidationContext(
+        username=username,
+        platform=platform,
+        fetch_result=fetch_result,
+        body_text=body_text,
+        original_url=url,
     )
+    result._outcomes = validate_all(validation_ctx)
+    if USERNAME_CHECK_BASELINE_ENABLED:
+        baseline = await get_baseline(
+            client,
+            platform,
+            cap_bytes=_SHERLOCK_BODY_CAP,
+        )
+        result._outcomes.append(
+            BaselineCompareValidator().validate(
+                BaselineValidationContext(
+                    validation=validation_ctx,
+                    baseline=baseline,
+                )
+            )
+        )
     confidence, state = _compute_confidence(
         fetch_result.status_code,
         body_text,

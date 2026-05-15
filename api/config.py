@@ -104,6 +104,7 @@ THORDATA_PER_SEARCH_CAP_BYTES: int = _THORDATA_PER_SEARCH_CAP_MB * 1_048_576
 # >= CONFIRMED → state="confirmed"; >= LIKELY → state="likely"; below → state="not_found".
 SHERLOCK_CONFIRMED_THRESHOLD: int = int(os.getenv("SHERLOCK_CONFIRMED_THRESHOLD", "70"))
 SHERLOCK_LIKELY_THRESHOLD: int = int(os.getenv("SHERLOCK_LIKELY_THRESHOLD", "40"))
+USERNAME_CHECK_BASELINE_ENABLED: bool = _env_bool("USERNAME_CHECK_BASELINE_ENABLED", False)
 
 # Allowed origins — add your domain here
 _ALLOWED_ORIGINS = [
