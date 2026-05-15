@@ -52,6 +52,7 @@ from modules.username_check.proxy import (
     _masked_proxy_log,
 )
 from modules.username_check.rate_limit import OutboundRateLimiter, _outbound_limiter
+from modules.username_check.validators import ValidationContext, ValidationOutcome, validate_all
 
 # â”€â”€ Platform definitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Each entry: name, url_template, claim_type, claim_value, category, icon,
@@ -98,6 +99,7 @@ class PlatformResult:
     error: Optional[str] = None   # "timeout" | "connection_error" | "http_NNN"
                                   # | "proxy_unavailable" | "cf_challenge"
     reliability: str = "normal"   # "normal" | "low" â€” low = SPA/bot-wall, results unreliable
+    _outcomes: list[ValidationOutcome] = field(default_factory=list, repr=False)
 
 
 @dataclass
@@ -210,7 +212,7 @@ async def _check_platform(
     await _outbound_limiter.acquire(domain)
 
     try:
-        status, headers, body_bytes, bytes_read = await _fetch_with_cap(client, url)
+        fetch_result = await _fetch_with_cap(client, url)
     except httpx.ProxyError:
         # MUST come first â€” re-raise so caller can retry with rotated sessid (D-06)
         raise
@@ -230,18 +232,32 @@ async def _check_platform(
     # No generic catch here; named httpx failures only (CLAUDE.md).
 
     # Account bytes consumed (shared counter â€” Pitfall 7)
-    per_search_counter["bytes"] = per_search_counter.get("bytes", 0) + bytes_read
+    per_search_counter["bytes"] = per_search_counter.get("bytes", 0) + fetch_result.bytes_read
 
     # Cloudflare challenge detection (Pitfall 5)
-    if headers.get("cf-mitigated") == "challenge":
+    if fetch_result.headers.get("cf-mitigated") == "challenge":
         result.error = "cf_challenge"
         result.confidence = 0
         result.state = "not_found"
         result.found = False
         return result
 
-    body_text = body_bytes.decode("utf-8", errors="replace")
-    confidence, state = _compute_confidence(status, body_text, bytes_read, platform)
+    body_text = fetch_result.body.decode("utf-8", errors="replace")
+    result._outcomes = validate_all(
+        ValidationContext(
+            username=username,
+            platform=platform,
+            fetch_result=fetch_result,
+            body_text=body_text,
+            original_url=url,
+        )
+    )
+    confidence, state = _compute_confidence(
+        fetch_result.status_code,
+        body_text,
+        fetch_result.bytes_read,
+        platform,
+    )
     result.confidence = confidence
     result.state = state
     result.found = state != "not_found"
