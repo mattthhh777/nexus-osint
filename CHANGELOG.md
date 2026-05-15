@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-05-15 - Username validation Phase D
+
+- Added negative baseline fetch/cache with 1h LRU by `(platform, hour_bucket)`.
+- Added `USERNAME_CHECK_BASELINE_ENABLED`, default `false`.
+- Added `BaselineCompareValidator` with body normalization, baseline similarity,
+  hard-negative indistinguishable responses, and warning-only baseline failures.
+- Runner appends baseline outcome only when the flag is enabled; SSE output remains unchanged.
+- FP-rate impact: not enforced in default config; baseline signals are gated off by default.
+- Manual smoke with default flag off:
+  - Real username `torvalds`: 12 confirmed, 7 likely, 4 not found, 2 errors.
+  - Nonexistent username `nexusosint_no_such_user_20260515`: 7 confirmed,
+    7 likely, 8 not found, 3 errors.
+  - Diff: default runtime behavior preserved.
+
 ## 2026-05-15 - Username validation Phase C
 
 - Added validator interface and generic validators:
