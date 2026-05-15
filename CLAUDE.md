@@ -1,6 +1,6 @@
 # NexusOSINT — CLAUDE.md
 # Milestone v4.0: Agent Architecture & Hardening
-# Stack: FastAPI + Vanilla JS + SQLite + Docker | VPS: 3vCPU / 4GB RAM / 80GB SSD
+# Stack: FastAPI + Vanilla JS + PostgreSQL + Redis7 + Docker | VPS: 3vCPU / 4GB RAM / 80GB SSD
 
 ---
 
@@ -125,7 +125,7 @@ obsidian-markdown   → documentação de decisões ao final de cada sessão
 ```
 Backend:   FastAPI (Python 3.12+)
 Frontend:  Vanilla JS — nunca fonte de verdade para lógica de negócio
-Database:  SQLite com WAL mode + serialização via asyncio.Queue
+Database:  PostgreSQL 16 + asyncpg pool (max_size=10, min_size=2) + Alembic
 Container: Docker multi-stage, target <250MB, deploy em Hetzner VPS
 ```
 
@@ -139,7 +139,7 @@ RAM limite Docker: 3500m (deixar ~500MB para SO)
 Swap:              1GB recomendado como safety net
 Concurrency:       asyncio.Semaphore(max=10) — teto absoluto
 Docker image:      < 250MB
-SQLite readers:    máximo 5 conexões de leitura simultâneas com WAL
+Postgres:          container privado, sem porta pública, max_connections=20, mem_limit=768MB
 ```
 
 ### Identidade Visual (protegida)
@@ -169,7 +169,7 @@ async def run_scan(target: str):
         # Agente travou — 504, logar sem dados do alvo
         logger.warning("Scan timeout | target_hash={}", hash(target))
         raise HTTPException(status_code=504, detail="Scan timed out")
-    except aiosqlite.Error as e:
+    except asyncpg.PostgresError as e:
         # Falha de DB — 503
         logger.error("DB error during scan: {}", type(e).__name__)
         raise HTTPException(status_code=503, detail="Database unavailable")
@@ -265,43 +265,46 @@ Execute nesta ordem — cada feature é gate para a próxima.
 
 ---
 
-### F2 — SQLite Hardening
-**Objetivo**: eliminar "database is locked" sob carga de agents.
+### F2 — SQLite Hardening (OBSOLETO APÓS v4.2)
+**Status**: substituído pelo cutover PostgreSQL da Phase 24.
+
+SQLite/WAL/`asyncio.Queue` era a arquitetura antiga. Código novo **não** deve reintroduzir `aiosqlite`, single-writer queue, placeholders `?`, `INSERT OR REPLACE`, nem tuning de WAL.
+
+Arquitetura atual obrigatória:
 
 ```python
-# CORRETO: single connection + WAL + write serialization via Queue
-# ERRADO: "connection pooling" SQLite — não existe, piora o problema
+# CORRETO: Postgres privado + asyncpg.Pool + transações explícitas
+# ERRADO: reintroduzir SQLite, pooling fake de SQLite, ou write queue no runtime
 
 class Database:
-    def __init__(self, path: str):
-        self._path = path
-        self._conn: aiosqlite.Connection | None = None
-        self._write_queue: asyncio.Queue = asyncio.Queue()
+    def __init__(self, database_url: str, *, min_size: int = 2, max_size: int = 10):
+        self._database_url = database_url
+        self._pool: asyncpg.Pool | None = None
+        self._min_size = min_size
+        self._max_size = max_size
 
     async def connect(self) -> None:
-        self._conn = await aiosqlite.connect(self._path)
-        await self._conn.execute("PRAGMA journal_mode=WAL")
-        await self._conn.execute("PRAGMA synchronous=NORMAL")  # WAL+NORMAL = seguro e rápido
-        await self._conn.execute("PRAGMA busy_timeout=5000")   # aguardar até 5s antes de erro
-        asyncio.create_task(self._write_worker())  # único worker de escrita
+        self._pool = await asyncpg.create_pool(
+            self._database_url,
+            min_size=self._min_size,
+            max_size=self._max_size,
+            command_timeout=30,
+        )
 
-    async def _write_worker(self) -> None:
-        while True:
-            query, params, future = await self._write_queue.get()
-            try:
-                await self._conn.execute(query, params)
-                await self._conn.commit()
-                future.set_result(None)
-            except aiosqlite.Error as e:
-                future.set_exception(e)
+    async def execute(self, query: str, *args: object) -> str:
+        if self._pool is None:
+            raise RuntimeError("Database is not connected")
+        async with self._pool.acquire() as conn:
+            async with conn.transaction():
+                return await conn.execute(query, *args)
 ```
 
-**Definition of Done**:
-- [ ] Todos os writes passam pela Queue — zero writes diretos fora do worker
-- [ ] `PRAGMA journal_mode=WAL` confirmado ativo em runtime
-- [ ] Máximo 3 conexões de leitura simultâneas respeitado
-- [ ] Teste de carga com 5 agentes simultâneos sem "database is locked"
-- [ ] `busy_timeout` configurado
+**Definition of Done atual**:
+- [x] Runtime usa Postgres via `asyncpg.Pool`
+- [x] `_writer_loop` e `asyncio.Queue` removidos do runtime
+- [x] `DATABASE_URL` obrigatório em produção pós-cutover
+- [x] Alembic aplica schema no startup quando `DATABASE_URL` existe
+- [x] SQLite retido apenas como legado/snapshot e fonte do script de port
 
 ---
 
@@ -510,7 +513,7 @@ async def health_check(orchestrator: AgentOrchestrator = Depends(get_orchestrato
 ```
 tests/
 ├── unit/           → lógica pura, sem I/O
-├── integration/    → FastAPI TestClient + SQLite :memory:
+├── integration/    → FastAPI TestClient + Postgres efêmero
 └── e2e/            → cenários completos com agentes mockados
 ```
 
@@ -519,7 +522,7 @@ tests/
 | Camada | Mínimo | Foco |
 |---|---|---|
 | Unit | 80% | Validators, parsers, rate limiter, orchestrator logic |
-| Integration | 60% | Endpoints FastAPI, fluxo de autenticação, SQLite |
+| Integration | 60% | Endpoints FastAPI, fluxo de autenticação, Postgres |
 | E2E | Cenários críticos | Scan completo, autenticação, health check |
 
 ### Como mockar agentes OSINT
@@ -537,12 +540,15 @@ async def test_agent_timeout():
     result = await agent_coro("1.2.3.4")
     assert result["status"] == "timeout"
 
-# conftest.py — fixture de banco em memória
+# conftest.py — fixture de Postgres efêmero
 @pytest.fixture
 async def db():
-    async with aiosqlite.connect(":memory:") as conn:
-        await setup_schema(conn)
-        yield conn
+    db_url = os.environ["TEST_DATABASE_URL"]
+    pool = await asyncpg.create_pool(db_url, min_size=1, max_size=2)
+    try:
+        yield pool
+    finally:
+        await pool.close()
 ```
 
 ### "Test suite verde" para gate do F6
@@ -629,7 +635,7 @@ FIM DE SESSÃO:
 | "Continuar" avança a task — não cancela objeção técnica em aberto | OBRIGATÓRIO |
 | Exception handling correto por camada — sem `except Exception` genérico | OBRIGATÓRIO |
 | Rate limiting de saída em todos os agentes OSINT | OBRIGATÓRIO |
-| SQLite: asyncio.Queue + single writer + máx 3 readers simultâneos | OBRIGATÓRIO |
+| Postgres: asyncpg.Pool + transações explícitas + máx 10 conexões app | OBRIGATÓRIO |
 | Async agents: TaskGroup + registry — sem fire-and-forget | OBRIGATÓRIO |
 | Semaphore ceiling: máximo 10 tasks simultâneas | OBRIGATÓRIO |
 | Docker target: < 250MB | OBRIGATÓRIO |
@@ -651,7 +657,7 @@ FIM DE SESSÃO:
 
 ```
 Async agents:        asyncio.TaskGroup (PEP 654, Python 3.11+)
-SQLite async:        aiosqlite + WAL + busy_timeout=5000
+Postgres async:      asyncpg.Pool max_size=10 + command_timeout=30
 Memory profiling:    tracemalloc + psutil
 Rate limiting in:    slowapi (FastAPI, por endpoint + por usuário)
 Rate limiting out:   OutboundRateLimiter (token bucket por domínio)
@@ -663,7 +669,7 @@ Docker multi-stage:  python:3.12-slim (digest fixo após estabilizar)
 VPS swap:            fallocate -l 1G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
 Security headers:    starlette middleware — não JS
 Memory thresholds:   resting < 500MB | alerta > 2000MB | crítico > 85% (~3400MB)
-SQLite readers:      máx 5 simultâneos com WAL
+Postgres runtime:    container privado, sem porta pública, backups pg_dump 03:00/7d
 ```
 
 ---

@@ -2,6 +2,9 @@
 .env
 *.env
 .env.*
+secrets/
+certbot_certs/
+skills-lock.json
 
 # Python
 __pycache__/
@@ -35,6 +38,7 @@ Thumbs.db
 
 # IDE
 .vscode/
+.agents/
 .idea/
 *.swp
 
@@ -48,6 +52,10 @@ backups/
 
 # Planning & dev artifacts
 .planning/
+maigret_repo/
+apiOathnet.yamal.txt
+ultima sessao.txt
+SESSAO_*.md
 *.zip
 .py312-evidence.txt
 requirements.lock*.txt

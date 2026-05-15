@@ -3,27 +3,29 @@ FROM python:3.12-slim AS builder
 
 WORKDIR /build
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    libcairo2-dev \
-    pkg-config \
-    && rm -rf /var/lib/apt/lists/*
-
 COPY requirements.txt .
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+RUN rm -rf /install/lib/python*/site-packages/pip* \
+    /install/lib/python*/site-packages/setuptools* \
+    /install/lib/python*/site-packages/wheel* \
+    /install/bin/pip* /install/bin/wheel && \
+    find /install -type d -name "__pycache__" -prune -exec rm -rf {} + && \
+    find /install -type f -name "*.pyc" -delete
 
 # ── Stage 2: runtime ──────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libcairo2 \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -r -u 1000 -g root -s /sbin/nologin appuser
 
 COPY --from=builder /install /usr/local
+RUN rm -rf /usr/local/lib/python*/site-packages/pip* \
+    /usr/local/lib/python*/site-packages/setuptools* \
+    /usr/local/lib/python*/site-packages/wheel* \
+    /usr/local/bin/pip* /usr/local/bin/wheel
 
 COPY --chown=appuser:root . .
 

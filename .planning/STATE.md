@@ -2,17 +2,31 @@
 gsd_state_version: 1.0
 milestone: v4.2.0
 milestone_name: Database Migration + Redis7 Cache Fold-In
-status: Phase 19 complete; Postgres running in parallel on Hetzner
-stopped_at: Completed Phase 19; next action is plan/execute Phase 20
-last_updated: "2026-05-09T17:16:00.000Z"
+status: Phase 25 plan complete; DBM-47/48 pending one-week traffic observation
+stopped_at: Completed Phase 25 backup hardening; next action is one-week Postgres tuning review on or after 2026-05-17
+last_updated: "2026-05-11T00:45:00-03:00"
 progress:
   total_phases: 25
-  completed_phases: 19
-  total_plans: 34
-  completed_plans: 32
+  completed_phases: 24
+  total_plans: 38
+  completed_plans: 38
 ---
 
 # Project State
+
+## Active Hotfix Work - Username Validation Phase A (2026-05-15)
+
+Branch: `v4.0/username-validation-fase-A` from `hotfix/wave4-db`.
+
+Scope: structural refactor only. `modules/sherlock_wrapper.py` remains a
+compatibility alias; implementation now lives under `modules/username_check/`.
+
+Verification:
+- `pytest tests/unit/test_sherlock_wrapper.py -q --tb=short` -> 22 passed.
+- `pytest tests/ -q --tb=short` -> 121 passed, 23 skipped.
+- Manual smoke real/nonexistent usernames executed with network escalation.
+
+Gate: stop after PR and human review/merge before Phase B.
 
 ## Project Reference
 
@@ -20,12 +34,12 @@ See: .planning/PROJECT.md (updated 2026-05-06 — milestone v4.2)
 
 **Core value:** From the same scan, show 2× more data without additional backend cost — rendering what already arrives in the pipeline.
 
-**Current focus:** Phase 20 — schema-as-code-alembic-async-test-infra
+**Current focus:** Phase 25 — DBM-47/48 one-week Postgres observation remains
 
 ## Current Position
 
-Phase: 19 (postgres-container-compose-wiring-parallel-deploy) — COMPLETE
-Plan: 2 of 2
+Phase: 25 (post-migration-tuning-backup-hardening) — PARTIAL / OBSERVATION
+Plan: 1 of 1
 
 ## Phase Map
 
@@ -39,12 +53,12 @@ Plan: 2 of 2
 | 17 | v4-2-pre-migration-audit-db-abstraction-layer | COMPLETE | SQL inventory + DB abstraction; 3/3 plans complete |
 | 18 | redis7-cache-backend | COMPLETE | Redis7 cache replacement; 2/2 plans complete |
 | 19 | postgres-container-compose-wiring | COMPLETE | 2/2 plans complete; Postgres healthy in parallel on Hetzner |
-| 20 | schema-as-code-alembic-async-test-infra | PLANNED | Async Alembic + PG test infra |
-| 21 | data-port-script-searches-only | PLANNED | `searches` port script |
-| 22 | repository-layer-switch-code-audit-pass-2 | PLANNED | asyncpg pool swap behind Phase 17 abstraction |
-| 23 | concurrency-memory-stress-test | PLANNED | Gate before cutover |
-| 24 | postgres-cutover | PLANNED | Maintenance window |
-| 25 | post-migration-tuning-backup-hardening | PLANNED | 1-week observation + backups |
+| 20 | schema-as-code-alembic-async-test-infra | COMPLETE | Async Alembic + PG test infra verified; 10 DB tests passed |
+| 21 | data-port-script-searches-only | COMPLETE | `searches` port script; live PG idempotency verified |
+| 22 | repository-layer-switch-code-audit-pass-2 | COMPLETE | asyncpg pool swap + RMW audit verified |
+| 23 | concurrency-memory-stress-test | COMPLETE | 10-way burst/cancel stress gate passed |
+| 24 | postgres-cutover | COMPLETE | Postgres production cutover passed |
+| 25 | post-migration-tuning-backup-hardening | PARTIAL | Backups complete; DBM-47/48 need review on/after 2026-05-17 |
 
 ## Accumulated Context
 
@@ -93,16 +107,17 @@ not a data-availability issue. Phase 13 discovers real extra keys; Phase 14 rend
 
 ### Blockers/Concerns
 
+- Boundary drift: worktree already contains Phase 22-style `api/db.py` asyncpg driver switch; do not reset without explicit approval
 - No test suite for frontend JS — visual regressions caught only by manual testing
 - OathNet Starter plan: 100 lookups/day — test with real queries sparingly
 - VPS has nginx.conf with frame-ancestors fix — needs scp deploy
 
 ## Session Continuity
 
-Last session: 2026-05-09T17:16:00Z
-Stopped at: Completed Phase 19; Postgres healthy on Hetzner, Nexus remains SQLite
+Last session: 2026-05-10T18:13:30-03:00
+Stopped at: Completed Phase 24; production runs on Postgres
 Resume file: None
-Next action: plan/execute Phase 20 for schema-as-code + Alembic async test infra.
+Next action: review pg_stat_statements and searches autovacuum evidence on or after 2026-05-17.
 
 ### Phase 16 Planning Summary (2026-04-30)
 

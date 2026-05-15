@@ -40,10 +40,17 @@ async def health(
     cache_stats = await cache_backend.stats()
     cache_payload = cache_stats.__dict__
 
-    payload = {
-        "status": "degraded" if degradation != DegradationMode.NORMAL else "healthy",
+    status_value = "degraded" if degradation != DegradationMode.NORMAL else "healthy"
+    public_payload = {
+        "status": status_value,
         "version": "3.0.0",
         "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    if maybe_admin is None:
+        return public_payload
+
+    payload = {
+        **public_payload,
         "memory_used_mb": round(mem_mb, 1),
         "memory_pct": mem.percent,
         "rss_mb": round(proc.memory_info().rss / 1024 / 1024, 1),

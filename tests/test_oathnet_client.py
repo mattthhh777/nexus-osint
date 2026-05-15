@@ -75,7 +75,7 @@ async def test_search_breach_returns_breach_records(client: OathnetClient) -> No
             ],
         },
     }
-    respx.get(f"{OATHNET_BASE_URL}/service/search-breach").mock(
+    respx.get(f"{OATHNET_BASE_URL}/service/v2/breach/search").mock(
         return_value=httpx.Response(200, json=mock_response)
     )
 
@@ -137,6 +137,42 @@ async def test_search_stealer_v2_returns_stealer_records(client: OathnetClient) 
 
 # ── Test 4: Module-level singleton exists ──────────────────────────────────────
 
+@pytest.mark.asyncio
+@respx.mock
+async def test_searches_send_session_and_compact_params(client: OathnetClient) -> None:
+    """Search wrappers propagate OathNet search_id and compact field/page params."""
+    seen: dict[str, object] = {}
+
+    def breach_handler(request: httpx.Request) -> httpx.Response:
+        seen["breach_search_id"] = request.url.params.get("search_id")
+        seen["breach_page_size"] = request.url.params.get("page_size")
+        return httpx.Response(200, json={
+            "success": True,
+            "data": {"items": [], "meta": {"total": 0}, "next_cursor": ""},
+        })
+
+    def stealer_handler(request: httpx.Request) -> httpx.Response:
+        seen["stealer_search_id"] = request.url.params.get("search_id")
+        seen["stealer_fields"] = request.url.params.get_list("fields[]")
+        return httpx.Response(200, json={
+            "success": True,
+            "data": {"items": [], "meta": {"total": 0}, "next_cursor": ""},
+        })
+
+    respx.get(f"{OATHNET_BASE_URL}/service/v2/breach/search").mock(side_effect=breach_handler)
+    respx.get(f"{OATHNET_BASE_URL}/service/v2/stealer/search").mock(side_effect=stealer_handler)
+
+    await client.search_breach("victim@example.com", session_id="sess_123", page_size=25)
+    await client.search_stealer_v2("victim@example.com", session_id="sess_123")
+
+    assert seen["breach_search_id"] == "sess_123"
+    assert seen["breach_page_size"] == "25"
+    assert seen["stealer_search_id"] == "sess_123"
+    assert {"url", "domain", "username", "email", "log_id", "pwned_at"}.issubset(
+        set(seen["stealer_fields"])
+    )
+
+
 def test_module_level_singleton_exists() -> None:
     """modules.oathnet_client must export an `oathnet_client` module-level instance.
 
@@ -170,7 +206,7 @@ def test_module_level_singleton_exists() -> None:
 @respx.mock
 async def test_search_breach_handles_http_status_error(client: OathnetClient) -> None:
     """Client handles httpx.HTTPStatusError gracefully — returns OathnetResult with error, no raises."""
-    respx.get(f"{OATHNET_BASE_URL}/service/search-breach").mock(
+    respx.get(f"{OATHNET_BASE_URL}/service/v2/breach/search").mock(
         return_value=httpx.Response(429, json={"message": "Too Many Requests"})
     )
 
@@ -188,7 +224,7 @@ async def test_search_breach_handles_http_status_error(client: OathnetClient) ->
 @respx.mock
 async def test_search_breach_handles_connect_error(client: OathnetClient) -> None:
     """Client handles httpx.ConnectError gracefully — returns OathnetResult with error, no raises."""
-    respx.get(f"{OATHNET_BASE_URL}/service/search-breach").mock(
+    respx.get(f"{OATHNET_BASE_URL}/service/v2/breach/search").mock(
         side_effect=httpx.ConnectError("Connection refused")
     )
 

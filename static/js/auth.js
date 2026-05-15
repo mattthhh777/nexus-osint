@@ -3,6 +3,31 @@
 // ══════════════════════════════════════════════════════
 // VULN-01: token migrado para HttpOnly cookie — zero localStorage
 let authUser = null;
+const AUTH_CHECK_TIMEOUT_MS = 3500;
+
+function showAuthScreen() {
+  const authScreen = document.getElementById('authScreen');
+  const app = document.getElementById('app');
+  if (authScreen) authScreen.style.display = 'grid';
+  if (app) app.style.display = 'none';
+}
+
+function showAppScreen() {
+  const authScreen = document.getElementById('authScreen');
+  const app = document.getElementById('app');
+  if (authScreen) authScreen.style.display = 'none';
+  if (app) app.style.display = 'block';
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = AUTH_CHECK_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 // authHeaders mantém apenas Content-Type; cookie é enviado automaticamente pelo browser
 function authHeaders() {
@@ -15,29 +40,29 @@ async function apiFetch(url, options = {}) {
   const r = await fetch(url, options);
   if (r.status === 401) {
     authUser = null;
-    document.getElementById('authScreen').style.display = 'grid';
+    showAuthScreen();
     throw new Error('Session expired — please sign in again');
   }
   return r;
 }
 
 async function checkAuth() {
+  showAuthScreen();
   // Verifica sessão via cookie (browser envia automaticamente)
   try {
-    const r = await fetch('/api/me', { credentials: 'include' });
+    const r = await fetchWithTimeout('/api/me', { credentials: 'include' });
     if (r.ok) {
       const data = await r.json();
       authUser = data;
       renderNavUser(data);
-      document.getElementById('authScreen').style.display = 'none';
-      document.getElementById('app').style.display = 'block';
+      showAppScreen();
       return;
     }
   } catch(e) {}
 
   // Sem cookie válido — verifica se auth é obrigatória
   try {
-    const r = await fetch('/api/auth', {
+    const r = await fetchWithTimeout('/api/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -45,13 +70,12 @@ async function checkAuth() {
     });
     const data = await r.json();
     if (data.ok) {
-      document.getElementById('authScreen').style.display = 'none';
-      document.getElementById('app').style.display = 'block';
+      showAppScreen();
       return;
     }
   } catch(e) {}
 
-  document.getElementById('authScreen').style.display = 'grid';
+  showAuthScreen();
   setTimeout(() => document.getElementById('authUsername')?.focus(), 100);
 }
 
@@ -78,8 +102,7 @@ async function submitAuth() {
 
     if (r.ok && data.ok) {
       authUser = { username: data.username, role: data.role };
-      document.getElementById('authScreen').style.display = 'none';
-      document.getElementById('app').style.display = 'block';
+      showAppScreen();
       renderNavUser(authUser);
     } else {
       errEl.style.display = 'block';

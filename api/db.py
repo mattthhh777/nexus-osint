@@ -7,7 +7,6 @@ Postgres runtime:
   - Alembic owns schema creation
   - No background write queue; Postgres handles concurrent writes
 """
-from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
@@ -160,7 +159,8 @@ class DatabaseManager:
             raise RuntimeError("DatabaseManager not started - call startup() first")
         try:
             async with self.pool.acquire() as conn:
-                return _row_dict(await conn.fetchrow(sql, *params))
+                async with conn.transaction():
+                    return _row_dict(await conn.fetchrow(sql, *params))
         except asyncpg.PostgresError as exc:
             raise DatabaseError("database fetch_one failed") from exc
 
@@ -171,7 +171,8 @@ class DatabaseManager:
             raise RuntimeError("DatabaseManager not started - call startup() first")
         try:
             async with self.pool.acquire() as conn:
-                return [dict(row) for row in await conn.fetch(sql, *params)]
+                async with conn.transaction():
+                    return [dict(row) for row in await conn.fetch(sql, *params)]
         except asyncpg.PostgresError as exc:
             raise DatabaseError("database fetch_all failed") from exc
 

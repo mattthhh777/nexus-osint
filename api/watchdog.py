@@ -28,12 +28,12 @@ from api.orchestrator import (
 
 logger = logging.getLogger("nexusosint.watchdog")
 
-# Thresholds — match CLAUDE.md (alert > 400MB, critical > 85%) plus the
+# Thresholds: match AGENTS.md (alert > 2000MB, critical > 85%) plus the
 # 80% intermediate REDUCED threshold from Phase 10 requirements.
 THRESHOLD_REDUCED_PCT  = 80.0
 THRESHOLD_CRITICAL_PCT = 85.0
 THRESHOLD_RESTORE_PCT  = 75.0
-MEMORY_ALERT_MB        = 400.0  # absolute MB warning, per CLAUDE.md
+MEMORY_ALERT_MB        = 2000.0  # absolute MB warning, per AGENTS.md
 
 WATCHDOG_INTERVAL_S = 30.0
 

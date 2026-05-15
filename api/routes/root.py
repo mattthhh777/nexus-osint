@@ -2,7 +2,7 @@
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from api.deps import _decode_token
 
@@ -20,7 +20,7 @@ async def root():
 
 @router.get("/admin", response_class=HTMLResponse)
 async def admin_panel(request: Request):
-    """Admin panel — auth server-side via cookie nx_session (VULN-03)."""
+    """Admin panel is served only to a valid admin cookie session."""
     token = request.cookies.get("nx_session")
 
     if token:
@@ -32,32 +32,6 @@ async def admin_panel(request: Request):
                     return HTMLResponse(admin_file.read_text(encoding="utf-8"))
                 return HTMLResponse("<h1>Admin panel not found</h1>", status_code=404)
         except HTTPException:
-            pass  # token inválido/expirado → cai no fallback abaixo
+            pass
 
-    # Sem cookie válido: bridge page que lê localStorage e chama auth-gate
-    return HTMLResponse("""<!DOCTYPE html>
-<html><head>
-<meta charset="UTF-8">
-<title>NexusOSINT Admin</title>
-<style>
-  body{background:#0a0a0f;display:flex;align-items:center;
-       justify-content:center;height:100vh;margin:0;
-       font-family:monospace;color:#666;font-size:.85rem}
-</style>
-</head>
-<body><span>Authenticating…</span>
-<script>
-(async () => {
-  const t = localStorage.getItem('nx_token');
-  if (!t) { location.replace('/'); return; }
-  try {
-    const r = await fetch('/api/admin/auth-gate', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + t }
-    });
-    if (r.ok) { location.replace('/admin'); }
-    else       { location.replace('/'); }
-  } catch { location.replace('/'); }
-})();
-</script>
-</body></html>""")
+    return RedirectResponse("/", status_code=303)

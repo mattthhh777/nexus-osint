@@ -37,6 +37,8 @@ import api.main as m  # noqa: E402
 
 def _make_cookie(sub: str, role: str = "user") -> str:
     """Mint a valid JWT cookie for test auth."""
+    from api.limiter import JWT_SECRET as limiter_secret
+
     payload = {
         "sub": sub,
         "role": role,
@@ -44,7 +46,7 @@ def _make_cookie(sub: str, role: str = "user") -> str:
         "iat": int(datetime.now(timezone.utc).timestamp()),
         "jti": f"test-jti-{sub}",
     }
-    return jwt.encode(payload, _TEST_SECRET, algorithm="HS256")
+    return jwt.encode(payload, limiter_secret, algorithm="HS256")
 
 
 @pytest.fixture(autouse=True)

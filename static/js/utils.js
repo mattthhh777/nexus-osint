@@ -38,6 +38,13 @@ function riskLabel(score) {
   return ['LOW', '#3ec78c'];
 }
 
+function riskCssClass(score) {
+  if (score >= 75) return 'risk-critical';
+  if (score >= 50) return 'risk-high';
+  if (score >= 25) return 'risk-medium';
+  return 'risk-low';
+}
+
 // ── HTML escaping ──
 function esc(s) {
   if (!s) return '─';
