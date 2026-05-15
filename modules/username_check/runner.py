@@ -38,6 +38,8 @@ from api.config import (
 )
 import modules.username_check.budget as _budget
 from modules.username_check.baseline import get_baseline
+from modules.username_check.fetcher import FetchResult
+from modules.username_check.scoring import ScoredResult, combine_outcomes
 
 logger = logging.getLogger("nexusosint.sherlock")
 
@@ -108,6 +110,8 @@ class PlatformResult:
                                   # | "proxy_unavailable" | "cf_challenge"
     reliability: str = "normal"   # "normal" | "low" â€” low = SPA/bot-wall, results unreliable
     _outcomes: list[ValidationOutcome] = field(default_factory=list, repr=False)
+    _fetch_result: FetchResult | None = field(default=None, repr=False)
+    _v2_score: ScoredResult | None = field(default=None, repr=False)
 
 
 @dataclass
@@ -227,20 +231,25 @@ async def _check_platform(
     except httpx.TimeoutException:
         # Pitfall 1 fix: existing code incorrectly caught asyncio.TimeoutError (dead code)
         result.error = "timeout"
+        result._v2_score = combine_outcomes([], fetch_error="timeout")
         return result
     except httpx.ConnectError:
         result.error = "connection_error"
+        result._v2_score = combine_outcomes([], fetch_error="connection_error")
         return result
     except httpx.HTTPStatusError as exc:
         result.error = f"http_{exc.response.status_code}"
+        result._v2_score = combine_outcomes([], fetch_error=result.error)
         return result
     except httpx.HTTPError as exc:
         result.error = str(exc)[:80]
+        result._v2_score = combine_outcomes([], fetch_error=type(exc).__name__)
         return result
     # No generic catch here; named httpx failures only (CLAUDE.md).
 
     # Account bytes consumed (shared counter â€” Pitfall 7)
     per_search_counter["bytes"] = per_search_counter.get("bytes", 0) + fetch_result.bytes_read
+    result._fetch_result = fetch_result
 
     # Cloudflare challenge detection (Pitfall 5)
     if fetch_result.headers.get("cf-mitigated") == "challenge":
@@ -248,6 +257,7 @@ async def _check_platform(
         result.confidence = 0
         result.state = "not_found"
         result.found = False
+        result._v2_score = combine_outcomes([], fetch_error="cf_challenge")
         return result
 
     body_text = fetch_result.body.decode("utf-8", errors="replace")
@@ -273,6 +283,10 @@ async def _check_platform(
                 )
             )
         )
+    result._v2_score = combine_outcomes(
+        result._outcomes,
+        reliability=result.reliability,
+    )
     confidence, state = _compute_confidence(
         fetch_result.status_code,
         body_text,
@@ -309,7 +323,7 @@ async def _check_platform_with_retry(
         try:
             return await _check_platform(rotate_client, username, platform, per_search_counter)
         except httpx.ProxyError:
-            return PlatformResult(
+            failed = PlatformResult(
                 platform=platform["name"],
                 url=platform["url"].format(username=username),
                 category=platform.get("category", ""),
@@ -319,6 +333,8 @@ async def _check_platform_with_retry(
                 confidence=0,
                 found=False,
             )
+            failed._v2_score = combine_outcomes([], fetch_error="proxy_unavailable")
+            return failed
 
 
 # â”€â”€ Sherlock CLI integration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

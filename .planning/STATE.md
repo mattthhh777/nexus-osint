@@ -14,6 +14,24 @@ progress:
 
 # Project State
 
+## Active Hotfix Work - Username Validation Phase E (2026-05-15)
+
+Branch: `v4.0/username-validation-fase-E` from `origin/master`.
+
+Scope: v2 scoring, normalization, schemas, and dual SSE emission behind
+`SHERLOCK_VALIDATION_V2=false` default. Legacy `sherlock` SSE remains unchanged.
+
+Verification:
+- `pytest tests/unit/test_username_scoring.py -q --tb=short` -> 6 passed.
+- `pytest tests/integration/test_username_validation_v2_sse.py -q --tb=short` -> 2 passed.
+- `pytest tests/ -q --tb=short` -> 159 passed, 23 skipped.
+- Invariant grep clean for touched username files.
+- Bench mocked SSE p50: off 3.342ms, v2 4.091ms, ratio 1.224 (<=1.3).
+- Manual smoke real/nonexistent usernames executed with default flag off.
+
+Gate: stop after PR and human review/merge before Phase F. Phase F requires E
+stable in production >=1 day.
+
 ## Active Hotfix Work - Username Validation Phase D (2026-05-15)
 
 Branch: `v4.0/username-validation-fase-D` from `origin/master`.

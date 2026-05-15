@@ -12,10 +12,15 @@ import httpx
 from pydantic import ValidationError
 
 from api.cache import cache_backend
-from api.config import MAX_BREACH_SERIALIZE, MODULE_TIMEOUTS, SPIDERFOOT_URL
+from api.config import (
+    MAX_BREACH_SERIALIZE,
+    MODULE_TIMEOUTS,
+    SHERLOCK_VALIDATION_V2,
+    SPIDERFOOT_URL,
+)
 from api.db import DatabaseError, DatabaseManager
 from api.orchestrator import TaskOrchestrator
-from api.schemas import SearchRequest, SherlockUsernameRequest
+from api.schemas import SearchRequest, SherlockUsernameRequest, SherlockUsernameResponse
 import api.budget as _budget
 from modules.oathnet_client import (
     BreachRecord,
@@ -514,6 +519,8 @@ async def _stream_search(
                             "error": "Sherlock timed out after 60s — partial results unavailable",
                         })
                     elif sherl:
+                        from modules.username_check.normalize import normalize_result
+
                         # D-H2/D-H3: serialize ONLY safe fields. negative_markers,
                         # raw signal scores, internal flags NEVER leak to client.
                         def _serialize_platform(p):
@@ -540,6 +547,14 @@ async def _stream_search(
                             "found": [_serialize_platform(p) for p in sherl.found],
                             "likely": [_serialize_platform(p) for p in sherl.likely],
                         })
+                        if SHERLOCK_VALIDATION_V2:
+                            v2_payload = SherlockUsernameResponse(
+                                **normalize_result(uname, sherl)
+                            ).model_dump(mode="json")
+                            yield event({
+                                "type": "sherlock_v2",
+                                **v2_payload,
+                            })
                 except (ValueError, KeyError, TypeError) as exc:
                     logger.error("Sherlock failed: %s", exc)
                     yield event({"type": "module_error", "module": "sherlock", "error": str(exc)})
