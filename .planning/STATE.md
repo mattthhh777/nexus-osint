@@ -14,6 +14,20 @@ progress:
 
 # Project State
 
+## Active Hotfix Work - Username Validation Phase A (2026-05-15)
+
+Branch: `v4.0/username-validation-fase-A` from `hotfix/wave4-db`.
+
+Scope: structural refactor only. `modules/sherlock_wrapper.py` remains a
+compatibility alias; implementation now lives under `modules/username_check/`.
+
+Verification:
+- `pytest tests/unit/test_sherlock_wrapper.py -q --tb=short` -> 22 passed.
+- `pytest tests/ -q --tb=short` -> 121 passed, 23 skipped.
+- Manual smoke real/nonexistent usernames executed with network escalation.
+
+Gate: stop after PR and human review/merge before Phase B.
+
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-06 — milestone v4.2)
