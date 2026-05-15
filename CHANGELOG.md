@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-05-15 - Username validation Phase E
+
+- Added validation v2 scoring with 5 levels: `confirmed`, `likely`,
+  `uncertain`, `likely_false_positive`, `not_found`, plus `invalid` for fetch errors.
+- Added v2 normalization and Pydantic response schemas.
+- Added `SHERLOCK_VALIDATION_V2`, default `false`; when enabled, SSE emits
+  legacy `sherlock` plus `sherlock_v2`.
+- Runner computes internal v2 score while preserving legacy buckets/SSE.
+- FP-rate impact: not yet measurable against production baseline; v2 signal
+  output is gated behind flag.
+- Bench: mocked SSE p50 off 3.342ms, v2 4.091ms, ratio 1.224 (<=1.3 gate).
+- Manual smoke with default flag off:
+  - Real username `torvalds`: 13 confirmed, 7 likely, 3 not found, 2 errors.
+  - Nonexistent username `nexusosint_no_such_user_20260515`: 7 confirmed,
+    7 likely, 8 not found, 3 errors.
+
 ## 2026-05-15 - Username validation Phase D
 
 - Added negative baseline fetch/cache with 1h LRU by `(platform, hour_bucket)`.
