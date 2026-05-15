@@ -1,19 +1,39 @@
 ﻿"""Capped HTTP fetch helpers for username checks."""
 from __future__ import annotations
 
+from collections.abc import Iterator
+from dataclasses import dataclass
+
 import httpx
 
 _SHERLOCK_BODY_CAP = 262_144  # 256KB per response (D-15)
+
+
+@dataclass(frozen=True)
+class FetchResult:
+    status_code: int
+    headers: dict[str, str]
+    body: bytes
+    bytes_read: int
+    final_url: str
+    redirect_chain: list[str]
+
+    def __iter__(self) -> Iterator[object]:
+        """Preserve Phase A tuple unpacking contract for existing callers."""
+        yield self.status_code
+        yield self.headers
+        yield self.body
+        yield self.bytes_read
 
 
 async def _fetch_with_cap(
     client: httpx.AsyncClient,
     url: str,
     cap_bytes: int = _SHERLOCK_BODY_CAP,
-) -> tuple[int, dict, bytes, int]:
+) -> FetchResult:
     """
     Fetch URL, stopping body read at cap_bytes.
-    Returns (status_code, response_headers, body_bytes, actual_bytes_read).
+    Returns FetchResult with final URL and redirect chain.
     Headers captured BEFORE body iteration (Cloudflare cf-mitigated detection â€” Pitfall 5).
     Real cap, not resp.text slice (Pitfall 4 fix).
     """
@@ -27,5 +47,15 @@ async def _fetch_with_cap(
             if total >= cap_bytes:
                 break
         body = b"".join(chunks)
-        return resp.status_code, headers, body, total
+        redirect_chain = [str(item.url) for item in resp.history]
+        if redirect_chain:
+            redirect_chain.append(str(resp.url))
+        return FetchResult(
+            status_code=resp.status_code,
+            headers=headers,
+            body=body,
+            bytes_read=total,
+            final_url=str(resp.url),
+            redirect_chain=redirect_chain,
+        )
 

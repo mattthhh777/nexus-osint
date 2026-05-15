@@ -14,6 +14,21 @@ progress:
 
 # Project State
 
+## Active Hotfix Work - Username Validation Phase B (2026-05-15)
+
+Branch: `v4.0/username-validation-fase-B` from `origin/master`.
+
+Scope: fetch metadata only. `_fetch_with_cap` now returns `FetchResult` with
+`final_url` and `redirect_chain`, while preserving legacy tuple unpacking for
+existing runner behavior.
+
+Verification:
+- `pytest tests/unit/test_sherlock_wrapper.py -q --tb=short` -> 23 passed.
+- `pytest tests/ -q --tb=short` -> 122 passed, 23 skipped.
+- Manual smoke real/nonexistent usernames executed.
+
+Gate: stop after PR and human review/merge before Phase C.
+
 ## Active Hotfix Work - Username Validation Phase A (2026-05-15)
 
 Branch: `v4.0/username-validation-fase-A` from `hotfix/wave4-db`.
