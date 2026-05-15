@@ -24,6 +24,7 @@ import respx
 
 import api.budget as _budget
 import modules.sherlock_wrapper as sw
+from modules.username_check.fetcher import FetchResult
 from modules.sherlock_wrapper import (
     PLATFORMS,
     PlatformResult,
@@ -184,6 +185,28 @@ class TestComputeConfidence:
         assert len(body) <= sw._SHERLOCK_BODY_CAP + 8192
         # Critical: must be MUCH less than 5MB
         assert bytes_read < 1_000_000
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_8b_fetch_result_captures_final_url_and_redirect_chain(self):
+        """_fetch_with_cap captures 301 -> 200 final_url and redirect_chain."""
+        respx.get("https://example.com/start").mock(
+            return_value=httpx.Response(301, headers={"Location": "/final"})
+        )
+        respx.get("https://example.com/final").mock(
+            return_value=httpx.Response(200, content=b"ok")
+        )
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            result = await _fetch_with_cap(client, "https://example.com/start")
+
+        assert isinstance(result, FetchResult)
+        assert result.status_code == 200
+        assert result.final_url == "https://example.com/final"
+        assert result.redirect_chain == [
+            "https://example.com/start",
+            "https://example.com/final",
+        ]
+        assert result.body == b"ok"
 
     @pytest.mark.asyncio
     @respx.mock

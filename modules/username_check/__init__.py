@@ -21,6 +21,7 @@ from modules.username_check.runner import (
     _masked_proxy_log,
     search_username,
 )
+from modules.username_check.fetcher import FetchResult
 
 __all__ = [
     "HEADERS",
@@ -41,4 +42,5 @@ __all__ = [
     "_fetch_with_cap",
     "_masked_proxy_log",
     "search_username",
+    "FetchResult",
 ]
