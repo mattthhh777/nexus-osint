@@ -1,6 +1,9 @@
 """Pydantic I/O schemas for the FastAPI app. Leaf module — imports nothing from api/* or modules/*."""
 import re
-from pydantic import BaseModel, ConfigDict, field_validator
+from datetime import datetime
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class LoginRequest(BaseModel):
@@ -101,3 +104,56 @@ class SherlockUsernameRequest(BaseModel):
         if not re.fullmatch(r"^[A-Za-z0-9_.-]{1,64}$", v):
             raise ValueError("Invalid username")
         return v
+
+
+class SherlockEvidence(BaseModel):
+    signal: str
+    weight: int
+    detail: str = ""
+
+
+class SherlockPlatformResponse(BaseModel):
+    source: Literal["sherlock", "maigret"] = "sherlock"
+    username: str
+    platform: str
+    category: str
+    icon: str
+    url_original: str
+    url_final: str
+    redirect_chain: list[str] = Field(default_factory=list)
+    http_status: int | None = None
+    fetch_status: Literal[
+        "ok",
+        "timeout",
+        "connection_error",
+        "proxy_unavailable",
+        "cf_challenge",
+        "http_error",
+        "invalid",
+    ]
+    validation_status: Literal[
+        "confirmed",
+        "likely",
+        "uncertain",
+        "likely_false_positive",
+        "not_found",
+        "invalid",
+    ]
+    confidence_score: int
+    confidence_level: str
+    evidence: list[SherlockEvidence] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    error: str | None = None
+    checked_at: datetime
+    reliability: Literal["normal", "low"] = "normal"
+    baseline_used: bool = False
+
+
+class SherlockUsernameResponse(BaseModel):
+    username: str
+    found_count: int
+    likely_count: int
+    total_checked: int
+    source: str
+    proxy_used: bool
+    platforms: list[SherlockPlatformResponse] = Field(default_factory=list)
