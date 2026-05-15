@@ -14,6 +14,23 @@ progress:
 
 # Project State
 
+## Active Hotfix Work - Username Validation Phase C (2026-05-15)
+
+Branch: `v4.0/username-validation-fase-C` from `origin/master`.
+
+Scope: validator interface and generic validators. Runner attaches internal
+`_outcomes` to `PlatformResult`, but existing scoring, buckets, and SSE output
+remain unchanged.
+
+Verification:
+- `pytest tests/unit/test_username_validators.py -q --tb=short` -> 21 passed.
+- `pytest tests/unit/test_sherlock_wrapper.py -q --tb=short` -> 23 passed.
+- `pytest tests/ -q --tb=short` -> 143 passed, 23 skipped.
+- `pytest-cov` unavailable; coverage CLI could not run.
+- Manual smoke real/nonexistent usernames executed.
+
+Gate: stop after PR and human review/merge before Phase D.
+
 ## Active Hotfix Work - Username Validation Phase B (2026-05-15)
 
 Branch: `v4.0/username-validation-fase-B` from `origin/master`.

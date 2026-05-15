@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-05-15 - Username validation Phase C
+
+- Added validator interface and generic validators:
+  - `GenericContentValidator` for title, canonical, `og:url`, JSON-LD, and body-size signals.
+  - `UrlFinalValidator` for final URL and redirect classifications.
+  - `NegativeMarkersValidator` for platform markers and common multi-language negative markers.
+- Runner now attaches internal `_outcomes` to `PlatformResult`; API/SSE output remains unchanged.
+- Added 21 validator tests: 6+ per validator, registry error isolation, runner outcome attachment.
+- FP-rate impact: not enforced yet; Phase C collects validation signals only.
+- Manual smoke:
+  - Real username `torvalds`: 13 confirmed, 7 likely, 3 not found, 2 errors.
+  - Nonexistent username `nexusosint_no_such_user_20260515`: 7 confirmed,
+    7 likely, 8 not found, 3 errors.
+  - Diff: no intentional scoring change; real-user count varied by one due live external responses.
+
 ## 2026-05-15 - Username validation Phase B
 
 - Added `FetchResult` to capped username fetches, including `final_url` and
