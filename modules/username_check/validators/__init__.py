@@ -12,7 +12,7 @@ from modules.username_check.validators.baseline_compare import (
     BaselineCompareValidator,
     BaselineValidationContext,
 )
-from modules.username_check.validators.registry import default_validators, validate_all
+from modules.username_check.validators.registry import default_validators, for_platform, validate_all
 
 __all__ = [
     "BaselineCompareValidator",
@@ -23,5 +23,6 @@ __all__ = [
     "Validator",
     "ValidatorError",
     "default_validators",
+    "for_platform",
     "validate_all",
 ]
