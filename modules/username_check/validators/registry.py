@@ -23,6 +23,47 @@ def default_validators() -> list[Validator]:
     ]
 
 
+def _resolve_site_validator(platform_name: str) -> Validator | None:
+    name_lower = platform_name.lower()
+    if name_lower.startswith("maigret: "):
+        name_lower = name_lower[9:]
+
+    if "github" in name_lower:
+        from modules.username_check.validators.sites.github import GitHubValidator
+        return GitHubValidator()
+    if "instagram" in name_lower:
+        from modules.username_check.validators.sites.instagram import InstagramValidator
+        return InstagramValidator()
+    if "twitter" in name_lower or name_lower in {"x", "x / twitter", "twitter / x"}:
+        from modules.username_check.validators.sites.x import XValidator
+        return XValidator()
+    if "linkedin" in name_lower:
+        from modules.username_check.validators.sites.linkedin import LinkedInValidator
+        return LinkedInValidator()
+    if "reddit" in name_lower:
+        from modules.username_check.validators.sites.reddit import RedditValidator
+        return RedditValidator()
+    if "tiktok" in name_lower:
+        from modules.username_check.validators.sites.tiktok import TikTokValidator
+        return TikTokValidator()
+    if "youtube" in name_lower:
+        from modules.username_check.validators.sites.youtube import YouTubeValidator
+        return YouTubeValidator()
+    if "medium" in name_lower:
+        from modules.username_check.validators.sites.medium import MediumValidator
+        return MediumValidator()
+    return None
+
+
+def for_platform(platform_name: str) -> list[Validator]:
+    """Returns default validators plus optional site-specific validator."""
+    validators: list[Validator] = default_validators()
+    site = _resolve_site_validator(platform_name)
+    if site is not None:
+        validators.append(site)
+    return validators
+
+
 def validate_all(
     ctx: ValidationContext,
     validators: Iterable[Validator] | None = None,

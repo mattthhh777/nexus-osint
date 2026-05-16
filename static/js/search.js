@@ -117,6 +117,11 @@ function handleEvent(evt) {
       currentResult.sherlock = evt;
       markModuleDone('Sherlock');
       break;
+    case 'sherlock_v2':
+      currentResult.sherlockV2 = evt;
+      currentResult.sherlock = evt;
+      markModuleDone('Sherlock');
+      break;
     case 'discord':
       // Accumulate multiple discord lookups (auto-extracted from breach data)
       if (!currentResult.extras.discords) currentResult.extras.discords = [];

@@ -64,6 +64,7 @@ from modules.username_check.validators import (
     BaselineValidationContext,
     ValidationContext,
     ValidationOutcome,
+    for_platform,
     validate_all,
 )
 
@@ -298,7 +299,7 @@ async def _check_platform(
         body_text=body_text,
         original_url=url,
     )
-    result._outcomes = validate_all(validation_ctx)
+    result._outcomes = validate_all(validation_ctx, for_platform(platform.get("name", "")))
     if USERNAME_CHECK_BASELINE_ENABLED:
         baseline = await get_baseline(
             client,

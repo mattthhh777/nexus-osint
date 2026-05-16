@@ -122,6 +122,31 @@ function _unavatarUrl(platform, username) {
   return 'https://unavatar.io/' + service + '/' + encodeURIComponent(username);
 }
 
+function _socialStatusLabel(status) {
+  return String(status || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function _socialEvidenceHtml(p) {
+  const evidence = Array.isArray(p.evidence) ? p.evidence.slice(0, 3) : [];
+  const warnings = Array.isArray(p.warnings) ? p.warnings : [];
+  const evidenceHtml = evidence.map(e => {
+    const weight = Number(e.weight || 0);
+    const sign = weight > 0 ? '+' : '';
+    return '<span style="display:inline-flex;gap:5px;align-items:center;border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-family:var(--mono);font-size:.65rem;color:var(--text2)">'
+      + '<strong style="color:' + (weight < 0 ? 'var(--red)' : weight > 0 ? 'var(--green)' : 'var(--text3)') + '">' + sign + esc(String(weight)) + '</strong>'
+      + esc(e.signal || 'signal')
+      + '</span>';
+  }).join('');
+  const warningHtml = warnings.length
+    ? '<div style="margin-top:8px;font-family:var(--mono);font-size:.66rem;color:var(--amber)">'
+      + warnings.slice(0, 3).map(w => esc(w)).join(' · ')
+      + '</div>'
+    : '';
+  return evidenceHtml || warningHtml
+    ? '<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">' + evidenceHtml + '</div>' + warningHtml
+    : '';
+}
+
 // ── Render results entry point ───────────────────────
 function renderResults() {
   const o = currentResult.oathnet;
@@ -481,6 +506,35 @@ function renderSocial(s) {
   const el    = document.getElementById('socialBody');
   const badge = document.getElementById('socialBadge');
   const panel = document.getElementById('panelSocial');
+  const isV2  = Array.isArray(s?.platforms);
+
+  if (isV2) {
+    const showHidden = Boolean(s.showLowConfidence);
+    const visibleStatuses = new Set(['confirmed', 'likely']);
+    if (showHidden) {
+      visibleStatuses.add('uncertain');
+      visibleStatuses.add('likely_false_positive');
+    }
+    const hiddenCount = s.platforms.filter(p => (
+      p.validation_status === 'uncertain' || p.validation_status === 'likely_false_positive'
+    )).length;
+    const found = s.platforms
+      .filter(p => visibleStatuses.has(p.validation_status))
+      .map(p => ({
+        ...p,
+        url: p.url_original || p.url_final || '',
+        state: p.validation_status === 'confirmed' ? 'confirmed' : 'likely',
+        v2Status: p.validation_status,
+        confidence: p.confidence_score,
+      }));
+    s = {
+      ...s,
+      found,
+      likely: [],
+      likely_count: s.likely_count || 0,
+      _v2HiddenCount: hiddenCount,
+    };
+  }
 
   // Build unified items list: confirmed first, then likely (D-13, D-14)
   const foundItems  = (s && s.found)  ? s.found  : [];
@@ -527,9 +581,9 @@ function renderSocial(s) {
     const iconHtml   = _socialIconEl(p.platform);
 
     // Unverified badge -- only for likely state (D-13)
-    const unverifiedBadge = isLikely
-      ? '<span class="social-card-badge social-card-badge--unverified">Unverified</span>'
-      : '';
+    const unverifiedBadge = p.v2Status
+      ? '<span class="social-card-badge social-card-badge--unverified">' + esc(_socialStatusLabel(p.v2Status)) + '</span>'
+      : (isLikely ? '<span class="social-card-badge social-card-badge--unverified">Unverified</span>' : '');
 
     // Low-reliability badge -- SPA/bot-wall platforms where SSR detection is unreliable
     const lowReliabilityBadge = (p.reliability === 'low')
@@ -553,12 +607,15 @@ function renderSocial(s) {
       + unverifiedBadge
       + lowReliabilityBadge
       + '</div>'
-      + (p.category ? '<span class="social-card-cat">' + esc(p.category) + '</span>' : '')
+      + (p.category && !p.v2Status ? '<span class="social-card-cat">' + esc(p.category) + '</span>' : '')
       + '</div>'
       + '<div class="social-card-body">'
       + '<div class="social-card-avatar-wrap">' + avatarHtml + '</div>'
       + (username ? '<div class="social-card-username">@' + esc(username) + '</div>' : '')
+      + (p.category && p.v2Status ? '<div style="font-family:var(--mono);font-size:.64rem;color:var(--text3);margin-top:3px;text-transform:uppercase">' + esc(p.category) + '</div>' : '')
       + '</div>'
+      + (p.confidence != null ? '<div style="font-family:var(--mono);font-size:.68rem;color:var(--text3);margin-top:6px">confidence ' + esc(String(p.confidence)) + '</div>' : '')
+      + _socialEvidenceHtml(p)
       + '<a class="social-card-cta" href="' + url + '" target="_blank" rel="noopener noreferrer">'
       + 'View Profile →'
       + '</a>'
@@ -570,7 +627,22 @@ function renderSocial(s) {
     ? '<input class="panel-filter" type="text" placeholder="Filter ' + items.length + ' platforms…" aria-label="Filter social platforms">'
     : '';
 
-  el.innerHTML = filterHtml + '<div class="social-cards-grid">' + cards + '</div>';
+  const v2FilterHtml = s._v2HiddenCount
+    ? '<label style="display:flex;align-items:center;gap:8px;margin:0 0 10px;color:var(--text3);font-family:var(--mono);font-size:.72rem">'
+      + '<input type="checkbox" id="socialShowWeak" ' + (s.showLowConfidence ? 'checked' : '') + '> show ' + s._v2HiddenCount + ' uncertain'
+      + '</label>'
+    : '';
+
+  el.innerHTML = v2FilterHtml + filterHtml + '<div class="social-cards-grid">' + cards + '</div>';
+
+  const weakToggle = document.getElementById('socialShowWeak');
+  if (weakToggle) {
+    weakToggle.addEventListener('change', function() {
+      const target = currentResult.sherlockV2 || currentResult.sherlock;
+      if (target) target.showLowConfidence = this.checked;
+      renderSocial(target);
+    });
+  }
 
   // Attach avatar error handlers (CSP-safe -- no inline onerror attribute)
   el.querySelectorAll('.social-card-avatar').forEach(function(img) {

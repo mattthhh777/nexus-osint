@@ -78,6 +78,45 @@ def test_fetch_error_is_invalid_with_evidence():
     assert scored.evidence[0].signal == "fetch_error"
 
 
+def test_login_required_without_hard_negative_is_uncertain():
+    scored = combine_outcomes(
+        [
+            _outcome(
+                Signal("instagram_login_wall", 0, "login_redirect"),
+                warnings=["login_required"],
+            )
+        ]
+    )
+    assert scored.validation_status == "uncertain"
+    assert scored.confidence_score == 30
+
+
+def test_auth_wall_and_bot_check_are_invalid():
+    linkedin = combine_outcomes(
+        [
+            _outcome(
+                Signal(
+                    "linkedin_auth_wall_999",
+                    -100,
+                    "status_999",
+                    hard_negative=True,
+                ),
+                warnings=["login_required"],
+            )
+        ]
+    )
+    reddit = combine_outcomes(
+        [
+            _outcome(
+                Signal("reddit_bot_challenge", -100, "bot_challenge", hard_negative=True),
+                warnings=["bot_check"],
+            )
+        ]
+    )
+    assert linkedin.validation_status == "invalid"
+    assert reddit.validation_status == "invalid"
+
+
 def test_normalize_result_includes_v2_evidence_or_error():
     fetch_result = FetchResult(
         status_code=200,

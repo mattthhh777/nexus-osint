@@ -72,6 +72,12 @@ async def test_admin_health_contains_cache_backend_and_legacy_entries(monkeypatc
     assert payload["cache_entries"] == 3
     assert payload["db"]["idle_size"] == 1
     assert payload["maigret_sites_loaded"] == 500
+    assert "username_validation" in payload
+    assert payload["username_validation"]["maigret_sites_loaded"] == 500
+    assert "username_searches_total" in payload
+    assert "baseline_cache_hits" in payload
+    assert "validation_v2_pct" in payload
+    assert "confirmed_per_search_avg" in payload
 
 
 def test_health_route_no_longer_imports_search_service():
