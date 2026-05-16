@@ -65,13 +65,24 @@ def combine_outcomes(
     evidence = [Evidence(s.name, s.weight, s.detail) for s in signals]
     hard_positive = any(signal.hard_positive for signal in signals)
     hard_negative = any(signal.hard_negative for signal in signals)
+    auth_blocked = (
+        "bot_check" in warnings
+        or any(signal.name.startswith("linkedin_auth") for signal in signals)
+    )
+    login_inconclusive = "login_required" in warnings or "redirect_to_login" in warnings
     baseline_indistinguishable = any(
         signal.name == "baseline_indistinguishable" for signal in signals
     )
     positive_count = sum(1 for signal in signals if signal.weight > 0)
     raw_score = sum(signal.weight for signal in signals)
 
-    if hard_negative:
+    if auth_blocked:
+        status = "invalid"
+        score = 0
+    elif login_inconclusive and not hard_negative:
+        status = "uncertain"
+        score = max(30, min(59, raw_score))
+    elif hard_negative:
         status: ValidationStatus = (
             "likely_false_positive" if baseline_indistinguishable or raw_score > 0 else "not_found"
         )

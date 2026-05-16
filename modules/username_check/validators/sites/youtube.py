@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 
 from modules.username_check.validators.base import Signal, ValidationContext, ValidationOutcome
+from modules.username_check.validators.sites.matching import username_token_present
 
 _PARSE_CAP = 100_000
 
@@ -27,7 +28,6 @@ class YouTubeValidator:
 
     def validate(self, ctx: ValidationContext) -> ValidationOutcome:
         body = ctx.body_text[:_PARSE_CAP]
-        username_lower = ctx.username.lower()
         signals: list[Signal] = []
 
         if _NOT_FOUND.search(body):
@@ -37,11 +37,11 @@ class YouTubeValidator:
             return ValidationOutcome(self.name, signals, [])
 
         og_title_match = _OG_TITLE.search(body)
-        if og_title_match and username_lower in og_title_match.group(1).lower():
+        if og_title_match and username_token_present(og_title_match.group(1), ctx.username):
             signals.append(Signal("youtube_og_title_username", 15, "og:title"))
 
         og_url_match = _OG_URL.search(body)
-        if og_url_match and username_lower in og_url_match.group(1).lower():
+        if og_url_match and username_token_present(og_url_match.group(1), ctx.username):
             signals.append(Signal("youtube_og_url_username", 20, "og:url"))
 
         return ValidationOutcome(self.name, signals, [])

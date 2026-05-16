@@ -14,6 +14,7 @@ from api.deps import get_admin_user, get_db, get_optional_admin_user, get_orches
 from api.db import DatabaseManager
 from api.limiter import limiter
 from api.orchestrator import DegradationMode, TaskOrchestrator
+from modules.username_check.cache import username_validation_metrics
 from modules.username_check.sources.maigret_db import get_loaded_site_count
 
 router = APIRouter()
@@ -67,9 +68,18 @@ async def health(
     }
     payload["cache"] = cache_payload
     payload["db"] = db.pool_stats()
-    payload["maigret_sites_loaded"] = (
-        get_loaded_site_count(MAIGRET_TOP_N) if MAIGRET_ENABLED else 0
-    )
+    maigret_sites_loaded = get_loaded_site_count(MAIGRET_TOP_N) if MAIGRET_ENABLED else 0
+    payload["maigret_sites_loaded"] = maigret_sites_loaded
+    username_metrics = username_validation_metrics(
+        maigret_sites_loaded=maigret_sites_loaded
+    ).__dict__
+    payload["username_validation"] = username_metrics
+    payload.update({
+        "username_searches_total": username_metrics["username_searches_total"],
+        "baseline_cache_hits": username_metrics["baseline_cache_hits"],
+        "validation_v2_pct": username_metrics["validation_v2_pct"],
+        "confirmed_per_search_avg": username_metrics["confirmed_per_search_avg"],
+    })
 
     # Phase 16 D-19/D-H14: Thordata bandwidth metrics — admin-only
     if maybe_admin is not None:

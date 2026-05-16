@@ -86,6 +86,12 @@ def test_github_real_profile_itemprop():
     assert any(s.hard_positive for s in outcome.signals)
 
 
+def test_github_itemprop_requires_exact_username():
+    body = '<span itemprop="additionalName">malice</span>'
+    outcome = GitHubValidator().validate(_ctx("alice", body))
+    assert outcome.signals == []
+
+
 def test_github_avatar_without_itemprop():
     body = '<img src="https://avatars.githubusercontent.com/u/99999?v=4">'
     outcome = GitHubValidator().validate(_ctx("alice", body))
@@ -116,7 +122,7 @@ def test_instagram_login_redirect_hard_negative():
         )
     )
     assert any(s.name == "instagram_login_wall" for s in outcome.signals)
-    assert any(s.hard_negative for s in outcome.signals)
+    assert not any(s.hard_negative for s in outcome.signals)
     assert "login_required" in outcome.warnings
 
 
@@ -152,6 +158,12 @@ def test_x_og_title_contains_username():
     body = '<meta property="og:title" content="alice (@alice) / X">'
     outcome = XValidator().validate(_ctx("alice", body))
     assert any(s.name == "x_og_title_username" for s in outcome.signals)
+
+
+def test_x_og_title_does_not_match_substring_username():
+    body = '<meta property="og:title" content="Malice (@malice) / X">'
+    outcome = XValidator().validate(_ctx("alice", body))
+    assert outcome.signals == []
 
 
 def test_x_not_found_title_pattern():
@@ -238,6 +250,12 @@ def test_tiktok_og_url_username():
     assert any(s.name == "tiktok_og_url_username" for s in outcome.signals)
 
 
+def test_tiktok_og_url_does_not_match_substring_username():
+    body = '<meta property="og:url" content="https://www.tiktok.com/@malice">'
+    outcome = TikTokValidator().validate(_ctx("alice", body))
+    assert outcome.signals == []
+
+
 # ── YouTube ───────────────────────────────────────────────────────────────────
 
 def test_youtube_not_found():
@@ -259,6 +277,12 @@ def test_youtube_og_url_username():
     assert any(s.name == "youtube_og_url_username" for s in outcome.signals)
 
 
+def test_youtube_og_url_does_not_match_substring_username():
+    body = '<meta property="og:url" content="https://www.youtube.com/@malice">'
+    outcome = YouTubeValidator().validate(_ctx("alice", body))
+    assert outcome.signals == []
+
+
 # ── Medium ────────────────────────────────────────────────────────────────────
 
 def test_medium_not_found():
@@ -278,3 +302,9 @@ def test_medium_og_title_username():
     body = '<meta property="og:title" content="alice – Medium">'
     outcome = MediumValidator().validate(_ctx("alice", body))
     assert any(s.name == "medium_og_title_username" for s in outcome.signals)
+
+
+def test_medium_og_title_does_not_match_substring_username():
+    body = '<meta property="og:title" content="malice – Medium">'
+    outcome = MediumValidator().validate(_ctx("alice", body))
+    assert outcome.signals == []

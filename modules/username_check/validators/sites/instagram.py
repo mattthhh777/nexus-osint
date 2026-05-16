@@ -30,7 +30,7 @@ class InstagramValidator:
 
         if _LOGIN_REDIRECT.search(final_url):
             signals.append(
-                Signal("instagram_login_wall", -60, "login_redirect", hard_negative=True)
+                Signal("instagram_login_wall", 0, "login_redirect")
             )
             warnings.append("login_required")
 
@@ -44,9 +44,8 @@ class InstagramValidator:
                 signals.append(
                     Signal(
                         "instagram_require_login_json",
-                        -60,
+                        0,
                         "requiresLogin_json",
-                        hard_negative=True,
                     )
                 )
                 warnings.append("login_required")

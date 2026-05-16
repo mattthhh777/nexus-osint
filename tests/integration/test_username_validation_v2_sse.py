@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 import api.budget as budget
+from api.cache import InMemoryCacheBackend
 import api.services.search_service as search_service
 from api.db import DatabaseManager
 from api.orchestrator import DegradationMode, TaskOrchestrator
@@ -125,3 +127,40 @@ def test_sherlock_v2_not_emitted_when_flag_disabled(monkeypatch):
 
     assert any(event.get("type") == "sherlock" for event in events)
     assert not any(event.get("type") == "sherlock_v2" for event in events)
+
+
+def test_sherlock_v2_cache_hit_skips_second_runner_call(monkeypatch):
+    import modules.sherlock_wrapper as mw
+    import modules.username_check.cache as username_cache
+
+    monkeypatch.setattr(search_service, "SHERLOCK_VALIDATION_V2", True)
+    monkeypatch.setattr(username_cache, "cache_backend", InMemoryCacheBackend())
+    runner = AsyncMock(return_value=_make_v2_stub())
+    monkeypatch.setattr(mw, "search_username", runner)
+
+    req = SearchRequest(query="alice", mode="manual", modules=["sherlock"])
+    first = asyncio.get_event_loop().run_until_complete(_collect_sse(req))
+    second = asyncio.get_event_loop().run_until_complete(_collect_sse(req))
+
+    assert runner.await_count == 1
+    assert any(event.get("type") == "sherlock_v2" and event.get("cache_hit") is False for event in first)
+    assert any(event.get("type") == "sherlock_v2" and event.get("cache_hit") is True for event in second)
+
+
+def test_sherlock_v2_cache_hit_finishes_under_50ms(monkeypatch):
+    import modules.sherlock_wrapper as mw
+    import modules.username_check.cache as username_cache
+
+    monkeypatch.setattr(search_service, "SHERLOCK_VALIDATION_V2", True)
+    monkeypatch.setattr(username_cache, "cache_backend", InMemoryCacheBackend())
+    monkeypatch.setattr(mw, "search_username", AsyncMock(return_value=_make_v2_stub()))
+
+    req = SearchRequest(query="alice", mode="manual", modules=["sherlock"])
+    asyncio.get_event_loop().run_until_complete(_collect_sse(req))
+
+    started = time.perf_counter()
+    events = asyncio.get_event_loop().run_until_complete(_collect_sse(req))
+    elapsed_ms = (time.perf_counter() - started) * 1000
+
+    assert elapsed_ms < 50
+    assert any(event.get("type") == "sherlock_v2" and event.get("cache_hit") is True for event in events)

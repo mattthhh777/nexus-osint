@@ -123,6 +123,44 @@ async def _set_cached(endpoint: str, query: str, data, **params) -> None:
         await cache_backend.set(endpoint, _cache_query(query, **params), value)
 
 
+def _legacy_sherlock_from_v2(payload: dict) -> dict:
+    platforms = payload.get("platforms") or []
+
+    def _legacy_platform(item: dict) -> dict:
+        status = item.get("validation_status")
+        return {
+            "platform": item.get("platform", ""),
+            "url": item.get("url_original") or item.get("url_final") or "",
+            "category": item.get("category", ""),
+            "icon": item.get("icon", ""),
+            "state": "confirmed" if status == "confirmed" else "likely",
+            "confidence": item.get("confidence_score", 0),
+            **({"reliability": item.get("reliability")} if item.get("reliability") != "normal" else {}),
+        }
+
+    found = [
+        _legacy_platform(item)
+        for item in platforms
+        if isinstance(item, dict) and item.get("validation_status") == "confirmed"
+    ]
+    likely = [
+        _legacy_platform(item)
+        for item in platforms
+        if isinstance(item, dict) and item.get("validation_status") == "likely"
+    ]
+    return {
+        "type": "sherlock",
+        "found_count": int(payload.get("found_count") or len(found)),
+        "likely_count": int(payload.get("likely_count") or len(likely)),
+        "total_checked": int(payload.get("total_checked") or len(platforms)),
+        "source": payload.get("source", "internal"),
+        "proxy_used": bool(payload.get("proxy_used", False)),
+        "found": found,
+        "likely": likely,
+        "cache_hit": True,
+    }
+
+
 async def _save_quota(used: int, left: int, daily_limit: int, db: DatabaseManager) -> None:
     """Save current OathNet quota to DB for admin dashboard."""
     async with db.transaction() as tx:
@@ -501,7 +539,26 @@ async def _stream_search(
             })
         else:
             # Phase 16 D-H12: budget circuit breaker BEFORE outbound work
-            if _budget.is_hard_limit_exceeded():
+            cached_v2 = None
+            if SHERLOCK_VALIDATION_V2:
+                from modules.username_check.cache import get_cached_username_result
+
+                cached_v2 = await get_cached_username_result(uname)
+
+            if cached_v2 is not None:
+                from modules.username_check.audit import log_decision
+                from modules.username_check.cache import record_username_validation
+
+                social_count = int(cached_v2.get("found_count") or 0)
+                record_username_validation(cached_v2, cache_hit=True)
+                log_decision(uname, cached_v2, cache_hit=True)
+                yield event(_legacy_sherlock_from_v2(cached_v2))
+                yield event({
+                    "type": "sherlock_v2",
+                    **cached_v2,
+                    "cache_hit": True,
+                })
+            elif _budget.is_hard_limit_exceeded():
                 yield event({
                     "type": "module_error",
                     "module": "sherlock",
@@ -548,12 +605,22 @@ async def _stream_search(
                             "likely": [_serialize_platform(p) for p in sherl.likely],
                         })
                         if SHERLOCK_VALIDATION_V2:
+                            from modules.username_check.audit import log_decision
+                            from modules.username_check.cache import (
+                                record_username_validation,
+                                set_cached_username_result,
+                            )
+
                             v2_payload = SherlockUsernameResponse(
                                 **normalize_result(uname, sherl)
                             ).model_dump(mode="json")
+                            await set_cached_username_result(uname, v2_payload)
+                            record_username_validation(v2_payload, cache_hit=False)
+                            log_decision(uname, v2_payload, cache_hit=False)
                             yield event({
                                 "type": "sherlock_v2",
                                 **v2_payload,
+                                "cache_hit": False,
                             })
                 except (ValueError, KeyError, TypeError) as exc:
                     logger.error("Sherlock failed: %s", exc)

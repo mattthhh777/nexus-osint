@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 
 from modules.username_check.validators.base import Signal, ValidationContext, ValidationOutcome
+from modules.username_check.validators.sites.matching import username_exact
 
 _PARSE_CAP = 100_000
 
@@ -23,7 +24,6 @@ class GitHubValidator:
 
     def validate(self, ctx: ValidationContext) -> ValidationOutcome:
         body = ctx.body_text[:_PARSE_CAP]
-        username_lower = ctx.username.lower()
         signals: list[Signal] = []
 
         if _NOT_FOUND_TITLE.search(body):
@@ -33,7 +33,7 @@ class GitHubValidator:
             return ValidationOutcome(self.name, signals, [])
 
         match = _ADDITIONAL_NAME.search(body)
-        if match and username_lower in match.group(1).strip().lower():
+        if match and username_exact(match.group(1), ctx.username):
             signals.append(
                 Signal(
                     "github_username_itemprop",

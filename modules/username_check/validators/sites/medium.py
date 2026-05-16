@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 
 from modules.username_check.validators.base import Signal, ValidationContext, ValidationOutcome
+from modules.username_check.validators.sites.matching import username_token_present
 
 _PARSE_CAP = 50_000
 
@@ -23,7 +24,6 @@ class MediumValidator:
 
     def validate(self, ctx: ValidationContext) -> ValidationOutcome:
         body = ctx.body_text[:_PARSE_CAP]
-        username_lower = ctx.username.lower()
         signals: list[Signal] = []
 
         if _NOT_FOUND.search(body):
@@ -33,7 +33,7 @@ class MediumValidator:
             return ValidationOutcome(self.name, signals, [])
 
         og_match = _OG_TITLE.search(body)
-        if og_match and username_lower in og_match.group(1).lower():
+        if og_match and username_token_present(og_match.group(1), ctx.username):
             signals.append(Signal("medium_og_title_username", 15, "og:title"))
 
         return ValidationOutcome(self.name, signals, [])
