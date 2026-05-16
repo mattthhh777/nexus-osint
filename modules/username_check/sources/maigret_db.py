@@ -97,8 +97,6 @@ def _reliability(name: str, tags: list[str], protection: list[str]) -> str:
     lowered = name.lower()
     if lowered in _LOW_RELIABILITY_NAMES or protection:
         return "low"
-    if "social" in {tag.lower() for tag in tags} and lowered in _LOW_RELIABILITY_NAMES:
-        return "low"
     return "normal"
 
 
