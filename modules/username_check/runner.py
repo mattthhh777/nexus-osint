@@ -30,6 +30,8 @@ import random
 import httpx
 
 from api.config import (
+    MAIGRET_ENABLED,
+    MAIGRET_TOP_N,
     SHERLOCK_CONFIRMED_THRESHOLD,
     SHERLOCK_LIKELY_THRESHOLD,
     THORDATA_PER_SEARCH_CAP_BYTES,
@@ -40,6 +42,7 @@ import modules.username_check.budget as _budget
 from modules.username_check.baseline import get_baseline
 from modules.username_check.fetcher import FetchResult
 from modules.username_check.scoring import ScoredResult, combine_outcomes
+from modules.username_check.sources.maigret_db import load_top_n_sites
 
 logger = logging.getLogger("nexusosint.sherlock")
 
@@ -71,6 +74,8 @@ from modules.username_check.validators import (
 
 from modules.username_check.sources.sherlock_curated import PLATFORMS
 
+_MAX_PLATFORM_CONCURRENCY = 10
+
 _UA_POOL = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
@@ -95,12 +100,36 @@ HEADERS = _get_headers()
 CONNECT_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 
 
+def _canonical_domain(url: str) -> str:
+    host = urllib.parse.urlparse(url).hostname or ""
+    return host.removeprefix("www.").lower()
+
+
+def _candidate_platforms() -> list[dict]:
+    candidates = list(PLATFORMS)
+    if not MAIGRET_ENABLED:
+        return candidates
+
+    seen_domains = {
+        _canonical_domain(str(platform.get("url", "")))
+        for platform in candidates
+    }
+    for platform in load_top_n_sites(MAIGRET_TOP_N):
+        domain = _canonical_domain(str(platform.get("url", "")))
+        if not domain or domain in seen_domains:
+            continue
+        candidates.append(platform)
+        seen_domains.add(domain)
+    return candidates
+
+
 # â”€â”€ Result models â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @dataclass
 class PlatformResult:
     platform: str = ""
     url: str = ""
+    source: str = "sherlock"
     found: bool = False           # True iff state != "not_found" (backward compat)
     category: str = ""
     icon: str = ""
@@ -214,6 +243,7 @@ async def _check_platform(
     result = PlatformResult(
         platform=platform["name"],
         url=url,
+        source=platform.get("source", "sherlock"),
         category=platform.get("category", ""),
         icon=platform.get("icon", ""),
         reliability=platform.get("reliability", "normal"),
@@ -326,6 +356,7 @@ async def _check_platform_with_retry(
             failed = PlatformResult(
                 platform=platform["name"],
                 url=platform["url"].format(username=username),
+                source=platform.get("source", "sherlock"),
                 category=platform.get("category", ""),
                 icon=platform.get("icon", ""),
                 error="proxy_unavailable",
@@ -430,6 +461,8 @@ async def search_username(
     use_proxy = bool(THORDATA_PROXY_URL and _budget._proxy_active)
 
     per_search_counter: dict = {"bytes": 0}
+    candidates = _candidate_platforms()
+    semaphore = asyncio.Semaphore(_MAX_PLATFORM_CONCURRENCY)
 
     if use_proxy:
         primary_url = _build_sticky_url(THORDATA_PROXY_URL, search_id)
@@ -439,19 +472,33 @@ async def search_username(
 
         async with httpx.AsyncClient(**primary_kwargs) as primary_client, \
                    httpx.AsyncClient(**rotate_kwargs) as rotate_client:
+
+            async def run_with_limit(platform: dict) -> PlatformResult:
+                async with semaphore:
+                    return await _check_platform_with_retry(
+                        primary_client,
+                        rotate_client,
+                        username,
+                        platform,
+                        per_search_counter,
+                    )
+
             tasks = [
-                _check_platform_with_retry(
-                    primary_client, rotate_client, username, p, per_search_counter
-                )
-                for p in PLATFORMS
+                run_with_limit(p)
+                for p in candidates
             ]
             platform_results = await asyncio.gather(*tasks)
     else:
         direct_kwargs = _build_client_kwargs(None)
         async with httpx.AsyncClient(**direct_kwargs) as client:
+
+            async def run_with_limit(platform: dict) -> PlatformResult:
+                async with semaphore:
+                    return await _check_platform(client, username, platform, per_search_counter)
+
             tasks = [
-                _check_platform(client, username, p, per_search_counter)
-                for p in PLATFORMS
+                run_with_limit(p)
+                for p in candidates
             ]
             platform_results = await asyncio.gather(*tasks)
 

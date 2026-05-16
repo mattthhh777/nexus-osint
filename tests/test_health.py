@@ -58,6 +58,7 @@ async def test_public_health_hides_internal_state(monkeypatch):
 @pytest.mark.asyncio
 async def test_admin_health_contains_cache_backend_and_legacy_entries(monkeypatch):
     monkeypatch.setattr(health_route, "cache_backend", FakeCacheBackend())
+    monkeypatch.setattr(health_route, "get_loaded_site_count", lambda n: 500)
 
     payload = await health_route.health.__wrapped__(
         request=None,
@@ -70,6 +71,7 @@ async def test_admin_health_contains_cache_backend_and_legacy_entries(monkeypatc
     assert payload["cache"]["reachable"] is True
     assert payload["cache_entries"] == 3
     assert payload["db"]["idle_size"] == 1
+    assert payload["maigret_sites_loaded"] == 500
 
 
 def test_health_route_no_longer_imports_search_service():

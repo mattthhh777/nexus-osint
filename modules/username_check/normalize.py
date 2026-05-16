@@ -22,7 +22,7 @@ def normalize_platform(
 ) -> dict:
     fetch_result = platform._fetch_result
     return {
-        "source": "sherlock",
+        "source": platform.source,
         "username": username,
         "platform": platform.platform,
         "category": platform.category,
