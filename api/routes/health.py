@@ -9,11 +9,12 @@ from fastapi import APIRouter, Depends, Request
 
 import api.budget as _budget
 from api.cache import cache_backend
-from api.config import AUDIT_DB, RL_ADMIN_LIMIT, RL_READ_LIMIT
+from api.config import AUDIT_DB, MAIGRET_ENABLED, MAIGRET_TOP_N, RL_ADMIN_LIMIT, RL_READ_LIMIT
 from api.deps import get_admin_user, get_db, get_optional_admin_user, get_orchestrator_dep
 from api.db import DatabaseManager
 from api.limiter import limiter
 from api.orchestrator import DegradationMode, TaskOrchestrator
+from modules.username_check.sources.maigret_db import get_loaded_site_count
 
 router = APIRouter()
 
@@ -66,6 +67,9 @@ async def health(
     }
     payload["cache"] = cache_payload
     payload["db"] = db.pool_stats()
+    payload["maigret_sites_loaded"] = (
+        get_loaded_site_count(MAIGRET_TOP_N) if MAIGRET_ENABLED else 0
+    )
 
     # Phase 16 D-19/D-H14: Thordata bandwidth metrics — admin-only
     if maybe_admin is not None:

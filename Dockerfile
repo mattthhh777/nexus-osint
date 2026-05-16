@@ -5,6 +5,9 @@ WORKDIR /build
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+# Maigret F: metadata-only import (`maigret.sites`). No report/search deps,
+# no cairo/pycairo.
+RUN pip install --no-cache-dir --prefix=/install maigret==0.6.0 --no-deps
 RUN rm -rf /install/lib/python*/site-packages/pip* \
     /install/lib/python*/site-packages/setuptools* \
     /install/lib/python*/site-packages/wheel* \
@@ -16,8 +19,6 @@ RUN rm -rf /install/lib/python*/site-packages/pip* \
 FROM python:3.12-slim AS runtime
 
 WORKDIR /app
-
-RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -r -u 1000 -g root -s /sbin/nologin appuser
 

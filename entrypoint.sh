@@ -2,19 +2,50 @@
 set -e
 
 if [ -n "${DATABASE_URL:-}" ]; then
-    LOCK_ID=8765432100
-    TIMEOUT_S=30
-    START=$(date +%s)
-    while true; do
-        GOT=$(psql "$DATABASE_URL" -tAc "SELECT pg_try_advisory_lock($LOCK_ID)")
-        [ "$GOT" = "t" ] && break
-        [ $(($(date +%s) - START)) -ge $TIMEOUT_S ] && { echo "alembic lock timeout after ${TIMEOUT_S}s — another container may be wedged"; exit 1; }
-        sleep 1
-    done
-    alembic upgrade head
-    RC=$?
-    psql "$DATABASE_URL" -tAc "SELECT pg_advisory_unlock($LOCK_ID)" >/dev/null
-    exit $RC
+    python3 - <<'PY'
+import asyncio
+import os
+import subprocess
+import sys
+import time
+
+import asyncpg
+
+LOCK_ID = 8765432100
+TIMEOUT_S = 30
+
+
+async def main() -> int:
+    db_url = os.environ["DATABASE_URL"]
+    lock_url = db_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+    conn = await asyncpg.connect(lock_url, command_timeout=30)
+    locked = False
+    try:
+        deadline = time.monotonic() + TIMEOUT_S
+        while True:
+            locked = bool(await conn.fetchval("SELECT pg_try_advisory_lock($1)", LOCK_ID))
+            if locked:
+                break
+            if time.monotonic() >= deadline:
+                print(
+                    f"alembic lock timeout after {TIMEOUT_S}s - another container may be wedged",
+                    file=sys.stderr,
+                )
+                return 1
+            await asyncio.sleep(1)
+
+        return subprocess.run(["alembic", "upgrade", "head"], check=False).returncode
+    finally:
+        if locked:
+            try:
+                await conn.execute("SELECT pg_advisory_unlock($1)", LOCK_ID)
+            except asyncpg.PostgresError as exc:
+                print(f"alembic advisory unlock failed: {type(exc).__name__}", file=sys.stderr)
+        await conn.close()
+
+
+sys.exit(asyncio.run(main()))
+PY
 fi
 
 # Fix data dir ownership at runtime (volume mounts may reset it).
