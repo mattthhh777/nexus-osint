@@ -42,6 +42,12 @@ logs/
 # NexusOSINT exports
 nexus_*.json
 
+# Playwright / Node local artifacts
+node_modules/
+test-results/
+playwright-report/
+tests/e2e/.report/
+
 # SQLite runtime files
 nexus_osint.db
 nexus_osint.db-shm

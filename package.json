@@ -1,0 +1,16 @@
+{
+  "name": "nexus-osint-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Playwright end-to-end + security smoke tests for NexusOSINT.",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:auth": "playwright test tests/e2e/auth.spec.ts",
+    "test:e2e:security": "playwright test tests/e2e/security-smoke.spec.ts",
+    "test:e2e:install": "playwright install --with-deps chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.47.0"
+  }
+}

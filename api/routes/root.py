@@ -1,10 +1,10 @@
 """Root + admin-panel HTML pages."""
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from api.deps import _decode_token
+from api.deps import get_optional_admin_user
 
 router = APIRouter()
 
@@ -19,19 +19,12 @@ async def root():
 
 
 @router.get("/admin", response_class=HTMLResponse)
-async def admin_panel(request: Request):
+async def admin_panel(maybe_admin: dict | None = Depends(get_optional_admin_user)):
     """Admin panel is served only to a valid admin cookie session."""
-    token = request.cookies.get("nx_session")
-
-    if token:
-        try:
-            payload = _decode_token(token)
-            if payload.get("role") == "admin":
-                admin_file = Path(__file__).parent.parent.parent / "static" / "admin.html"
-                if admin_file.exists():
-                    return HTMLResponse(admin_file.read_text(encoding="utf-8"))
-                return HTMLResponse("<h1>Admin panel not found</h1>", status_code=404)
-        except HTTPException:
-            pass
+    if maybe_admin is not None:
+        admin_file = Path(__file__).parent.parent.parent / "static" / "admin.html"
+        if admin_file.exists():
+            return HTMLResponse(admin_file.read_text(encoding="utf-8"))
+        return HTMLResponse("<h1>Admin panel not found</h1>", status_code=404)
 
     return RedirectResponse("/", status_code=303)
