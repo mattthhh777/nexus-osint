@@ -22,6 +22,7 @@ import re
 import secrets
 import subprocess
 import urllib.parse
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -122,6 +123,22 @@ def _candidate_platforms() -> list[dict]:
         candidates.append(platform)
         seen_domains.add(domain)
     return candidates
+
+
+def _filter_candidate_platforms(
+    candidates: list[dict],
+    platform_names: Sequence[str] | None,
+) -> list[dict]:
+    if platform_names is None:
+        return candidates
+    requested = {str(name).strip().casefold() for name in platform_names if str(name).strip()}
+    if not requested:
+        return []
+    return [
+        platform
+        for platform in candidates
+        if str(platform.get("name", "")).casefold() in requested
+    ]
 
 
 # â”€â”€ Result models â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -435,14 +452,16 @@ async def search_username(
     username: str,
     prefer_cli: bool = False,
     timeout_per: int = 10,
+    platforms: Sequence[str] | None = None,
 ) -> SherlockResult:
     """
-    Main entry point (async). Public signature unchanged (timeout_per added, default safe).
+    Main entry point (async). Public signature remains backward compatible.
     - If prefer_cli=True: tries Sherlock CLI first (via to_thread â€” subprocess is blocking).
       Falls back to internal async engine if CLI is not found OR returns 0 results.
     - Always runs internal async engine if CLI is unavailable/finds nothing.
     - Routes outbound traffic through Thordata when THORDATA_PROXY_URL is set
       and _budget._proxy_active is True (set by lifespan health check D-07).
+    - `platforms` optionally constrains internal checks to named curated sites.
 
     Caller is responsible for username validation (D-H8/D-H9 â€” Plan 03 routes layer).
     Pre-validated username accepted; never echoed in error messages.
@@ -462,7 +481,7 @@ async def search_username(
     use_proxy = bool(THORDATA_PROXY_URL and _budget._proxy_active)
 
     per_search_counter: dict = {"bytes": 0}
-    candidates = _candidate_platforms()
+    candidates = _filter_candidate_platforms(_candidate_platforms(), platforms)
     semaphore = asyncio.Semaphore(_MAX_PLATFORM_CONCURRENCY)
 
     if use_proxy:
