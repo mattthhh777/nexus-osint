@@ -1,0 +1,84 @@
+/* Graphite & Ember tokens.
+   Opt-in only: loaded by static/js/theme-flag.js and scoped to <html class="nx-v2">.
+   Meridian/Amber tokens remain untouched. */
+:root.nx-v2 {
+  /* Surfaces - Graphite scale */
+  --surface-0: #11141a;
+  --surface-1: #161a22;
+  --surface-2: #1d2230;
+  --surface-3: #242a3a;
+  --surface-glass: rgba(22, 26, 34, 0.92);
+
+  /* Borders */
+  --border-1: rgba(255, 255, 255, 0.05);
+  --border-2: rgba(255, 255, 255, 0.09);
+  --border-3: rgba(255, 255, 255, 0.15);
+
+  /* Text */
+  --text-1: #e8ecf3;
+  --text-2: #9ba3b5;
+  --text-3: #5d6478;
+  --text-disabled: #353a4a;
+
+  /* Accent - Ember */
+  --accent: #c4451d;
+  --accent-hover: #d75432;
+  --accent-muted: rgba(196, 69, 29, 0.14);
+  --accent-border: rgba(196, 69, 29, 0.32);
+  --accent-glow: rgba(196, 69, 29, 0.18);
+
+  /* Confidence */
+  --conf-high: #6ba368;
+  --conf-med: #c19443;
+  --conf-low: #8b6a5e;
+  --conf-none: #5d6478;
+
+  /* Unified 8-state status */
+  --status-found: #6ba368;
+  --status-likely: #c19443;
+  --status-uncertain: #b7884a;
+  --status-not-found: #5d6478;
+  --status-blocked: #8b6a5e;
+  --status-error: #c4451d;
+
+  /* Risk */
+  --risk-crit: #b8332b;
+  --risk-high: #c4451d;
+  --risk-med: #c19443;
+  --risk-low: #5d6478;
+
+  /* Typography */
+  --font-display: 'Inter Display', 'Inter', system-ui, sans-serif;
+  --font-data: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+  --font-body: 'Inter', system-ui, sans-serif;
+
+  /* Scale (base 14, ratio 1.125) */
+  --text-2xs: 0.6875rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-md: 0.875rem;
+  --text-lg: 1rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.625rem;
+  --text-3xl: 2.25rem;
+
+  /* Spacing (8px base maintained from Meridian) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+
+  /* Radius */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-pill: 999px;
+
+  /* Shadows */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
