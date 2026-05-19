@@ -71,6 +71,7 @@ registerAction('rerun-search',       function (el, ds) { rerunSearch(ds.query); 
 registerAction('load-case',          function (el, ds) { loadCase(ds.id); });
 registerAction('delete-case',        function (el, ds) { deleteCase(ds.id); });
 registerAction('clear-all-cases',    function () { clearAllCases(); });
+registerAction('export-case-pdf',    function (el, ds) { exportCasePDF(ds.id); });
 
 // ── Summary Hero — stat card jump (Phase 17) ──────────
 registerAction('jump-to-panel',      function (el, ds) {
