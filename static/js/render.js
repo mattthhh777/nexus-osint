@@ -235,6 +235,37 @@ function renderResults() {
   document.getElementById('results').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
+function renderConnectorCardList(el, results, emptyText) {
+  el.replaceChildren();
+
+  if (!results || results.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'nx-connector-empty';
+    empty.textContent = emptyText || 'No connector results available.';
+    el.appendChild(empty);
+    return;
+  }
+
+  const grid = document.createElement('div');
+  grid.className = 'nx-connector-grid';
+  results.forEach(result => {
+    grid.appendChild(createConnectorCard({ result }));
+  });
+  el.appendChild(grid);
+}
+
+function connectorResultsByPrefix(prefix, fallbackEvent) {
+  let results = (currentResult.connectorResults || [])
+    .filter(result => result.connector && result.connector.indexOf(prefix) === 0);
+
+  if (results.length === 0 && window.adaptLegacyEvent && fallbackEvent) {
+    const adapted = window.adaptLegacyEvent(fallbackEvent);
+    results = Array.isArray(adapted) ? adapted : (adapted ? [adapted] : []);
+  }
+
+  return results;
+}
+
 // ── Breach severity helper ───────────────────────────
 function breachSeverity(b) {
   if (b.password && b.password !== '─' && b.password !== '') return 'critical';
@@ -506,6 +537,24 @@ function renderSocial(s) {
   const el    = document.getElementById('socialBody');
   const badge = document.getElementById('socialBadge');
   const panel = document.getElementById('panelSocial');
+
+  if (window.NX_V2 && typeof createConnectorCard === 'function') {
+    const connectorResults = connectorResultsByPrefix('sherlock:', s);
+    const foundCount = connectorResults.filter(result => result.status === 'found').length;
+
+    if (!s && connectorResults.length === 0) {
+      if (panel) panel.style.display = 'none';
+      badge.textContent = '0';
+      renderConnectorCardList(el, [], 'No profiles found.');
+      return;
+    }
+
+    if (panel) panel.style.display = '';
+    badge.textContent = String(foundCount);
+    renderConnectorCardList(el, connectorResults, 'No profiles found.');
+    return;
+  }
+
   const isV2  = Array.isArray(s?.platforms);
 
   if (isV2) {

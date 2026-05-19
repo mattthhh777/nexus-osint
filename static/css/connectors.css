@@ -68,6 +68,21 @@
   width: 180px;
 }
 
+.nx-v2 .nx-connector-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.nx-v2 .nx-connector-empty {
+  padding: 14px;
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  background: var(--surface-1);
+  font: 500 var(--text-sm) / 1.4 var(--font-body);
+}
+
 .nx-v2 .nx-status-pill {
   display: inline-flex;
   align-items: center;

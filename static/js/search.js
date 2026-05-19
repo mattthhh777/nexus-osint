@@ -96,6 +96,8 @@ async function startSearch() {
 }
 
 function handleEvent(evt) {
+  collectLegacyConnectorResults(evt);
+
   switch(evt.type) {
     case 'start':
       modulesRan = new Set();
@@ -182,5 +184,25 @@ function handleEvent(evt) {
         saveHistory();
       }, 600);
       break;
+  }
+}
+
+function collectLegacyConnectorResults(evt) {
+  if (!window.NX_V2 || typeof window.adaptLegacyEvent !== 'function' || !currentResult) return;
+
+  try {
+    const adapted = window.adaptLegacyEvent(evt);
+    if (!adapted) return;
+
+    const list = Array.isArray(adapted) ? adapted : [adapted];
+    if (!currentResult.connectorResultsByName) currentResult.connectorResultsByName = {};
+
+    list.forEach(result => {
+      if (!result || !result.connector) return;
+      currentResult.connectorResultsByName[result.connector] = result;
+    });
+    currentResult.connectorResults = Object.values(currentResult.connectorResultsByName);
+  } catch (err) {
+    // Adapter failure must not break the legacy search flow.
   }
 }
