@@ -18,6 +18,27 @@ OWNER_KEY_HASH_COMMENT = (
 )
 SAFE_OWNER_HASH = "a" * 64
 SAFE_TARGET_HASH = "abcdef012345"
+SENSITIVE_PAYLOAD_KEYS = (
+    "headers",
+    "body",
+    "request_headers",
+    "response_headers",
+    "request_body",
+    "response_body",
+    "cookies",
+    "cookie",
+    "authorization",
+    "auth",
+    "bearer",
+    "token",
+    "secret",
+    "api_key",
+    "password",
+    "credential",
+    "credentials",
+    "session",
+    "set_cookie",
+)
 
 
 def _migration_text() -> str:
@@ -75,6 +96,8 @@ def test_migration_documents_g1_hash_only_ttl_and_pii_gates() -> None:
     assert "ck_search_events_payload_no_sensitive_keys" in text
     assert "ck_search_events_payload_no_raw_pii" in text
     assert "ck_search_events_payload_target_hash" in text
+    for key in SENSITIVE_PAYLOAD_KEYS:
+        assert f"$.**.{key}" in text
 
 
 @pytest.mark.asyncio
@@ -192,6 +215,27 @@ async def test_search_events_reject_raw_pii_payloads(
             "target_hash": SAFE_TARGET_HASH,
             "raw_url": "https://example.test/u/analyst@example.test",
         },
+    ]
+
+    for seq, payload in enumerate(bad_payloads, start=1):
+        with pytest.raises(DatabaseError):
+            await tmp_db.execute(
+                """
+                INSERT INTO search_events (job_id, seq, event_type, payload)
+                VALUES ($1::uuid, $2, 'connector_result', $3::jsonb)
+                """,
+                (job_id, seq, json.dumps(payload)),
+            )
+
+
+@pytest.mark.asyncio
+async def test_search_events_reject_sensitive_transport_and_secret_keys(
+    tmp_db: DatabaseManager,
+) -> None:
+    job_id = await _insert_job(tmp_db)
+    bad_payloads = [
+        {"target_hash": SAFE_TARGET_HASH, key: "redacted-but-still-forbidden"}
+        for key in SENSITIVE_PAYLOAD_KEYS
     ]
 
     for seq, payload in enumerate(bad_payloads, start=1):
