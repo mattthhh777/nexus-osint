@@ -29,6 +29,6 @@ Scope:
 - Benign validation failures only. No brute force, DoS, destructive payloads, or
   third-party target testing.
 
-The security smoke suite sends at most five `/api/auth` probes for rate-limit
-behavior. If the site is already rate-limited from prior manual testing, wait
-for `Retry-After` before rerunning.
+The security smoke suite sends one `/api/auth` probe and accepts `429` when the
+site is already rate-limited from prior manual testing. Wait for `Retry-After`
+before rerunning if you need a clean non-rate-limited result.

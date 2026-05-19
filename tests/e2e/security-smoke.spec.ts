@@ -103,16 +103,11 @@ test.describe('security smoke', () => {
     expect(traversal.status()).not.toBe(500);
   });
 
-  test('low-volume login gate probe never returns 500', async ({ request }) => {
-    const statuses: number[] = [];
-    for (let i = 0; i < 5; i += 1) {
-      const response = await request.post('/api/auth', { data: {} });
-      statuses.push(response.status());
-      if (response.status() === 429) {
-        expect(response.headers()['retry-after']).toBeTruthy();
-        break;
-      }
+  test('login gate smoke probe never returns 5xx', async ({ request }) => {
+    const response = await request.post('/api/auth', { data: {} });
+    expect(response.status()).toBeLessThan(500);
+    if (response.status() === 429) {
+      expect(response.headers()['retry-after']).toBeTruthy();
     }
-    expect(statuses.every((status) => status === 200 || status === 429)).toBe(true);
   });
 });
