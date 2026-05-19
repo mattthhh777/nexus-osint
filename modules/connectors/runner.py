@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import logging
 import re
 import time
@@ -28,6 +29,7 @@ from modules.username_check.rate_limit import OutboundRateLimiter
 logger = logging.getLogger("nexusosint.connectors.runner")
 
 _REDACTED = "[redacted]"
+_CACHE_SCHEMA_VERSION = 1
 _CACHEABLE_STATUSES = {
     ConnectorStatus.FOUND,
     ConnectorStatus.LIKELY,
@@ -39,6 +41,7 @@ _HASH_PATTERN = re.compile(r"^[0-9a-f]{12,64}$")
 _EMAIL_PATTERN = re.compile(r"[\w.+\-]+@[\w\-]+(?:\.[\w\-]+)+", re.I)
 _PHONE_PATTERN = re.compile(r"\+?\d[\d\s().\-]{6,}\d")
 _URL_PATTERN = re.compile(r"https?://\S+", re.I)
+_CPF_PATTERN = re.compile(r"\b\d{3}\.\d{3}\.\d{3}-\d{2}\b")
 _SENSITIVE_KEYS = {
     "email",
     "phone",
@@ -56,7 +59,6 @@ _SAFE_DATA_KEYS = {
     "platform",
     "source",
     "tags",
-    "target_hash",
 }
 _limiter = OutboundRateLimiter(calls_per_second=2.0)
 _limiters_by_cps: dict[float, OutboundRateLimiter] = {}
@@ -86,7 +88,12 @@ async def run_connector(
     safe_target_hash = _safe_target_hash(req)
     cache_endpoint, cache_query = _cache_parts(connector, req, safe_target_hash)
 
-    cached = await _get_cached_result(cache_endpoint, cache_query, connector.name)
+    cached = await _get_cached_result(
+        cache_endpoint,
+        cache_query,
+        connector.name,
+        safe_target_hash,
+    )
     if cached is not None:
         cached.cache_hit = True
         logger.info(
@@ -148,6 +155,20 @@ async def run_connector(
             type(exc).__name__,
             started,
         )
+    except httpx.HTTPError as exc:
+        logger.warning(
+            "connector http error | connector=%s target_hash=%s type=%s",
+            connector.name,
+            safe_target_hash,
+            type(exc).__name__,
+        )
+        return _error_result(
+            connector,
+            req,
+            ConnectorStatus.ERROR,
+            "connector_http_error",
+            started,
+        )
     except (
         ValidationError,
         RuntimeError,
@@ -183,10 +204,16 @@ async def run_connector(
     )
 
     if result.status in _CACHEABLE_STATUSES:
+        sanitized_payload = _sanitize_result_for_cache(
+            result,
+            safe_target_hash,
+            req.target_value,
+        )
+        envelope = _wrap_cache_envelope(sanitized_payload)
         await _set_cached_result(
             cache_endpoint,
             cache_query,
-            _sanitize_result_for_cache(result, safe_target_hash, req.target_value),
+            envelope,
             cache_ttl_s,
             connector.name,
         )
@@ -208,6 +235,7 @@ async def _get_cached_result(
     endpoint: str,
     query: str,
     connector_name: str,
+    safe_target_hash: str,
 ) -> ConnectorResult | None:
     try:
         cached = await cache_backend.get(endpoint, query)
@@ -221,8 +249,8 @@ async def _get_cached_result(
     if cached is None:
         return None
     try:
-        return _result_from_cache(cached)
-    except (ValidationError, ValueError, TypeError) as exc:
+        return _result_from_cache(cached, safe_target_hash)
+    except (ValidationError, ValueError, TypeError, json.JSONDecodeError) as exc:
         logger.warning(
             "connector cache parse failed | connector=%s type=%s",
             connector_name,
@@ -253,12 +281,48 @@ async def _set_cached_result(
         )
 
 
-def _result_from_cache(cached: Any) -> ConnectorResult:
+def _wrap_cache_envelope(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "schema_version": _CACHE_SCHEMA_VERSION,
+        "sanitized": True,
+        "payload": payload,
+    }
+
+
+def _result_from_cache(cached: Any, safe_target_hash: str) -> ConnectorResult:
     if isinstance(cached, str):
-        return ConnectorResult.model_validate_json(cached)
-    if isinstance(cached, dict):
-        return ConnectorResult.model_validate(cached)
-    raise TypeError("unsupported connector cache payload")
+        cached = json.loads(cached)
+    if not isinstance(cached, dict):
+        raise TypeError("unsupported connector cache payload")
+    if cached.get("schema_version") != _CACHE_SCHEMA_VERSION:
+        raise ValueError("legacy connector cache payload rejected")
+    if not cached.get("sanitized"):
+        raise ValueError("unsanitized connector cache payload rejected")
+    payload = cached.get("payload")
+    if not isinstance(payload, dict):
+        raise TypeError("missing connector cache payload")
+    resanitized = _resanitize_cached_payload(payload, safe_target_hash)
+    return ConnectorResult.model_validate(resanitized)
+
+
+def _resanitize_cached_payload(
+    payload: dict[str, Any],
+    safe_target_hash: str,
+) -> dict[str, Any]:
+    sanitized = dict(payload)
+    sanitized["raw_url"] = _sanitize_url(payload.get("raw_url"), "")
+    sanitized["warnings"] = [
+        _sanitize_text(str(warning), "")
+        for warning in (payload.get("warnings") or [])
+    ]
+    sanitized["evidence"] = [
+        _sanitize_evidence(item, "")
+        for item in (payload.get("evidence") or [])
+        if isinstance(item, dict)
+    ]
+    sanitized["data"] = _sanitize_data(payload.get("data"), safe_target_hash, "")
+    sanitized["cache_hit"] = False
+    return sanitized
 
 
 def _timeout_s(connector: Connector, req: ConnectorRequest) -> int:
@@ -334,11 +398,15 @@ def _sanitize_data(
     safe_target_hash: str,
     target_value: str,
 ) -> dict[str, Any]:
-    if not isinstance(value, dict):
-        return {"target_hash": safe_target_hash}
     sanitized: dict[str, Any] = {"target_hash": safe_target_hash}
+    if not isinstance(value, dict):
+        return sanitized
     for key, item in value.items():
         normalized_key = str(key).lower()
+        # Canonical target_hash is set by the runner. A connector or cached
+        # payload MUST NOT override it.
+        if normalized_key == "target_hash":
+            continue
         if normalized_key in _SENSITIVE_KEYS:
             continue
         if normalized_key not in _SAFE_DATA_KEYS:
@@ -376,6 +444,7 @@ def _sanitize_text(value: str, target_value: str) -> str:
     if raw_target:
         redacted = re.sub(re.escape(raw_target), _REDACTED, redacted, flags=re.I)
     redacted = _EMAIL_PATTERN.sub(_REDACTED, redacted)
+    redacted = _CPF_PATTERN.sub(_REDACTED, redacted)
     redacted = _PHONE_PATTERN.sub(_REDACTED, redacted)
     redacted = _URL_PATTERN.sub(_REDACTED, redacted)
     return redacted
@@ -387,7 +456,7 @@ def _contains_sensitive_text(value: str, target_value: str) -> bool:
         return True
     return any(
         pattern.search(value)
-        for pattern in (_EMAIL_PATTERN, _PHONE_PATTERN, _URL_PATTERN)
+        for pattern in (_EMAIL_PATTERN, _CPF_PATTERN, _PHONE_PATTERN, _URL_PATTERN)
     )
 
 
