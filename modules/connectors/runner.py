@@ -249,7 +249,7 @@ async def _get_cached_result(
     if cached is None:
         return None
     try:
-        return _result_from_cache(cached, safe_target_hash)
+        return _result_from_cache(cached, connector_name, safe_target_hash)
     except (ValidationError, ValueError, TypeError, json.JSONDecodeError) as exc:
         logger.warning(
             "connector cache parse failed | connector=%s type=%s",
@@ -289,7 +289,11 @@ def _wrap_cache_envelope(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _result_from_cache(cached: Any, safe_target_hash: str) -> ConnectorResult:
+def _result_from_cache(
+    cached: Any,
+    connector_name: str,
+    safe_target_hash: str,
+) -> ConnectorResult:
     if isinstance(cached, str):
         cached = json.loads(cached)
     if not isinstance(cached, dict):
@@ -301,15 +305,60 @@ def _result_from_cache(cached: Any, safe_target_hash: str) -> ConnectorResult:
     payload = cached.get("payload")
     if not isinstance(payload, dict):
         raise TypeError("missing connector cache payload")
-    resanitized = _resanitize_cached_payload(payload, safe_target_hash)
+    if _cached_payload_has_residual_pii(payload):
+        # Sanitized envelope MUST NOT carry detectable PII patterns. If any
+        # string field still matches email/CPF/phone/URL, treat the entry as
+        # poisoned/stale and reject as cache miss.
+        raise ValueError("connector cache payload contains residual PII")
+    resanitized = _resanitize_cached_payload(payload, connector_name, safe_target_hash)
     return ConnectorResult.model_validate(resanitized)
+
+
+def _cached_payload_has_residual_pii(payload: dict[str, Any]) -> bool:
+    """Scan surviving string fields of a cached payload for PII patterns.
+
+    Returns True when any field contains an email, CPF, phone, or URL match.
+    A correctly written sanitized envelope must never contain those patterns;
+    presence indicates poisoning, stale data, or a sanitizer bug — reject.
+    """
+    haystacks: list[str] = []
+    connector_field = payload.get("connector")
+    if isinstance(connector_field, str):
+        haystacks.append(connector_field)
+    raw_url = payload.get("raw_url")
+    if isinstance(raw_url, str):
+        haystacks.append(raw_url)
+    for warning in payload.get("warnings") or []:
+        haystacks.append(str(warning))
+    for item in payload.get("evidence") or []:
+        if isinstance(item, dict):
+            haystacks.append(str(item.get("signal") or ""))
+            haystacks.append(str(item.get("detail") or ""))
+    data = payload.get("data")
+    if isinstance(data, dict):
+        for key, value in data.items():
+            # target_hash is a hex digest that may shape-match the phone regex
+            # (e.g. "0123456789ab"). The runner canonicalizes target_hash on
+            # both write and read, so it cannot leak PII — exempt from the scan.
+            if str(key).lower() == "target_hash":
+                continue
+            if isinstance(value, str):
+                haystacks.append(value)
+            elif isinstance(value, (list, tuple)):
+                for sub in value:
+                    if isinstance(sub, str):
+                        haystacks.append(sub)
+    return any(_contains_sensitive_text(text, "") for text in haystacks if text)
 
 
 def _resanitize_cached_payload(
     payload: dict[str, Any],
+    connector_name: str,
     safe_target_hash: str,
 ) -> dict[str, Any]:
     sanitized = dict(payload)
+    # Connector identity is authoritative from the caller, never from cache.
+    sanitized["connector"] = connector_name
     sanitized["raw_url"] = _sanitize_url(payload.get("raw_url"), "")
     sanitized["warnings"] = [
         _sanitize_text(str(warning), "")

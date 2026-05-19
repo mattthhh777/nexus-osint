@@ -449,11 +449,17 @@ async def test_run_connector_wrong_schema_version_rejected_as_miss(
 
 
 @pytest.mark.asyncio
-async def test_run_connector_cached_payload_with_pii_is_resanitized_on_read(
+async def test_run_connector_cached_payload_with_pii_rejected_as_miss(
     connector_request: ConnectorRequest,
+    found_result: ConnectorResult,
     fake_runner_dependencies: tuple[FakeCache, FakeLimiter],
 ) -> None:
-    """Cached envelope containing PII MUST be re-sanitized before returning."""
+    """Cached envelope carrying residual PII patterns MUST be rejected as miss.
+
+    A correctly written sanitized envelope cannot contain detectable PII
+    patterns. Any such payload is poisoned/stale — the connector runs fresh
+    and the cached value is never returned to callers.
+    """
     cache, _limiter = fake_runner_dependencies
     key = ("connector:mock", "username:0123456789ab")
     poisoned_payload = {
@@ -483,18 +489,19 @@ async def test_run_connector_cached_payload_with_pii_is_resanitized_on_read(
     }
     cache.items[key] = _wrap(poisoned_payload)
 
-    connector = MockConnector()  # connector MUST NOT need to run; cache hit acceptable IFF sanitized
+    connector = MockConnector(result=found_result)
     async with httpx.AsyncClient() as http:
         result = await runner.run_connector(connector, connector_request, http)
 
+    # Cache rejected; connector executed fresh.
+    assert result.cache_hit is False
+    assert connector.calls == 1
     rendered = str(result.model_dump(mode="json"))
     assert "victim@example.com" not in rendered
     assert "+15551234567" not in rendered
     assert "leak.test" not in rendered
-    assert result.data["target_hash"] == "0123456789ab"
     assert "ATTACKERHASH" not in rendered
-    assert "email" not in result.data
-    assert "phone" not in result.data
+    assert result.connector == "mock"
 
 
 @pytest.mark.asyncio
@@ -597,6 +604,156 @@ async def test_run_connector_cpf_redacted_in_evidence(
     assert "123.456.789-09" not in cached_text
     assert "987.654.321-00" not in cached_text
     assert "111.222.333-44" not in cached_text
+
+
+@pytest.mark.asyncio
+async def test_run_connector_poisoned_connector_field_email_rejected(
+    connector_request: ConnectorRequest,
+    found_result: ConnectorResult,
+    fake_runner_dependencies: tuple[FakeCache, FakeLimiter],
+) -> None:
+    """Envelope with email PII in `connector` field MUST be rejected as miss."""
+    cache, _limiter = fake_runner_dependencies
+    key = ("connector:mock", "username:0123456789ab")
+    poisoned = found_result.model_dump(mode="json")
+    poisoned["connector"] = "victim@example.com"
+    cache.items[key] = _wrap(poisoned)
+
+    connector = MockConnector(result=found_result)
+    async with httpx.AsyncClient() as http:
+        result = await runner.run_connector(connector, connector_request, http)
+
+    assert result.cache_hit is False
+    assert connector.calls == 1
+    assert result.connector == "mock"
+    rendered = str(result.model_dump(mode="json"))
+    assert "victim@example.com" not in rendered
+
+
+@pytest.mark.asyncio
+async def test_run_connector_poisoned_connector_field_cpf_rejected(
+    connector_request: ConnectorRequest,
+    found_result: ConnectorResult,
+    fake_runner_dependencies: tuple[FakeCache, FakeLimiter],
+) -> None:
+    """Envelope with CPF PII in `connector` field MUST be rejected as miss."""
+    cache, _limiter = fake_runner_dependencies
+    key = ("connector:mock", "username:0123456789ab")
+    poisoned = found_result.model_dump(mode="json")
+    poisoned["connector"] = "123.456.789-09"
+    cache.items[key] = _wrap(poisoned)
+
+    connector = MockConnector(result=found_result)
+    async with httpx.AsyncClient() as http:
+        result = await runner.run_connector(connector, connector_request, http)
+
+    assert result.cache_hit is False
+    assert connector.calls == 1
+    assert result.connector == "mock"
+    rendered = str(result.model_dump(mode="json"))
+    assert "123.456.789-09" not in rendered
+
+
+@pytest.mark.asyncio
+async def test_run_connector_poisoned_connector_field_url_rejected(
+    connector_request: ConnectorRequest,
+    found_result: ConnectorResult,
+    fake_runner_dependencies: tuple[FakeCache, FakeLimiter],
+) -> None:
+    """Envelope with URL PII in `connector` field MUST be rejected as miss."""
+    cache, _limiter = fake_runner_dependencies
+    key = ("connector:mock", "username:0123456789ab")
+    poisoned = found_result.model_dump(mode="json")
+    poisoned["connector"] = "https://evil.test/?u=victim@example.com"
+    cache.items[key] = _wrap(poisoned)
+
+    connector = MockConnector(result=found_result)
+    async with httpx.AsyncClient() as http:
+        result = await runner.run_connector(connector, connector_request, http)
+
+    assert result.cache_hit is False
+    assert connector.calls == 1
+    assert result.connector == "mock"
+    rendered = str(result.model_dump(mode="json"))
+    assert "evil.test" not in rendered
+    assert "victim@example.com" not in rendered
+
+
+@pytest.mark.asyncio
+async def test_run_connector_poisoned_connector_field_phone_rejected(
+    connector_request: ConnectorRequest,
+    found_result: ConnectorResult,
+    fake_runner_dependencies: tuple[FakeCache, FakeLimiter],
+) -> None:
+    """Envelope with phone PII in `connector` field MUST be rejected as miss."""
+    cache, _limiter = fake_runner_dependencies
+    key = ("connector:mock", "username:0123456789ab")
+    poisoned = found_result.model_dump(mode="json")
+    poisoned["connector"] = "+5511999998888"
+    cache.items[key] = _wrap(poisoned)
+
+    connector = MockConnector(result=found_result)
+    async with httpx.AsyncClient() as http:
+        result = await runner.run_connector(connector, connector_request, http)
+
+    assert result.cache_hit is False
+    assert connector.calls == 1
+    assert result.connector == "mock"
+    rendered = str(result.model_dump(mode="json"))
+    assert "+5511999998888" not in rendered
+
+
+@pytest.mark.asyncio
+async def test_run_connector_cache_canonicalizes_connector_name(
+    connector_request: ConnectorRequest,
+    found_result: ConnectorResult,
+    fake_runner_dependencies: tuple[FakeCache, FakeLimiter],
+) -> None:
+    """Clean envelope with a renamed `connector` MUST still return the caller's
+    canonical connector.name — never the cache value."""
+    cache, _limiter = fake_runner_dependencies
+    key = ("connector:mock", "username:0123456789ab")
+    payload = found_result.model_dump(mode="json")
+    payload["connector"] = "renamed-by-attacker"  # No PII patterns; passes gate.
+    cache.items[key] = _wrap(payload)
+
+    connector = MockConnector(result=found_result)
+    async with httpx.AsyncClient() as http:
+        result = await runner.run_connector(connector, connector_request, http)
+
+    # Clean envelope is a cache hit; connector did NOT run.
+    assert result.cache_hit is True
+    assert connector.calls == 0
+    # But the returned `connector` is canonical, not the attacker's rename.
+    assert result.connector == "mock"
+    rendered = str(result.model_dump(mode="json"))
+    assert "renamed-by-attacker" not in rendered
+
+
+@pytest.mark.asyncio
+async def test_run_connector_residual_pii_in_data_value_rejected(
+    connector_request: ConnectorRequest,
+    found_result: ConnectorResult,
+    fake_runner_dependencies: tuple[FakeCache, FakeLimiter],
+) -> None:
+    """A valid envelope with residual PII inside data.labels MUST be rejected."""
+    cache, _limiter = fake_runner_dependencies
+    key = ("connector:mock", "username:0123456789ab")
+    poisoned = found_result.model_dump(mode="json")
+    poisoned["data"] = {
+        "category": "breach",
+        "labels": ["safe", "leaked@victim.test"],
+    }
+    cache.items[key] = _wrap(poisoned)
+
+    connector = MockConnector(result=found_result)
+    async with httpx.AsyncClient() as http:
+        result = await runner.run_connector(connector, connector_request, http)
+
+    assert result.cache_hit is False
+    assert connector.calls == 1
+    rendered = str(result.model_dump(mode="json"))
+    assert "leaked@victim.test" not in rendered
 
 
 def test_limiter_for_uses_distinct_instances_per_cps() -> None:
