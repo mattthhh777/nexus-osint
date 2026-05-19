@@ -27,6 +27,7 @@ from modules.username_check.rate_limit import OutboundRateLimiter
 
 logger = logging.getLogger("nexusosint.connectors.runner")
 
+_REDACTED = "[redacted]"
 _CACHEABLE_STATUSES = {
     ConnectorStatus.FOUND,
     ConnectorStatus.LIKELY,
@@ -35,7 +36,30 @@ _CACHEABLE_STATUSES = {
 }
 _CONNECTOR_CACHE_ENDPOINT_PREFIX = "connector"
 _HASH_PATTERN = re.compile(r"^[0-9a-f]{12,64}$")
+_EMAIL_PATTERN = re.compile(r"[\w.+\-]+@[\w\-]+(?:\.[\w\-]+)+", re.I)
+_PHONE_PATTERN = re.compile(r"\+?\d[\d\s().\-]{6,}\d")
+_URL_PATTERN = re.compile(r"https?://\S+", re.I)
+_SENSITIVE_KEYS = {
+    "email",
+    "phone",
+    "query",
+    "raw",
+    "raw_query",
+    "raw_response",
+    "raw_target",
+    "target",
+    "target_value",
+}
+_SAFE_DATA_KEYS = {
+    "category",
+    "labels",
+    "platform",
+    "source",
+    "tags",
+    "target_hash",
+}
 _limiter = OutboundRateLimiter(calls_per_second=2.0)
+_limiters_by_cps: dict[float, OutboundRateLimiter] = {}
 
 
 class Connector(Protocol):
@@ -73,15 +97,16 @@ async def run_connector(
         )
         return cached
 
-    await _limiter.acquire(connector.name)
+    await _limiter_for(connector).acquire(connector.name)
 
     started = time.monotonic()
     timeout_s = _timeout_s(connector, req)
     try:
-        result = await asyncio.wait_for(
+        raw_result = await asyncio.wait_for(
             connector.run(req, http),
             timeout=timeout_s,
         )
+        result = ConnectorResult.model_validate(raw_result)
     except asyncio.TimeoutError:
         logger.warning(
             "connector timeout | connector=%s target_hash=%s timeout_s=%s",
@@ -123,6 +148,27 @@ async def run_connector(
             type(exc).__name__,
             started,
         )
+    except (
+        ValidationError,
+        RuntimeError,
+        ValueError,
+        KeyError,
+        TypeError,
+        AttributeError,
+    ) as exc:
+        logger.warning(
+            "connector execution error | connector=%s target_hash=%s type=%s",
+            connector.name,
+            safe_target_hash,
+            type(exc).__name__,
+        )
+        return _error_result(
+            connector,
+            req,
+            ConnectorStatus.ERROR,
+            "connector_error",
+            started,
+        )
 
     if result.elapsed_ms == 0:
         result.elapsed_ms = int((time.monotonic() - started) * 1000)
@@ -140,7 +186,7 @@ async def run_connector(
         await _set_cached_result(
             cache_endpoint,
             cache_query,
-            result,
+            _sanitize_result_for_cache(result, safe_target_hash, req.target_value),
             cache_ttl_s,
             connector.name,
         )
@@ -188,7 +234,7 @@ async def _get_cached_result(
 async def _set_cached_result(
     endpoint: str,
     query: str,
-    result: ConnectorResult,
+    result: dict[str, Any],
     cache_ttl_s: int,
     connector_name: str,
 ) -> None:
@@ -196,7 +242,7 @@ async def _set_cached_result(
         await cache_backend.set(
             endpoint,
             query,
-            result.model_dump(mode="json"),
+            result,
             ttl=cache_ttl_s,
         )
     except (ConnectionError, TimeoutError, OSError, ValueError, TypeError) as exc:
@@ -224,12 +270,125 @@ def _timeout_s(connector: Connector, req: ConnectorRequest) -> int:
     return max(parsed, 1)
 
 
+def _limiter_for(connector: Connector) -> OutboundRateLimiter:
+    cps = _connector_rate_limit_cps(connector)
+    if cps == 2.0:
+        return _limiter
+    limiter = _limiters_by_cps.get(cps)
+    if limiter is None:
+        limiter = OutboundRateLimiter(calls_per_second=cps)
+        _limiters_by_cps[cps] = limiter
+    return limiter
+
+
+def _connector_rate_limit_cps(connector: Connector) -> float:
+    try:
+        cps = float(getattr(connector, "rate_limit_cps", 2.0))
+    except (TypeError, ValueError):
+        return 2.0
+    if cps <= 0:
+        return 2.0
+    return cps
+
+
 def _safe_target_hash(req: ConnectorRequest) -> str:
     candidate = req.target_hash.strip().lower()
     if _HASH_PATTERN.fullmatch(candidate):
         return candidate[:12]
     normalized = req.target_value.strip().casefold()
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:12]
+
+
+def _sanitize_result_for_cache(
+    result: ConnectorResult,
+    safe_target_hash: str,
+    target_value: str,
+) -> dict[str, Any]:
+    payload = result.model_dump(mode="json")
+    payload["connector"] = _sanitize_text(str(payload.get("connector") or ""), target_value)
+    payload["cache_hit"] = False
+    payload["raw_url"] = _sanitize_url(payload.get("raw_url"), target_value)
+    payload["warnings"] = [
+        _sanitize_text(str(warning), target_value)
+        for warning in (payload.get("warnings") or [])
+    ]
+    payload["evidence"] = [
+        _sanitize_evidence(item, target_value)
+        for item in (payload.get("evidence") or [])
+        if isinstance(item, dict)
+    ]
+    payload["data"] = _sanitize_data(payload.get("data"), safe_target_hash, target_value)
+    return payload
+
+
+def _sanitize_evidence(item: dict[str, Any], target_value: str) -> dict[str, Any]:
+    return {
+        "signal": _sanitize_text(str(item.get("signal") or ""), target_value),
+        "weight": item.get("weight", 0),
+        "detail": _sanitize_text(str(item.get("detail") or ""), target_value),
+    }
+
+
+def _sanitize_data(
+    value: Any,
+    safe_target_hash: str,
+    target_value: str,
+) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {"target_hash": safe_target_hash}
+    sanitized: dict[str, Any] = {"target_hash": safe_target_hash}
+    for key, item in value.items():
+        normalized_key = str(key).lower()
+        if normalized_key in _SENSITIVE_KEYS:
+            continue
+        if normalized_key not in _SAFE_DATA_KEYS:
+            continue
+        sanitized[str(key)] = _sanitize_safe_value(item, target_value)
+    return sanitized
+
+
+def _sanitize_safe_value(value: Any, target_value: str) -> Any:
+    if isinstance(value, str):
+        return _sanitize_text(value, target_value)
+    if isinstance(value, list):
+        return [_sanitize_safe_value(item, target_value) for item in value[:25]]
+    if isinstance(value, tuple):
+        return [_sanitize_safe_value(item, target_value) for item in value[:25]]
+    if isinstance(value, (bool, int, float)) or value is None:
+        return value
+    return _REDACTED
+
+
+def _sanitize_url(value: Any, target_value: str) -> str | None:
+    if value is None:
+        return None
+    text = str(value)
+    if _contains_sensitive_text(text, target_value):
+        return None
+    return text
+
+
+def _sanitize_text(value: str, target_value: str) -> str:
+    if not value:
+        return value
+    redacted = value
+    raw_target = target_value.strip()
+    if raw_target:
+        redacted = re.sub(re.escape(raw_target), _REDACTED, redacted, flags=re.I)
+    redacted = _EMAIL_PATTERN.sub(_REDACTED, redacted)
+    redacted = _PHONE_PATTERN.sub(_REDACTED, redacted)
+    redacted = _URL_PATTERN.sub(_REDACTED, redacted)
+    return redacted
+
+
+def _contains_sensitive_text(value: str, target_value: str) -> bool:
+    raw_target = target_value.strip()
+    if raw_target and raw_target.casefold() in value.casefold():
+        return True
+    return any(
+        pattern.search(value)
+        for pattern in (_EMAIL_PATTERN, _PHONE_PATTERN, _URL_PATTERN)
+    )
 
 
 def _error_result(

@@ -15,6 +15,7 @@ from modules.connectors.base import (
     ConnectorRequest,
     ConnectorResult,
     ConnectorStatus,
+    Evidence,
     TargetType,
 )
 
@@ -22,8 +23,13 @@ from modules.connectors.base import (
 class FakeCache:
     def __init__(self) -> None:
         self.items: dict[tuple[str, str], Any] = {}
+        self.ttls: dict[tuple[str, str], int | None] = {}
+        self.fail_get = False
+        self.fail_set = False
 
     async def get(self, endpoint: str, query: str) -> Any | None:
+        if self.fail_get:
+            raise ConnectionError("redis unavailable")
         return self.items.get((endpoint, query))
 
     async def set(
@@ -33,7 +39,10 @@ class FakeCache:
         value: Any,
         ttl: int | None = None,
     ) -> None:
+        if self.fail_set:
+            raise ConnectionError("redis unavailable")
         self.items[(endpoint, query)] = value
+        self.ttls[(endpoint, query)] = ttl
 
 
 class FakeLimiter:
@@ -91,6 +100,19 @@ def found_result() -> ConnectorResult:
     )
 
 
+@pytest.fixture
+def not_found_result() -> ConnectorResult:
+    return ConnectorResult(
+        connector="mock",
+        target_type=TargetType.USERNAME,
+        status=ConnectorStatus.NOT_FOUND,
+        confidence_score=0,
+        confidence_level="none",
+        fetched_at=datetime.now(timezone.utc),
+        elapsed_ms=9,
+    )
+
+
 @pytest.fixture(autouse=True)
 def fake_runner_dependencies(monkeypatch: pytest.MonkeyPatch) -> tuple[FakeCache, FakeLimiter]:
     cache = FakeCache()
@@ -118,6 +140,7 @@ async def test_run_connector_caches_found_result(
     assert second.cache_hit is True
     assert connector.calls == 1
     assert list(cache.items) == [("connector:mock", "username:0123456789ab")]
+    assert cache.ttls[("connector:mock", "username:0123456789ab")] == 300
     assert connector_request.target_value not in str(list(cache.items))
 
 
@@ -154,6 +177,155 @@ async def test_run_connector_cache_key_hashes_malformed_target_hash(
 
     assert list(cache.items) == [("connector:mock", f"username:{expected_hash}")]
     assert req.target_value not in str(list(cache.items))
+
+
+@pytest.mark.asyncio
+async def test_run_connector_sanitizes_sensitive_cache_value(
+    fake_runner_dependencies: tuple[FakeCache, FakeLimiter],
+) -> None:
+    cache, _limiter = fake_runner_dependencies
+    req = ConnectorRequest(
+        target_type=TargetType.EMAIL,
+        target_value="victim@example.com",
+        target_hash="abcdef0123456789",
+        job_id=uuid4(),
+    )
+    result = ConnectorResult(
+        connector="mock",
+        target_type=TargetType.EMAIL,
+        status=ConnectorStatus.FOUND,
+        confidence_score=92,
+        confidence_level="high",
+        evidence=[
+            Evidence(
+                signal="profile_match",
+                weight=80,
+                detail="email victim@example.com phone +1 555 123 4567",
+            )
+        ],
+        warnings=["query victim@example.com was checked"],
+        raw_url="https://example.test/u/victim@example.com?phone=+15551234567",
+        data={
+            "category": "breach",
+            "labels": ["safe-label", "victim@example.com", "+15551234567"],
+            "target_value": "victim@example.com",
+            "query": "victim@example.com",
+            "raw_target": "victim@example.com",
+            "payload": {"email": "victim@example.com", "phone": "+15551234567"},
+        },
+        fetched_at=datetime.now(timezone.utc),
+        elapsed_ms=14,
+    )
+    connector = MockConnector(result=result)
+
+    async with httpx.AsyncClient() as http:
+        await runner.run_connector(connector, req, http)
+
+    cached = next(iter(cache.items.values()))
+    cached_text = str(cached)
+    assert "victim@example.com" not in cached_text
+    assert "+15551234567" not in cached_text
+    assert "+1 555 123 4567" not in cached_text
+    assert "target_value" not in cached_text
+    assert "raw_target" not in cached_text
+    assert "payload" not in cached_text
+    assert cached["raw_url"] is None
+    assert cached["data"]["target_hash"] == "abcdef012345"
+    assert cached["data"]["category"] == "breach"
+
+
+@pytest.mark.asyncio
+async def test_run_connector_cache_fail_open_get_and_set(
+    connector_request: ConnectorRequest,
+    found_result: ConnectorResult,
+    fake_runner_dependencies: tuple[FakeCache, FakeLimiter],
+) -> None:
+    cache, _limiter = fake_runner_dependencies
+    connector = MockConnector(result=found_result)
+
+    cache.fail_get = True
+    async with httpx.AsyncClient() as http:
+        result = await runner.run_connector(connector, connector_request, http)
+    assert result.status == ConnectorStatus.FOUND
+    assert connector.calls == 1
+
+    cache.items.clear()
+    cache.fail_get = False
+    cache.fail_set = True
+    connector = MockConnector(result=found_result)
+    async with httpx.AsyncClient() as http:
+        result = await runner.run_connector(connector, connector_request, http)
+    assert result.status == ConnectorStatus.FOUND
+    assert connector.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_run_connector_invalid_cache_does_not_become_found(
+    connector_request: ConnectorRequest,
+    not_found_result: ConnectorResult,
+    fake_runner_dependencies: tuple[FakeCache, FakeLimiter],
+) -> None:
+    cache, _limiter = fake_runner_dependencies
+    key = ("connector:mock", "username:0123456789ab")
+    cached = found_result_payload = not_found_result.model_dump(mode="json")
+    cached["status"] = "invalid_status"
+    cache.items[key] = found_result_payload
+    connector = MockConnector(result=not_found_result)
+
+    async with httpx.AsyncClient() as http:
+        result = await runner.run_connector(connector, connector_request, http)
+
+    assert result.status == ConnectorStatus.NOT_FOUND
+    assert result.cache_hit is False
+    assert connector.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_run_connector_unknown_connector_exception_returns_error_without_pii(
+    connector_request: ConnectorRequest,
+    fake_runner_dependencies: tuple[FakeCache, FakeLimiter],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    cache, _limiter = fake_runner_dependencies
+    connector = MockConnector(
+        error=RuntimeError("victim plain-user-never-logged +15551234567")
+    )
+
+    caplog.set_level("WARNING", logger="nexusosint.connectors.runner")
+    async with httpx.AsyncClient() as http:
+        result = await runner.run_connector(connector, connector_request, http)
+
+    assert result.status == ConnectorStatus.ERROR
+    assert result.warnings == ["connector_error"]
+    assert cache.items == {}
+    assert connector_request.target_value not in caplog.text
+    assert "+15551234567" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_run_connector_invalid_connector_result_returns_error(
+    connector_request: ConnectorRequest,
+    fake_runner_dependencies: tuple[FakeCache, FakeLimiter],
+) -> None:
+    cache, _limiter = fake_runner_dependencies
+    connector = MockConnector(
+        result={
+            "connector": "mock",
+            "target_type": "username",
+            "status": "invalid_status",
+            "confidence_score": 100,
+            "confidence_level": "high",
+            "fetched_at": datetime.now(timezone.utc),
+            "elapsed_ms": 1,
+        }  # type: ignore[arg-type]
+    )
+
+    async with httpx.AsyncClient() as http:
+        result = await runner.run_connector(connector, connector_request, http)
+
+    assert result.status == ConnectorStatus.ERROR
+    assert result.warnings == ["connector_error"]
+    assert cache.items == {}
 
 
 @pytest.mark.asyncio
