@@ -125,6 +125,8 @@ Decision G1 is hash-only plus TTL seven days:
 - `search_events.payload` stores `target_hash` and sanitized metadata only.
 - No clear `target_value` in DB event payloads, logs, or client-visible job payloads.
 - `search_jobs.expires_at` is `created_at + 7 days`.
+- `search_jobs.owner_key_hash` is a privacy-preserving owner identifier aligned
+  with current JSON auth. It is intentionally not a FK until DB-backed users exist.
 - Cleanup purges expired jobs; event rows cascade.
 - Delete requests can be satisfied by TTL expiry or an explicit job delete endpoint if added in R1.
 
