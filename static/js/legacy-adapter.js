@@ -16,6 +16,8 @@
     cf_challenge: 'blocked',
     login_required: 'blocked',
     redirect_to_login: 'blocked',
+    rate_limit: 'blocked',
+    anti_bot: 'blocked',
     error: 'error',
     timeout: 'error',
     http_error: 'error',
