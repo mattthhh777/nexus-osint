@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import AsyncGenerator, Mapping, Sequence
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -20,7 +20,6 @@ JOB_TTL = timedelta(days=7)
 TARGET_HASH_RE = re.compile(r"^[a-f0-9]{12}$")
 OWNER_KEY_HASH_RE = re.compile(r"^[a-f0-9]{64}$")
 CONNECTOR_NAME_RE = re.compile(r"^[A-Za-z0-9:_\-.]{1,80}$")
-EVENT_TYPE_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 EMAIL_RE = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.IGNORECASE)
 CPF_RE = re.compile(r"\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b")
 PHONE_RE = re.compile(r"(\+?\d{1,3}[ .-]?)?\(?\d{2,3}\)?[ .-]?\d{4,5}[ .-]\d{4}")
@@ -77,6 +76,13 @@ SENSITIVE_EVENT_KEYS = frozenset(
         "account_username",
         "handle",
         "display_name",
+        "detail",
+        "metadata",
+        "data",
+        "labels",
+        "tags",
+        "source",
+        "category",
     }
 )
 
@@ -86,35 +92,54 @@ SAFE_EVENT_KEYS = frozenset(
         "target_type",
         "job_id",
         "connector",
-        "connectors_planned",
-        "connectors_run",
         "event_type",
         "seq",
         "status",
         "overall_status",
-        "confidence",
         "confidence_score",
         "confidence_level",
-        "category",
-        "labels",
-        "tags",
         "cache_hit",
         "elapsed_ms",
         "fetched_at",
         "emitted_at",
-        "metadata",
-        "data",
-        "evidence",
-        "summary",
-        "counts",
-        "blocked_reason",
-        "error_code",
-        "source",
-        "signal",
-        "weight",
-        "detail",
+        "reason_code",
     }
 )
+
+CONFIDENCE_LEVELS = frozenset({"high", "medium", "low", "none"})
+ALLOWED_REASON_CODES = frozenset(
+    {
+        "job_started",
+        "job_running",
+        "job_done",
+        "job_failed",
+        "connector_started",
+        "connector_result",
+        "connector_done",
+        "connector_blocked",
+        "connector_error",
+        "cache_hit",
+        "cache_miss",
+        "rate_limited",
+    }
+)
+ALLOWED_EVENT_TYPES = frozenset(
+    {
+        "job_started",
+        "job_running",
+        "job_done",
+        "job_failed",
+        "connector_started",
+        "connector_result",
+        "connector_done",
+        "connector_blocked",
+        "connector_error",
+        "summary",
+        "heartbeat",
+    }
+)
+ALLOWED_CONNECTOR_NAMES = frozenset({"mock", "carrier_lookup"})
+ALLOWED_CONNECTOR_PREFIXES = ("sherlock:", "oathnet:", "thordata:")
 
 
 def _database(db: DatabaseManager | None) -> DatabaseManager:
@@ -161,73 +186,184 @@ def _validate_connector_names(names: Sequence[str] | None) -> list[str]:
     clean: list[str] = []
     for name in names:
         candidate = str(name).strip()
-        if not CONNECTOR_NAME_RE.fullmatch(candidate):
+        if not _is_controlled_connector(candidate):
             raise JobStoreError("invalid_connector_name")
         clean.append(candidate)
     return clean
 
 
-def _reject_sensitive_string(value: str, *, key: str) -> str:
-    if key == "target_hash":
-        return _validate_target_hash(value)
+def _is_controlled_connector(candidate: str) -> bool:
+    if not CONNECTOR_NAME_RE.fullmatch(candidate):
+        return False
+    return candidate in ALLOWED_CONNECTOR_NAMES or candidate.startswith(ALLOWED_CONNECTOR_PREFIXES)
+
+
+def _event_type_value(event_type: str) -> str:
+    event = str(event_type).strip()
+    if event not in ALLOWED_EVENT_TYPES:
+        raise JobStoreError("invalid_event_type")
+    return event
+
+
+def _reject_sensitive_string(value: str) -> None:
     if len(value) > 256:
         raise EventPayloadRejected("payload_string_too_long")
     if EMAIL_RE.search(value) or CPF_RE.search(value) or PHONE_RE.search(value) or URL_RE.search(value):
         raise EventPayloadRejected("payload_contains_sensitive_value")
-    return value
 
 
-def _sanitize_payload_value(value: Any, *, key: str) -> Any:
-    normalized_key = key.lower()
-    if normalized_key in SENSITIVE_EVENT_KEYS:
-        raise EventPayloadRejected("payload_contains_sensitive_key")
-    if normalized_key not in SAFE_EVENT_KEYS:
-        raise EventPayloadRejected("payload_contains_unknown_key")
+def _validate_job_id(value: Any, *, canonical_job_id: UUID) -> str:
+    try:
+        candidate = value if isinstance(value, UUID) else UUID(str(value))
+    except (ValueError, TypeError) as exc:
+        raise EventPayloadRejected("payload_invalid_job_id") from exc
+    if candidate != canonical_job_id:
+        raise EventPayloadRejected("payload_job_id_mismatch")
+    return str(canonical_job_id)
 
-    if isinstance(value, Mapping):
-        return _sanitize_payload_dict(value)
-    if isinstance(value, list):
-        return [_sanitize_payload_value(item, key=key) for item in value]
-    if isinstance(value, tuple):
-        return [_sanitize_payload_value(item, key=key) for item in value]
+
+def _validate_seq(value: Any, *, canonical_seq: int) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise EventPayloadRejected("payload_invalid_seq")
+    if value != canonical_seq:
+        raise EventPayloadRejected("payload_seq_mismatch")
+    return canonical_seq
+
+
+def _validate_event_type(value: Any, *, canonical_event_type: str) -> str:
+    if not isinstance(value, str):
+        raise EventPayloadRejected("payload_invalid_event_type")
+    try:
+        candidate = _event_type_value(value)
+    except JobStoreError as exc:
+        raise EventPayloadRejected("payload_invalid_event_type") from exc
+    if candidate != canonical_event_type:
+        raise EventPayloadRejected("payload_event_type_mismatch")
+    return canonical_event_type
+
+
+def _validate_controlled_string(value: Any, *, field: str) -> str:
+    if not isinstance(value, str):
+        raise EventPayloadRejected(f"payload_invalid_{field}")
+    candidate = value.strip()
+    _reject_sensitive_string(candidate)
+    return candidate
+
+
+def _validate_timestamp(value: Any, *, field: str) -> str:
+    if not isinstance(value, datetime):
+        raise EventPayloadRejected(f"payload_invalid_{field}")
+    return value.astimezone(timezone.utc).isoformat()
+
+
+def _sanitize_payload_field(
+    *,
+    key: str,
+    value: Any,
+    canonical_job_id: UUID,
+    canonical_seq: int,
+    canonical_event_type: str,
+    canonical_target_hash: str,
+    canonical_target_type: str,
+    planned_connectors: set[str],
+) -> Any:
+    if isinstance(value, Mapping) or isinstance(value, (list, tuple)):
+        raise EventPayloadRejected("payload_nested_values_forbidden")
     if isinstance(value, str):
-        return _reject_sensitive_string(value, key=normalized_key)
-    if isinstance(value, bool) or value is None:
+        _reject_sensitive_string(value)
+
+    if key == "target_hash":
+        candidate = _validate_target_hash(str(value))
+        if candidate != canonical_target_hash:
+            raise EventPayloadRejected("payload_target_hash_mismatch")
+        return canonical_target_hash
+    if key == "target_type":
+        candidate = _target_type_value(str(value))
+        if candidate != canonical_target_type:
+            raise EventPayloadRejected("payload_target_type_mismatch")
+        return canonical_target_type
+    if key == "job_id":
+        return _validate_job_id(value, canonical_job_id=canonical_job_id)
+    if key == "event_type":
+        return _validate_event_type(value, canonical_event_type=canonical_event_type)
+    if key == "seq":
+        return _validate_seq(value, canonical_seq=canonical_seq)
+    if key == "connector":
+        candidate = _validate_controlled_string(value, field=key)
+        if not _is_controlled_connector(candidate):
+            raise EventPayloadRejected("payload_invalid_connector")
+        if candidate not in planned_connectors:
+            raise EventPayloadRejected("payload_connector_not_planned")
+        return candidate
+    if key in {"status", "overall_status"}:
+        return _status_value(str(value))
+    if key == "confidence_score":
+        if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 100:
+            raise EventPayloadRejected("payload_invalid_confidence_score")
         return value
-    if isinstance(value, int):
+    if key == "confidence_level":
+        candidate = _validate_controlled_string(value, field=key)
+        if candidate not in CONFIDENCE_LEVELS:
+            raise EventPayloadRejected("payload_invalid_confidence_level")
+        return candidate
+    if key == "cache_hit":
+        if not isinstance(value, bool):
+            raise EventPayloadRejected("payload_invalid_cache_hit")
         return value
-    if isinstance(value, float):
-        if value != value or value in {float("inf"), float("-inf")}:
-            raise EventPayloadRejected("payload_contains_invalid_number")
+    if key == "elapsed_ms":
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise EventPayloadRejected("payload_invalid_elapsed_ms")
         return value
-    if isinstance(value, datetime):
-        return value.astimezone(timezone.utc).isoformat()
-    if isinstance(value, date):
-        return value.isoformat()
-    if isinstance(value, UUID):
-        return str(value)
-    raise EventPayloadRejected("payload_contains_unsupported_value")
+    if key in {"fetched_at", "emitted_at"}:
+        return _validate_timestamp(value, field=key)
+    if key == "reason_code":
+        candidate = _validate_controlled_string(value, field=key)
+        if candidate not in ALLOWED_REASON_CODES:
+            raise EventPayloadRejected("payload_invalid_reason_code")
+        return candidate
+    raise EventPayloadRejected("payload_contains_unknown_key")
 
 
-def _sanitize_payload_dict(payload: Mapping[str, Any]) -> dict[str, Any]:
-    sanitized: dict[str, Any] = {}
-    for key, value in payload.items():
-        key_text = str(key).strip()
-        if not key_text:
-            raise EventPayloadRejected("payload_contains_empty_key")
-        sanitized[key_text] = _sanitize_payload_value(value, key=key_text)
-    return sanitized
-
-
-def sanitize_event_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+def sanitize_event_payload(
+    payload: Mapping[str, Any],
+    *,
+    canonical_job_id: UUID,
+    canonical_seq: int,
+    canonical_event_type: str,
+    canonical_target_hash: str,
+    canonical_target_type: str,
+    planned_connectors: set[str],
+) -> dict[str, Any]:
     """Return a JSON-safe hash-only payload or raise before DB write."""
     if not isinstance(payload, Mapping):
         raise EventPayloadRejected("payload_must_be_object")
-    sanitized = _sanitize_payload_dict(payload)
-    target_hash = sanitized.get("target_hash")
-    if not isinstance(target_hash, str):
-        raise EventPayloadRejected("payload_missing_target_hash")
-    sanitized["target_hash"] = _validate_target_hash(target_hash)
+
+    sanitized: dict[str, Any] = {
+        "target_hash": canonical_target_hash,
+        "event_type": canonical_event_type,
+        "seq": canonical_seq,
+    }
+    for key, value in payload.items():
+        normalized_key = str(key).strip().lower()
+        if not normalized_key:
+            raise EventPayloadRejected("payload_contains_empty_key")
+        if normalized_key in SENSITIVE_EVENT_KEYS:
+            raise EventPayloadRejected("payload_contains_sensitive_key")
+        if normalized_key not in SAFE_EVENT_KEYS:
+            raise EventPayloadRejected("payload_contains_unknown_key")
+        sanitized[normalized_key] = _sanitize_payload_field(
+            key=normalized_key,
+            value=value,
+            canonical_job_id=canonical_job_id,
+            canonical_seq=canonical_seq,
+            canonical_event_type=canonical_event_type,
+            canonical_target_hash=canonical_target_hash,
+            canonical_target_type=canonical_target_type,
+            planned_connectors=planned_connectors,
+        )
+    sanitized["target_hash"] = canonical_target_hash
+    sanitized["event_type"] = canonical_event_type
+    sanitized["seq"] = canonical_seq
     return sanitized
 
 
@@ -282,10 +418,17 @@ async def create_job(
 
 
 async def mark_running(job_id: UUID, *, db: DatabaseManager | None = None) -> None:
-    await _database(db).execute(
-        "UPDATE search_jobs SET status='running', started_at=NOW() WHERE id=$1",
+    row = await _database(db).fetch_one(
+        """
+        UPDATE search_jobs
+        SET status='running', started_at=NOW()
+        WHERE id=$1 AND status='queued' AND expires_at >= NOW()
+        RETURNING id
+        """,
         (job_id,),
     )
+    if row is None:
+        raise JobStoreError("invalid_job_transition")
 
 
 async def mark_done(
@@ -301,7 +444,7 @@ async def mark_done(
         raise JobStoreError("invalid_overall_confidence")
     if elapsed_ms < 0:
         raise JobStoreError("invalid_elapsed_ms")
-    await _database(db).execute(
+    row = await _database(db).fetch_one(
         """
         UPDATE search_jobs
         SET status='done',
@@ -310,7 +453,8 @@ async def mark_done(
             connectors_run=$3,
             finished_at=NOW(),
             elapsed_ms=$4
-        WHERE id=$5
+        WHERE id=$5 AND status IN ('queued', 'running') AND expires_at >= NOW()
+        RETURNING id
         """,
         (
             _status_value(overall_status),
@@ -320,13 +464,22 @@ async def mark_done(
             job_id,
         ),
     )
+    if row is None:
+        raise JobStoreError("invalid_job_transition")
 
 
 async def mark_failed(job_id: UUID, *, db: DatabaseManager | None = None) -> None:
-    await _database(db).execute(
-        "UPDATE search_jobs SET status='failed', finished_at=NOW() WHERE id=$1",
+    row = await _database(db).fetch_one(
+        """
+        UPDATE search_jobs
+        SET status='failed', finished_at=NOW()
+        WHERE id=$1 AND status IN ('queued', 'running') AND expires_at >= NOW()
+        RETURNING id
+        """,
         (job_id,),
     )
+    if row is None:
+        raise JobStoreError("invalid_job_transition")
 
 
 async def get_job(
@@ -338,13 +491,43 @@ async def get_job(
     owner_hash = _validate_owner_key_hash(owner_key_hash)
     if owner_hash is None:
         return await _database(db).fetch_one(
-            "SELECT * FROM search_jobs WHERE id=$1 AND owner_key_hash IS NULL",
+            "SELECT * FROM search_jobs WHERE id=$1 AND owner_key_hash IS NULL AND expires_at >= NOW()",
             (job_id,),
         )
     return await _database(db).fetch_one(
-        "SELECT * FROM search_jobs WHERE id=$1 AND owner_key_hash=$2",
+        "SELECT * FROM search_jobs WHERE id=$1 AND owner_key_hash=$2 AND expires_at >= NOW()",
         (job_id, owner_hash),
     )
+
+
+async def _get_active_job_for_owner(
+    job_id: UUID,
+    *,
+    owner_key_hash: str | None,
+    db: DatabaseManager,
+) -> dict[str, Any]:
+    owner_hash = _validate_owner_key_hash(owner_key_hash)
+    if owner_hash is None:
+        row = await db.fetch_one(
+            """
+            SELECT id, target_type, target_hash, connectors_planned
+            FROM search_jobs
+            WHERE id=$1 AND owner_key_hash IS NULL AND expires_at >= NOW()
+            """,
+            (job_id,),
+        )
+    else:
+        row = await db.fetch_one(
+            """
+            SELECT id, target_type, target_hash, connectors_planned
+            FROM search_jobs
+            WHERE id=$1 AND owner_key_hash=$2 AND expires_at >= NOW()
+            """,
+            (job_id, owner_hash),
+        )
+    if row is None:
+        raise JobStoreError("job_not_found")
+    return row
 
 
 async def append_event(
@@ -353,16 +536,26 @@ async def append_event(
     event_type: str,
     payload: Mapping[str, Any],
     *,
+    owner_key_hash: str | None,
     db: DatabaseManager | None = None,
 ) -> None:
     """Insert one sanitized event. Caller computes monotonic `seq` per job."""
     if seq < 1:
         raise JobStoreError("invalid_event_seq")
-    event = str(event_type).strip()
-    if not EVENT_TYPE_RE.fullmatch(event):
-        raise JobStoreError("invalid_event_type")
-    sanitized_payload = sanitize_event_payload(payload)
-    await _database(db).execute(
+    event = _event_type_value(event_type)
+    database = _database(db)
+    job = await _get_active_job_for_owner(job_id, owner_key_hash=owner_key_hash, db=database)
+    planned_connectors = set(job["connectors_planned"] or [])
+    sanitized_payload = sanitize_event_payload(
+        payload,
+        canonical_job_id=job_id,
+        canonical_seq=seq,
+        canonical_event_type=event,
+        canonical_target_hash=job["target_hash"],
+        canonical_target_type=job["target_type"],
+        planned_connectors=planned_connectors,
+    )
+    await database.execute(
         """
         INSERT INTO search_events (job_id, seq, event_type, payload)
         VALUES ($1, $2, $3, $4::jsonb)
@@ -393,6 +586,7 @@ async def stream_events(
             "FROM search_events e "
             "JOIN search_jobs j ON j.id = e.job_id "
             "WHERE e.job_id = $1 AND e.seq > $2 AND j.owner_key_hash IS NULL "
+            "AND j.expires_at >= NOW() "
             "ORDER BY e.seq ASC"
         )
         params: tuple[Any, ...] = (job_id, from_seq)
@@ -402,6 +596,7 @@ async def stream_events(
             "FROM search_events e "
             "JOIN search_jobs j ON j.id = e.job_id "
             "WHERE e.job_id = $1 AND e.seq > $2 AND j.owner_key_hash = $3 "
+            "AND j.expires_at >= NOW() "
             "ORDER BY e.seq ASC"
         )
         params = (job_id, from_seq, owner_hash)

@@ -1,6 +1,7 @@
 """Integration tests for the R1-3 job store."""
 from __future__ import annotations
 
+import json
 from datetime import timedelta
 from pathlib import Path
 
@@ -78,13 +79,13 @@ async def test_append_event_accepts_safe_payload_and_streams_from_seq(
             seq,
             "connector_result",
             {
-                "target_hash": TARGET_HASH,
                 "connector": "mock",
                 "status": ConnectorStatus.LIKELY.value,
                 "confidence_score": 60,
                 "confidence_level": "medium",
-                "metadata": {"category": "social"},
+                "reason_code": "connector_result",
             },
+            owner_key_hash=OWNER_A,
             db=tmp_db,
         )
 
@@ -101,7 +102,7 @@ async def test_append_event_accepts_safe_payload_and_streams_from_seq(
     assert len(rows) == 40
     assert [row["seq"] for row in rows] == list(range(11, 51))
     assert rows[0]["payload"]["target_hash"] == TARGET_HASH
-    assert rows[0]["payload"]["metadata"] == {"category": "social"}
+    assert rows[0]["payload"]["reason_code"] == "connector_result"
 
 
 @pytest.mark.asyncio
@@ -132,6 +133,7 @@ async def test_append_event_rejects_sensitive_payload_before_db(
                 seq,
                 "connector_result",
                 payload,
+                owner_key_hash=OWNER_A,
                 db=tmp_db,
             )
 
@@ -139,9 +141,39 @@ async def test_append_event_rejects_sensitive_payload_before_db(
 
 
 @pytest.mark.asyncio
-async def test_append_event_requires_target_hash(tmp_db: DatabaseManager) -> None:
+async def test_append_event_injects_canonical_target_hash(tmp_db: DatabaseManager) -> None:
     job_id = await job_store.create_job(
         owner_key_hash=None,
+        target_type=TargetType.USERNAME,
+        target_hash=TARGET_HASH,
+        connectors_planned=["mock"],
+        db=tmp_db,
+    )
+
+    await job_store.append_event(
+        job_id,
+        1,
+        "connector_result",
+        {"connector": "mock", "status": "likely"},
+        owner_key_hash=None,
+        db=tmp_db,
+    )
+
+    row = await tmp_db.fetch_one(
+        "SELECT payload FROM search_events WHERE job_id=$1 AND seq=1",
+        (job_id,),
+    )
+
+    assert row is not None
+    assert json.loads(row["payload"])["target_hash"] == TARGET_HASH
+
+
+@pytest.mark.asyncio
+async def test_append_event_rejects_mismatched_target_hash(
+    tmp_db: DatabaseManager,
+) -> None:
+    job_id = await job_store.create_job(
+        owner_key_hash=OWNER_A,
         target_type=TargetType.USERNAME,
         target_hash=TARGET_HASH,
         connectors_planned=["mock"],
@@ -153,7 +185,8 @@ async def test_append_event_requires_target_hash(tmp_db: DatabaseManager) -> Non
             job_id,
             1,
             "connector_result",
-            {"connector": "mock", "status": "likely"},
+            {"target_hash": "123abc456def", "connector": "mock", "status": "likely"},
+            owner_key_hash=OWNER_A,
             db=tmp_db,
         )
 
@@ -178,8 +211,71 @@ async def test_append_event_rejects_unknown_payload_keys_as_allowlist(
             1,
             "connector_result",
             {"target_hash": TARGET_HASH, "unreviewed_field": "safe-looking"},
+            owner_key_hash=None,
             db=tmp_db,
         )
+
+    assert await _event_count(tmp_db, job_id) == 0
+
+
+@pytest.mark.asyncio
+async def test_append_event_rejects_uncontrolled_event_type(
+    tmp_db: DatabaseManager,
+) -> None:
+    job_id = await job_store.create_job(
+        owner_key_hash=None,
+        target_type=TargetType.USERNAME,
+        target_hash=TARGET_HASH,
+        connectors_planned=["mock"],
+        db=tmp_db,
+    )
+
+    with pytest.raises(job_store.JobStoreError):
+        await job_store.append_event(
+            job_id,
+            1,
+            "johndoe",
+            {"connector": "mock", "status": "likely"},
+            owner_key_hash=None,
+            db=tmp_db,
+        )
+
+    assert await _event_count(tmp_db, job_id) == 0
+
+
+@pytest.mark.asyncio
+async def test_append_event_rejects_free_text_payload_fields(
+    tmp_db: DatabaseManager,
+) -> None:
+    job_id = await job_store.create_job(
+        owner_key_hash=None,
+        target_type=TargetType.USERNAME,
+        target_hash=TARGET_HASH,
+        connectors_planned=["mock"],
+        db=tmp_db,
+    )
+    bad_payloads = [
+        {"detail": "johndoe"},
+        {"metadata": "johndoe"},
+        {"data": "johndoe"},
+        {"labels": "johndoe"},
+        {"tags": "johndoe"},
+        {"source": "johndoe"},
+        {"category": "johndoe"},
+        {"reason_code": "johndoe"},
+        {"connector": "johndoe"},
+    ]
+
+    for seq, payload in enumerate(bad_payloads, start=1):
+        with pytest.raises(job_store.EventPayloadRejected):
+            await job_store.append_event(
+                job_id,
+                seq,
+                "connector_result",
+                payload,
+                owner_key_hash=None,
+                db=tmp_db,
+            )
 
     assert await _event_count(tmp_db, job_id) == 0
 
@@ -199,7 +295,8 @@ async def test_owner_key_hash_filters_job_and_event_replay(
         job_id,
         1,
         "connector_result",
-        {"target_hash": TARGET_HASH, "connector": "mock", "status": "likely"},
+        {"connector": "mock", "status": "likely"},
+        owner_key_hash=OWNER_A,
         db=tmp_db,
     )
 
@@ -226,6 +323,54 @@ async def test_owner_key_hash_filters_job_and_event_replay(
 
     assert rows_for_owner_b == []
     assert rows_without_owner == []
+
+
+@pytest.mark.asyncio
+async def test_null_owner_still_requires_exact_job_id(
+    tmp_db: DatabaseManager,
+) -> None:
+    job_a = await job_store.create_job(
+        owner_key_hash=None,
+        target_type=TargetType.USERNAME,
+        target_hash=TARGET_HASH,
+        connectors_planned=["mock"],
+        db=tmp_db,
+    )
+    job_b = await job_store.create_job(
+        owner_key_hash=None,
+        target_type=TargetType.USERNAME,
+        target_hash="123abc456def",
+        connectors_planned=["mock"],
+        db=tmp_db,
+    )
+    await job_store.append_event(
+        job_b,
+        1,
+        "connector_result",
+        {"connector": "mock", "status": "likely"},
+        owner_key_hash=None,
+        db=tmp_db,
+    )
+
+    rows_for_job_a = [
+        row
+        async for row in job_store.stream_events(
+            job_a,
+            owner_key_hash=None,
+            db=tmp_db,
+        )
+    ]
+    rows_for_job_b = [
+        row
+        async for row in job_store.stream_events(
+            job_b,
+            owner_key_hash=None,
+            db=tmp_db,
+        )
+    ]
+
+    assert rows_for_job_a == []
+    assert len(rows_for_job_b) == 1
 
 
 @pytest.mark.asyncio
@@ -269,6 +414,100 @@ async def test_mark_done_and_purge_expired(tmp_db: DatabaseManager) -> None:
     )
     assert await job_store.purge_expired(db=tmp_db) == 1
     assert await tmp_db.fetch_one("SELECT id FROM search_jobs WHERE id=$1", (job_id,)) is None
+
+
+@pytest.mark.asyncio
+async def test_done_job_cannot_return_to_running_or_failed(
+    tmp_db: DatabaseManager,
+) -> None:
+    job_id = await job_store.create_job(
+        owner_key_hash=None,
+        target_type=TargetType.USERNAME,
+        target_hash=TARGET_HASH,
+        connectors_planned=["mock"],
+        db=tmp_db,
+    )
+
+    await job_store.mark_running(job_id, db=tmp_db)
+    await job_store.mark_done(
+        job_id,
+        overall_status=ConnectorStatus.LIKELY,
+        overall_confidence=60,
+        connectors_run=["mock"],
+        elapsed_ms=123,
+        db=tmp_db,
+    )
+
+    with pytest.raises(job_store.JobStoreError):
+        await job_store.mark_running(job_id, db=tmp_db)
+    with pytest.raises(job_store.JobStoreError):
+        await job_store.mark_failed(job_id, db=tmp_db)
+
+    row = await tmp_db.fetch_one("SELECT status FROM search_jobs WHERE id=$1", (job_id,))
+    assert row == {"status": "done"}
+
+
+@pytest.mark.asyncio
+async def test_mark_failed_sets_failed_without_reason_payload(
+    tmp_db: DatabaseManager,
+) -> None:
+    job_id = await job_store.create_job(
+        owner_key_hash=None,
+        target_type=TargetType.USERNAME,
+        target_hash=TARGET_HASH,
+        connectors_planned=["mock"],
+        db=tmp_db,
+    )
+
+    await job_store.mark_running(job_id, db=tmp_db)
+    await job_store.mark_failed(job_id, db=tmp_db)
+
+    row = await tmp_db.fetch_one(
+        "SELECT status, finished_at FROM search_jobs WHERE id=$1",
+        (job_id,),
+    )
+    assert row is not None
+    assert row["status"] == "failed"
+    assert row["finished_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_expired_job_is_hidden_from_get_and_stream(
+    tmp_db: DatabaseManager,
+) -> None:
+    job_id = await job_store.create_job(
+        owner_key_hash=OWNER_A,
+        target_type=TargetType.USERNAME,
+        target_hash=TARGET_HASH,
+        connectors_planned=["mock"],
+        db=tmp_db,
+    )
+    await job_store.append_event(
+        job_id,
+        1,
+        "connector_result",
+        {"connector": "mock", "status": "likely"},
+        owner_key_hash=OWNER_A,
+        db=tmp_db,
+    )
+    await tmp_db.execute(
+        "UPDATE search_jobs "
+        "SET created_at = NOW() - INTERVAL '8 days', "
+        "    expires_at = NOW() - INTERVAL '1 second' "
+        "WHERE id=$1",
+        (job_id,),
+    )
+
+    assert await job_store.get_job(job_id, owner_key_hash=OWNER_A, db=tmp_db) is None
+    rows = [
+        row
+        async for row in job_store.stream_events(
+            job_id,
+            owner_key_hash=OWNER_A,
+            db=tmp_db,
+        )
+    ]
+    assert rows == []
 
 
 def test_legacy_api_search_route_remains_active() -> None:
