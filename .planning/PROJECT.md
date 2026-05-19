@@ -202,3 +202,17 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 *Last updated: 2026-05-06 — v4.2 milestone kickoff (SQLite → PostgreSQL migration)*
+
+## 2026-05-19 — R0/R1 decisions baked
+
+- G1 = hash-only + TTL 7d for `search_events.payload`.
+- G2 = defer Gravatar enrichment; skip R1-10.
+- G3 = require at least two independent connectors for `overall_status='found'`.
+- G4 = reuse Thordata under the existing 1GB/day quota.
+
+Execution branch series:
+
+- R0: `v4.1/r0-contract-shim` -> 7 tasks -> contract shim, no engine change.
+- R1: `v4.1/r1-safe-mvp` -> 11 tasks, with R1-10 skipped -> safe MVP with `/api/v2/search`.
+
+See `.planning/R0_R1_REVISION.md`, `.planning/CODEX_HANDOFF.md`, and `docs/CONNECTORS.md`.
