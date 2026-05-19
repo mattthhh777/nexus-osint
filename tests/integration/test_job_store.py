@@ -281,6 +281,85 @@ async def test_append_event_rejects_free_text_payload_fields(
 
 
 @pytest.mark.asyncio
+async def test_create_job_rejects_freeform_connector_ids(
+    tmp_db: DatabaseManager,
+) -> None:
+    bad_connector_sets = [
+        ["sherlock:johndoe"],
+        ["oathnet:emailqualquer"],
+    ]
+
+    for connectors_planned in bad_connector_sets:
+        with pytest.raises(job_store.JobStoreError):
+            await job_store.create_job(
+                owner_key_hash=None,
+                target_type=TargetType.USERNAME,
+                target_hash=TARGET_HASH,
+                connectors_planned=connectors_planned,
+                db=tmp_db,
+            )
+
+
+@pytest.mark.asyncio
+async def test_append_event_rejects_valid_connector_not_planned(
+    tmp_db: DatabaseManager,
+) -> None:
+    job_id = await job_store.create_job(
+        owner_key_hash=None,
+        target_type=TargetType.USERNAME,
+        target_hash=TARGET_HASH,
+        connectors_planned=["carrier_lookup"],
+        db=tmp_db,
+    )
+
+    with pytest.raises(job_store.EventPayloadRejected):
+        await job_store.append_event(
+            job_id,
+            1,
+            "connector_result",
+            {"connector": "mock", "status": "likely"},
+            owner_key_hash=None,
+            db=tmp_db,
+        )
+
+    assert await _event_count(tmp_db, job_id) == 0
+
+
+@pytest.mark.asyncio
+async def test_append_event_accepts_registered_connector_when_planned(
+    tmp_db: DatabaseManager,
+) -> None:
+    job_id = await job_store.create_job(
+        owner_key_hash=None,
+        target_type=TargetType.PHONE,
+        target_hash=TARGET_HASH,
+        connectors_planned=["carrier_lookup"],
+        db=tmp_db,
+    )
+
+    await job_store.append_event(
+        job_id,
+        1,
+        "connector_result",
+        {"connector": "carrier_lookup", "status": "likely"},
+        owner_key_hash=None,
+        db=tmp_db,
+    )
+
+    rows = [
+        row
+        async for row in job_store.stream_events(
+            job_id,
+            owner_key_hash=None,
+            db=tmp_db,
+        )
+    ]
+
+    assert len(rows) == 1
+    assert rows[0]["payload"]["connector"] == "carrier_lookup"
+
+
+@pytest.mark.asyncio
 async def test_owner_key_hash_filters_job_and_event_replay(
     tmp_db: DatabaseManager,
 ) -> None:

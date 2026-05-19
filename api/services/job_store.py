@@ -138,8 +138,23 @@ ALLOWED_EVENT_TYPES = frozenset(
         "heartbeat",
     }
 )
-ALLOWED_CONNECTOR_NAMES = frozenset({"mock", "carrier_lookup"})
-ALLOWED_CONNECTOR_PREFIXES = ("sherlock:", "oathnet:", "thordata:")
+ALLOWED_CONNECTOR_IDS = frozenset(
+    {
+        "mock",
+        "sherlock",
+        "sherlock:github",
+        "sherlock:reddit",
+        "sherlock:steam",
+        "oathnet",
+        "oathnet:breach",
+        "oathnet:stealer",
+        "oathnet:ip",
+        "oathnet:holehe",
+        "oathnet:victims",
+        "carrier_lookup",
+        "carrier_lookup:offline",
+    }
+)
 
 
 def _database(db: DatabaseManager | None) -> DatabaseManager:
@@ -195,7 +210,7 @@ def _validate_connector_names(names: Sequence[str] | None) -> list[str]:
 def _is_controlled_connector(candidate: str) -> bool:
     if not CONNECTOR_NAME_RE.fullmatch(candidate):
         return False
-    return candidate in ALLOWED_CONNECTOR_NAMES or candidate.startswith(ALLOWED_CONNECTOR_PREFIXES)
+    return candidate in ALLOWED_CONNECTOR_IDS
 
 
 def _event_type_value(event_type: str) -> str:
