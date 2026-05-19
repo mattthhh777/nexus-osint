@@ -182,11 +182,14 @@ async function copyAll() {
 }
 
 // ── PDF export ────────────────────────────────────────
-function exportPDF() {
-  const o = currentResult.oathnet;
-  const s = currentResult.sherlock;
-  const ts = currentResult.timestamp || new Date().toISOString();
-  const q = currentResult.query || '─';
+function exportPDF(opts = {}) {
+  const result = opts.result || currentResult || {};
+  const caseId = opts.caseId || result.case_id || 'unsaved';
+  const generatedAt = opts.generatedAt || new Date().toISOString();
+  const o = result.oathnet;
+  const s = result.sherlock;
+  const ts = result.timestamp || generatedAt;
+  const q = result.query || '─';
   const risk = Math.min((o?.breach_count||0)*15 + (o?.stealer_count||0)*20, 100);
   const [rl, rc] = riskLabel(risk);
   const nTotal = (o?.breach_count||0)+(o?.stealer_count||0)+(s?.found_count||0)+(o?.holehe_count||0);
@@ -237,6 +240,7 @@ function exportPDF() {
 
   const riskHex = rc;
   const dateStr = ts.slice(0,16).replace('T',' ');
+  const generatedStr = generatedAt.slice(0,19).replace('T',' ');
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -456,8 +460,9 @@ function exportPDF() {
     <\/div>
     <div class="cover-meta">
       <strong>TARGET<\/strong>${e(q)}
-      <strong>TYPE<\/strong>${e(currentResult.oathnet?.query_type||'username')}
-      <strong>ELAPSED<\/strong>${currentResult.elapsed||0}s
+      <strong>TYPE<\/strong>${e(result.oathnet?.query_type||'username')}
+      <strong>ELAPSED<\/strong>${result.elapsed||0}s
+      <strong>CASE<\/strong>${e(caseId)}
       <strong>RISK SCORE<\/strong><span style="color:${riskHex}">${risk} — ${rl}<\/span>
     <\/div>
   <\/div>
@@ -548,7 +553,7 @@ function exportPDF() {
 
   <!-- Footer -->
   <div class="footer">
-    <span>⬡ NexusOSINT v2 · Intelligence Report · ${dateStr}<\/span>
+    <span>⬡ NexusOSINT · case_id ${e(caseId)} · generated_at ${e(generatedStr)}<\/span>
     <span>Target: ${e(q)} · Risk: <span style="color:${riskHex}">${risk} ${rl}<\/span><\/span>
   <\/div>
 

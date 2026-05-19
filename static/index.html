@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NexusOSINT</title>
+<script src="/static/js/theme-flag.js?v=20260518"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/tokens.css?v=202604180100">
@@ -47,12 +48,6 @@
       </div>
     </div>
     <div class="nav-right">
-      <div class="quota-pill" id="quotaPill">
-        <div class="quota-pill-track">
-          <div class="quota-pill-fill" id="quotaPillFill"></div>
-        </div>
-        <span id="quotaPillText">─</span> <span class="text-dim">left</span>
-      </div>
       <button class="nav-cases-btn" data-action="toggle-cases-panel" title="Saved Cases">
         📁 <span id="casesBadge"></span>
       </button>
@@ -85,19 +80,11 @@
     <!-- Hero -->
     <div class="hero">
       <div class="hero-tag">Intelligence Platform</div>
-      <h1>Find anything on<br><span>anyone, instantly.</span></h1>
+      <h1>Confirme.<br><span>Não suponha.</span></h1>
       <p>Breach databases · Social networks · Emails · IPs · Domains</p>
 
       <!-- Search -->
       <div class="search-container">
-        <!-- Quota bar -->
-        <div class="quota-bar" id="quotaBar">
-          <div class="quota-track">
-            <div class="quota-fill" id="quotaFill"></div>
-          </div>
-          <span>OathNet <span class="quota-text" id="quotaText">─</span> left today</span>
-        </div>
-
         <div class="search-row">
           <input type="text" class="search-input" id="searchInput"
             placeholder="username · email · IP · Discord ID · domain…">
@@ -333,6 +320,11 @@
 <script src="js/state.js?v=202604170002"></script>
 <script src="js/utils.js?v=202604180100"></script>
 <script src="js/auth.js?v=202605110001"></script>
+<script src="/static/js/components/status-pill.js?v=20260518"></script>
+<script src="/static/js/components/confidence-meter.js?v=20260518"></script>
+<script src="/static/js/components/evidence-drawer.js?v=20260518"></script>
+<script src="/static/js/components/connector-card.js?v=20260518"></script>
+<script src="/static/js/legacy-adapter.js?v=20260518"></script>
 <script src="js/search.js?v=202604170002"></script>
 <script src="js/render.js?v=202604180100"></script>
 <script src="js/panels.js?v=202604170002"></script>
