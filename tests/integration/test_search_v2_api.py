@@ -389,19 +389,27 @@ async def test_sse_from_seq_skips_replayed_events(app_client):
 
 def test_legacy_api_search_route_still_registered():
     routes = {route.path for route in m.app.router.routes if hasattr(route, "path")}
-    assert "/api/search" in routes, "legacy /api/search must remain registered (no deprecation in R1-8)"
+    assert "/api/search" in routes, "legacy /api/search must remain registered"
     assert "/api/v2/search" in routes
     assert "/api/v2/search/{job_id}" in routes
     assert "/api/v2/search/{job_id}/events" in routes
 
 
-# -- R1-9 frontend must not exist yet ---------------------------------------
+# -- R1-9 frontend must be opt-in -------------------------------------------
 
-def test_r1_9_frontend_not_started():
+def test_r1_9_frontend_is_opt_in():
     from pathlib import Path
 
     repo = Path(__file__).resolve().parents[2]
-    assert not (repo / "static" / "js" / "v2-search.js").exists(), (
-        "R1-9 frontend must not be started in this commit"
-    )
-    assert not (repo / "static" / "js" / "job-replay.js").exists()
+    index = (repo / "static" / "index.html").read_text(encoding="utf-8")
+    v2 = (repo / "static" / "js" / "v2-search.js").read_text(encoding="utf-8")
+    replay = (repo / "static" / "js" / "job-replay.js").read_text(encoding="utf-8")
+    legacy = (repo / "static" / "js" / "search.js").read_text(encoding="utf-8")
+
+    assert "/static/js/job-replay.js" in index
+    assert "/static/js/v2-search.js" in index
+    assert "getParam('engine') === 'v2'" in v2
+    assert "apiFetch('/api/v2/search'" in v2
+    assert "apiFetch('/api/search'" not in v2
+    assert "apiFetch('/api/search'" in legacy
+    assert "searchParams.set('from_seq'" in replay
