@@ -198,7 +198,9 @@
           title: 'Evidence',
           source: '',
           type: '',
-          body: redactRawTarget(item)
+          signal: '',
+          weight: '',
+          detail: redactRawTarget(item)
         };
       }
       return {
@@ -310,6 +312,12 @@
     if (!text) return fallback;
     if (text.length <= 12) return text;
     return text.slice(0, 6) + '...' + text.slice(-6);
+  }
+
+  function formatSignalTime(value) {
+    var date = new Date(value || '');
+    if (Number.isNaN(date.getTime())) return 'time unavailable';
+    return date.toISOString().slice(0, 16).replace('T', ' ');
   }
 
   function createSignalPill(label, status) {
@@ -679,8 +687,128 @@
     body.replaceChildren(wrapper);
   }
 
+  function readSignalStorageList(key) {
+    try {
+      var raw = global.localStorage ? global.localStorage.getItem(key) : null;
+      if (!raw) return [];
+      var parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (err) {
+      return [];
+    }
+  }
+
+  function safeStoredStatus(item) {
+    var summary = item && item.summary_snapshot ? item.summary_snapshot : {};
+    return normalizeStatus(summary.overall_status || item.status || item.overall_status || 'uncertain');
+  }
+
+  function safeStoredCase(item) {
+    if (!item || typeof item !== 'object') return null;
+    var hash = item.target_hash || item.targetHash || '';
+    if (!hash || hash === 'legacy' || hash === 'unavailable') return null;
+    var summary = item.summary_snapshot || {};
+    return {
+      id: item.id || '',
+      target_hash: String(hash),
+      target_type: String(item.target_type || item.targetType || 'target'),
+      status: safeStoredStatus(item),
+      confidence: Number(summary.overall_confidence || item.overall_confidence || 0),
+      timestamp: item.updated_at || item.created_at || item.timestamp || '',
+      found_count: Number(summary.found_count || 0),
+      likely_count: Number(summary.likely_count || 0),
+      blocked_count: Number(summary.blocked_count || 0),
+      error_count: Number(summary.error_count || 0)
+    };
+  }
+
+  function safeStoredHistory(item) {
+    if (!item || typeof item !== 'object') return null;
+    var hash = item.target_hash || item.targetHash || '';
+    if (!hash) return null;
+    return {
+      id: item.job_id || item.id || '',
+      target_hash: String(hash),
+      target_type: String(item.target_type || item.targetType || 'target'),
+      status: normalizeStatus(item.status || item.overall_status || 'uncertain'),
+      confidence: Number(item.overall_confidence || item.confidence_score || 0),
+      timestamp: item.timestamp || item.updated_at || item.created_at || '',
+      found_count: 0,
+      likely_count: 0,
+      blocked_count: 0,
+      error_count: 0
+    };
+  }
+
+  function getSafeSignalCases() {
+    var safeCases = readSignalStorageList('nx_cases').map(safeStoredCase).filter(Boolean);
+    var safeHistory = readSignalStorageList('nx_history').map(safeStoredHistory).filter(Boolean);
+    return safeCases.concat(safeHistory).sort(function (a, b) {
+      return (Date.parse(b.timestamp || '') || 0) - (Date.parse(a.timestamp || '') || 0);
+    }).slice(0, 4);
+  }
+
+  function renderSignalCases() {
+    var title = document.getElementById('signalCasesTitle');
+    var body = document.getElementById('signalCasesBody');
+    if (!title || !body) return;
+
+    var safeCases = getSafeSignalCases();
+    if (!safeCases.length) {
+      title.textContent = 'No safe local cases';
+      var strong = document.createElement('strong');
+      strong.textContent = 'No safe case metadata available';
+      var p = document.createElement('p');
+      p.textContent = 'Signal shows only local cases with target_hash metadata. Legacy entries with raw targets stay hidden.';
+      var foot = document.createElement('p');
+      foot.className = 'signal-case-footnote';
+      foot.textContent = 'Local only. Nothing is persisted server-side in R2-4.';
+      body.className = 'signal-empty';
+      body.replaceChildren(strong, p, foot);
+      return;
+    }
+
+    title.textContent = 'Recent safe cases';
+    var list = document.createElement('div');
+    list.className = 'signal-case-list';
+    safeCases.forEach(function (item) {
+      var card = document.createElement('article');
+      card.className = 'signal-case-card signal-case-card--' + statusClass(item.status);
+      var top = document.createElement('div');
+      top.className = 'signal-case-card__top';
+      var heading = document.createElement('strong');
+      heading.textContent = String(item.target_type || 'target') + ' case';
+      top.append(heading, createSignalPill(item.status, item.status));
+
+      var hash = document.createElement('div');
+      hash.className = 'signal-case-card__hash';
+      hash.textContent = 'target_hash ' + shortValue(item.target_hash, 'unavailable');
+
+      var meta = document.createElement('div');
+      meta.className = 'signal-case-card__meta';
+      meta.append(
+        createSignalPill('confidence ' + String(item.confidence || 0), item.status),
+        createSignalPill('found ' + String(item.found_count || 0), 'found'),
+        createSignalPill('likely ' + String(item.likely_count || 0), 'likely'),
+        createSignalPill('blocked ' + String(item.blocked_count || 0), 'blocked'),
+        createSignalPill('error ' + String(item.error_count || 0), 'error')
+      );
+
+      var foot = document.createElement('p');
+      foot.className = 'signal-case-footnote';
+      foot.textContent = 'stored locally · ' + formatSignalTime(item.timestamp);
+
+      card.append(top, hash, meta, foot);
+      list.appendChild(card);
+    });
+    body.className = '';
+    body.replaceChildren(list);
+  }
+
   function renderSignalUi() {
-    if (!isSignalUiActive() || !currentResult || !currentResult.v2) return;
+    if (!isSignalUiActive()) return;
+    renderSignalCases();
+    if (!currentResult || !currentResult.v2) return;
     renderSignalDossier();
     renderSignalLayers();
     renderSignalOutput();
@@ -868,4 +996,5 @@
     global.__nxLegacyStartSearch = legacyStartSearch;
     global.startSearch = startV2Search;
   }
+  renderSignalUi();
 })(window);

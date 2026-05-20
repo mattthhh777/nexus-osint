@@ -75,7 +75,9 @@ def test_v2_does_not_persist_raw_target_history() -> None:
     v2 = read("static/js/v2-search.js")
 
     assert "saveHistory()" not in v2
-    assert "localStorage" not in v2
+    assert "localStorage.setItem" not in v2
+    assert "history.pushState" not in v2
+    assert "history.replaceState" not in v2
 
 
 def test_signal_ui_foundation_is_query_flagged_and_frontend_only() -> None:
@@ -104,6 +106,7 @@ def test_signal_ui_has_stable_empty_state_containers() -> None:
     assert 'id="signalLayerGrid"' in html
     assert 'id="signalEvidenceBody"' in html
     assert 'id="signalOutputList"' in html
+    assert 'id="signalCasesBody"' in html
     assert "No simulated findings" in html
 
 
@@ -142,6 +145,7 @@ def test_signal_ui_does_not_render_raw_query_or_persist_target() -> None:
     assert "meta.textContent = currentResult.query" not in v2
     assert "history.pushState" not in v2
     assert "history.replaceState" not in v2
+    assert "localStorage.setItem" not in v2
 
 
 def test_signal_evidence_detail_is_keyboard_selectable_and_grouped() -> None:
@@ -171,3 +175,26 @@ def test_signal_evidence_sanitizes_sensitive_fields() -> None:
     assert "item.token" not in v2
     assert "item.cookie" not in v2
     assert "item.secret" not in v2
+
+
+def test_signal_cases_only_render_safe_hash_metadata() -> None:
+    v2 = read("static/js/v2-search.js")
+    css = read("static/css/signal.css")
+
+    assert "renderSignalCases" in v2
+    assert "readSignalStorageList('nx_cases')" in v2
+    assert "readSignalStorageList('nx_history')" in v2
+    assert "target_hash ' + shortValue" in v2
+    assert "Legacy entries with raw targets stay hidden" in v2
+    assert "localStorage.setItem" not in v2
+    assert ".signal-case-card" in css
+
+
+def test_signal_cases_do_not_render_stored_raw_targets() -> None:
+    v2 = read("static/js/v2-search.js")
+
+    assert "item.name" not in v2
+    assert "item.query" not in v2
+    assert "history-target" not in v2
+    assert "target_hash" in v2
+    assert "No safe case metadata available" in v2
