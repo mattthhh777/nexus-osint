@@ -268,6 +268,7 @@ from api.routes import search as _search_routes  # noqa: E402
 from api.routes import victims as _victims_routes  # noqa: E402
 from api.routes import spiderfoot as _spiderfoot_routes  # noqa: E402
 from api.routes import health as _health_routes  # noqa: E402
+from api.routes import search_v2 as _search_v2_routes  # noqa: E402 - R1-8 /api/v2/search
 app.include_router(_root_routes.router)
 app.include_router(_auth_routes.router)
 app.include_router(_admin_routes.router)
@@ -275,3 +276,4 @@ app.include_router(_search_routes.router)
 app.include_router(_victims_routes.router)
 app.include_router(_spiderfoot_routes.router)
 app.include_router(_health_routes.router)
+app.include_router(_search_v2_routes.router)
