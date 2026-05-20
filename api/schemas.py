@@ -84,6 +84,32 @@ class SearchMoreBreachesRequest(BaseModel):
         return re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", v)
 
 
+class SearchV2Request(BaseModel):
+    """R1-8 input schema for POST /api/v2/search.
+
+    Sanitizes raw `target_value` at the edge. Detection of `target_type` is
+    optional - clients may pass it explicitly; otherwise the route detects.
+    """
+
+    model_config = ConfigDict(hide_input_in_errors=True)
+
+    target_value: str = Field(min_length=1, max_length=256)
+    target_type: Literal["username", "email", "phone"] | None = None
+
+    @field_validator("target_value")
+    @classmethod
+    def sanitize_target_value(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("target_value cannot be empty")
+        v = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", v)
+        if not v:
+            raise ValueError("target_value cannot be empty")
+        if len(v) > 256:
+            raise ValueError("target_value too long (max 256 chars)")
+        return v
+
+
 class SherlockUsernameRequest(BaseModel):
     """Phase 16 D-H8/D-H9: pre-validate username before invoking sherlock_wrapper.
 

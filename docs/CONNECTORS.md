@@ -1,13 +1,15 @@
 # Connectors Contract - NexusOSINT
 
-**Status:** R0 contract shim. Backend connectors arrive in R1.
+**Status:** R1 safe MVP implemented through R1-12 documentation closeout.
 **Source of truth:** `modules/connectors/base.py`.
-**Compatibility:** `/api/search` remains the current public search endpoint in R0.
+**Runtime paths:** legacy `/api/search` is not deprecated and remains active; v2
+search is opt-in through `/api/v2/search` and frontend `?engine=v2`.
 
-This document defines the shared contract for engineers and LLM operators. R0
-adds schema, opt-in UI components, and a safe legacy adapter only. It does not
-create Source Health, a real Jobs Queue, persistent cases, production-like fake
-metrics, or a Signal v2 backend.
+This document defines the shared connector contract for engineers and LLM
+operators. R1 adds the job store, safe connector adapters, v2 search API, opt-in
+frontend replay, and hourly TTL cleanup. It does not create Source Health,
+admin Jobs Queue, real connector metrics UI, DB-backed cases, or production-like
+fake metrics.
 
 ## 1. Schema
 
@@ -18,25 +20,26 @@ Canonical Pydantic v2 definitions live in `modules/connectors/base.py`:
 - `ConfidenceLevel`: `high`, `medium`, `low`, `none`
 - `Evidence`: `signal`, `weight` from `-100` to `100`, `detail`
 - `ConnectorRequest`: `target_type`, `target_value`, `target_hash`, `timeout_s`, `job_id`
-- `ConnectorResult`: connector output contract consumed by the R0 UI adapter
+- `ConnectorResult`: connector output contract consumed by v2 backend and UI
 
 `target_value` exists in the request contract for runtime execution only. It
-must not be written to logs, persisted events, or client-visible job payloads.
+must not be written to logs, persisted events, cache payloads, or client-visible
+job payloads.
 
 ## 2. Status Semantics
 
 These eight states are immutable. Do not collapse them across backend, adapter,
 tests, or UI.
 
-| Status | Meaning | UI treatment in Graphite & Ember |
+| Status | Meaning | UI treatment |
 | --- | --- | --- |
 | `pending` | Planned, not started | tertiary text |
-| `running` | In flight lifecycle state | ember accent with loading affordance |
-| `found` | Confirmed match. Overall `found` needs quorum in R1. | high-confidence green |
-| `likely` | Positive signal without quorum | medium-confidence mustard, never green |
+| `running` | In flight lifecycle state | amber/accent loading affordance |
+| `found` | Confirmed match. Overall `found` needs quorum. | high-confidence green |
+| `likely` | Positive signal without quorum | medium-confidence, never green |
 | `not_found` | Negative result confirmed | tertiary text |
-| `uncertain` | Signals disagree or confidence is insufficient | medium treatment with restrained border |
-| `blocked` | Source blocked access: captcha, auth wall, anti-bot, rate limit | blocked/earth tone, not red |
+| `uncertain` | Signals disagree or confidence is insufficient | restrained border |
+| `blocked` | Source blocked access: captcha, auth wall, anti-bot, rate limit | blocked tone, not red |
 | `error` | Source failed: timeout, network, parser, unexpected module failure | error red |
 
 Hard rules:
@@ -44,7 +47,7 @@ Hard rules:
 - `likely` must not become `found`.
 - `blocked` must not become `not_found`.
 - `blocked` must not become `error`.
-- A single source must not set overall search status to `found`; R1 quorum is two or more independent connectors.
+- A single source must not set overall search status to `found`; quorum is two or more independent connectors.
 
 ## 3. Confidence Derivation
 
@@ -59,81 +62,91 @@ score <  30 -> none
 
 Scores are integer bounded from `0` to `100`.
 
-## 4. Legacy to 8-State Mapping
+## 4. R1 Connectors
 
-R0-4 maps current `/api/search` SSE events into `ConnectorResult` shaped data
-in the browser when `window.NX_V2` is enabled. This is an adapter only. With
-`nx-v2` off, the legacy render path remains the public behavior.
+Implemented connectors:
 
-| Legacy signal | Connector name | Status |
+- `sherlock:<platform>` wraps the existing username runner for approved
+  platforms and maps legacy scoring into the 8-state contract.
+- `oathnet:breach` wraps OathNet breach search and stores only counts/safe
+  metadata in connector data and events.
+- `oathnet:stealer` wraps OathNet stealer search and stores only counts/safe
+  metadata in connector data and events.
+- `oathnet:victims` wraps OathNet victims search for approved target types and
+  stores only counts/safe metadata.
+- `carrier_lookup` is offline phone metadata. It never returns `found`; maximum
+  positive status is `likely`.
+
+Deferred connectors/features:
+
+- Gravatar is deferred by G2. R1-10 was intentionally skipped. No
+  `modules/connectors/email/gravatar.py`, no Gravatar HTTP call, and no MD5/email
+  hash sent to an external avatar service.
+- `oathnet:ip` / `ip_info` is deferred until `TargetType.IP` exists. R1 must not
+  introduce `TargetType.IP`.
+- Sensitive probes remain out of scope: HIBP, Truecaller, forgot-password
+  probes, WhatsApp QR, Telegram resolve, Apple ID probe, and similar account
+  existence checks.
+
+## 5. R1 Runtime
+
+Legacy search:
+
+- `/api/search` is not deprecated and remains active.
+- Existing public behavior stays intact unless the user explicitly opts into v2.
+
+V2 search:
+
+- `POST /api/v2/search` creates a hash-only job and returns `job_id` plus
+  `sse_url`.
+- `GET /api/v2/search/{job_id}` returns a job snapshot.
+- `GET /api/v2/search/{job_id}/events?from_seq=N` streams replayable SSE events.
+- Frontend v2 is opt-in via `?engine=v2`; flag off keeps `/api/search`.
+- SSE replay uses `from_seq` for reconnect/resume.
+
+Job lifecycle:
+
+- `search_jobs.expires_at` defaults to seven days after creation.
+- `api.tasks` runs hourly cleanup for expired jobs; events cascade by FK.
+- Logs from cleanup contain only aggregate counts or generic status.
+
+## 6. G1-G4 Decisions
+
+| Gate | Decision | R1 result |
 | --- | --- | --- |
-| `sherlock.validation_status=confirmed` or `found` | `sherlock:<platform>` | `found` |
-| `sherlock.validation_status=likely` | `sherlock:<platform>` | `likely` |
-| `sherlock.validation_status=unconfirmed` or `uncertain` | `sherlock:<platform>` | `uncertain` |
-| `sherlock.validation_status=likely_false_positive` or `not_found` | `sherlock:<platform>` | `not_found` |
-| `sherlock.validation_status=auth_blocked` | `sherlock:<platform>` | `blocked` |
-| `sherlock.fetch_status=cf_challenge`, `login_required`, or `redirect_to_login` | `sherlock:<platform>` | `blocked` |
-| `sherlock.validation_status=error`, timeout, HTTP error, connection error, proxy unavailable, or invalid input | `sherlock:<platform>` | `error` unless fetch status is blocked |
-| OathNet breach count greater than zero | `oathnet:breach` | `found` |
-| OathNet breach count equals zero | `oathnet:breach` | `not_found` |
-| OathNet stealer count greater than zero | `oathnet:stealer` | `found` |
-| OathNet stealer count equals zero | `oathnet:stealer` | `not_found` |
-| OathNet Holehe count greater than zero | `oathnet:holehe` | `found` |
-| OathNet IP metadata returned | `oathnet:ip` | `found` |
-| OathNet IP metadata missing | `oathnet:ip` | `not_found` |
-| SpiderFoot available with events | `spiderfoot:scan` | `likely` |
-| SpiderFoot available with no events | `spiderfoot:scan` | `not_found` |
-| SpiderFoot unavailable | `spiderfoot:scan` | `error` |
-| Legacy `module_error` | `<module>:error` | `error` |
-
-## 5. R0 Scope
-
-R0 is a contract shim:
-
-- `modules/connectors/base.py` defines the contract.
-- Graphite & Ember tokens stay behind `?theme=graphite` or `ui_theme=graphite`.
-- Connector UI components are opt-in/dev-safe.
-- Legacy search events can be adapted in memory with `nx-v2` on.
-- `/api/search` is not deprecated.
-- No public search behavior changes with `nx-v2` off.
-
-R0 does not create real backend connector jobs, source health metrics, durable
-case entities, or production-like mocked metrics.
-
-## 6. R1 Scope
-
-R1 is the safe MVP after R0 approval:
-
-- `sherlock_adapter`
-- `oathnet_adapter`
-- `carrier_lookup`
-- `/api/v2/search`
-- hash-only event payloads
-- seven-day TTL for jobs/events
-- overall `found` only when at least two independent connectors agree
-
-R1-10 Gravatar is skipped. Thordata is reused under its 1GB/day quota.
-
-Any R1 source-specific anti-bot or rate-limit signal must normalize to
-`blocked` before it reaches UI code. It must not render as `not_found` or
-`error`.
+| G1 | hash-only + TTL 7d | `search_events.payload` stores `target_hash` plus sanitized metadata only; TTL cleanup added in R1-11 |
+| G2 | defer Gravatar | R1-10 skipped; no Gravatar connector or external MD5/email lookup |
+| G3 | >=2 independent connectors for `found` | `search_orchestrator` demotes single-source `found` to `likely` |
+| G4 | reuse Thordata quota | no new proxy provisioning; `carrier_lookup` is offline |
 
 ## 7. Privacy and Retention
 
-Decision G1 is hash-only plus TTL seven days:
+- No clear `target_value` in DB event payloads, cache payloads, logs, or
+  client-visible job payloads.
+- `search_jobs.target_encrypted` remains `NULL` in the G1 model.
+- `search_jobs.owner_key_hash` is a privacy-preserving owner identifier aligned
+  with current JSON auth. It is intentionally not a FK until DB-backed users
+  exist.
+- Delete requests can be satisfied by TTL expiry or a future explicit job delete
+  endpoint if approved.
+- Frontend v2 does not write raw target values to history/localStorage.
 
-- `search_events.payload` stores `target_hash` and sanitized metadata only.
-- No clear `target_value` in DB event payloads, logs, or client-visible job payloads.
-- `search_jobs.expires_at` is `created_at + 7 days`.
-- Cleanup purges expired jobs; event rows cascade.
-- Delete requests can be satisfied by TTL expiry or an explicit job delete endpoint if added in R1.
+## 8. Not Implemented In R1
 
-## 8. Operator Checklist
+- Source Health real-data UI and `connector_metrics` table.
+- Admin Jobs Queue / complete job management UI.
+- DB-backed persistent cases or chain graph.
+- Cooperative cancel/retry for running jobs.
+- Public v2 rollout or legacy `/api/search` deprecation.
+- Merge, deploy, or production flag enablement.
+
+## 9. Operator Checklist
 
 Before changing adapter, connector, or UI status behavior:
 
 - Re-run connector unit tests.
-- Smoke `nx-v2` off and confirm legacy rendering still works.
-- Smoke `nx-v2` on and confirm connector cards preserve all eight states.
+- Smoke v2 off and confirm legacy `/api/search` still works.
+- Smoke `?engine=v2` and confirm connector cards preserve all eight states.
 - Confirm `likely` is visually distinct from `found`.
-- Confirm `cf_challenge`, anti-bot, and rate-limit conditions render as `blocked`, not `error`.
+- Confirm anti-bot, auth wall, and rate-limit conditions render as `blocked`,
+  not `error` or `not_found`.
