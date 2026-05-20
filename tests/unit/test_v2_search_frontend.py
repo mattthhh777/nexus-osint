@@ -66,8 +66,9 @@ def test_v2_preserves_likely_and_blocked_statuses() -> None:
 
     assert "status: payload.status" in v2
     assert "status === 'likely'" in v2
-    assert "status === 'blocked'" not in v2
-    assert "blocked" not in v2
+    assert "likely: 0" in v2
+    assert "blocked: 0" in v2
+    assert "blocked: true" in v2
 
 
 def test_v2_does_not_persist_raw_target_history() -> None:
@@ -92,3 +93,52 @@ def test_signal_ui_foundation_is_query_flagged_and_frontend_only() -> None:
     assert "document.cookie" not in bootstrap
     assert "/api/search" not in signal_css
     assert "/api/v2/search" not in signal_css
+
+
+def test_signal_ui_has_stable_empty_state_containers() -> None:
+    html = read("static/index.html")
+
+    assert 'id="signalDossierMeta"' in html
+    assert 'id="signalDossierBadges"' in html
+    assert 'id="signalLayerCount"' in html
+    assert 'id="signalLayerGrid"' in html
+    assert 'id="signalEvidenceBody"' in html
+    assert 'id="signalOutputList"' in html
+    assert "No simulated findings" in html
+
+
+def test_signal_ui_renders_real_v2_state_without_changing_engine_flag() -> None:
+    v2 = read("static/js/v2-search.js")
+
+    assert "function isSignalUiActive()" in v2
+    assert "getParam('ui') === 'signal'" in v2
+    assert "function renderSignalUi()" in v2
+    assert "renderSignalDossier();" in v2
+    assert "renderSignalLayers();" in v2
+    assert "renderSignalOutput();" in v2
+    assert "renderSignalEvidence();" in v2
+    assert "global.startSearch = startV2Search" in v2
+    assert "getParam('engine') === 'v2'" in v2
+
+
+def test_signal_ui_connector_results_and_evidence_are_real_only() -> None:
+    v2 = read("static/js/v2-search.js")
+
+    assert "sanitizeEvidenceList(payload.evidence)" in v2
+    assert "Connector results arrived without evidence fields" in v2
+    assert "Signal UI will not invent evidence" in v2
+    assert "Evidence rows will render only when backend events provide evidence fields" in read("static/index.html")
+    assert "davibrito" not in v2
+    assert "OathNet 84 left" not in v2
+    assert "risk 100" not in v2
+
+
+def test_signal_ui_does_not_render_raw_query_or_persist_target() -> None:
+    v2 = read("static/js/v2-search.js")
+
+    assert "redactRawTarget" in v2
+    assert "Hash-only target context" in v2
+    assert "title.textContent = currentResult.query" not in v2
+    assert "meta.textContent = currentResult.query" not in v2
+    assert "history.pushState" not in v2
+    assert "history.replaceState" not in v2

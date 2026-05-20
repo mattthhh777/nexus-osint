@@ -114,15 +114,15 @@
       </div>
     </div>
 
-    <!-- Signal UI foundation: opt-in via ?ui=signal, empty until R2-2 data binding. -->
+    <!-- Signal UI foundation: opt-in via ?ui=signal, populated only from real v2 data. -->
     <section class="signal-shell" id="signalShell" aria-label="Signal intelligence workspace" aria-hidden="true">
       <header class="signal-dossier" aria-labelledby="signalDossierTitle">
         <div>
           <p class="signal-kicker">Target dossier</p>
           <h2 id="signalDossierTitle">No investigation active</h2>
-          <p class="signal-muted">Run a v2 investigation to populate hash-only target context.</p>
+          <p class="signal-muted" id="signalDossierMeta">Run a v2 investigation to populate hash-only target context.</p>
         </div>
-        <div class="signal-dossier__meta" aria-label="Dossier state">
+        <div class="signal-dossier__meta" id="signalDossierBadges" aria-label="Dossier state">
           <span class="signal-pill signal-pill--idle">status idle</span>
           <span class="signal-pill">risk unavailable</span>
           <span class="signal-pill">confidence pending</span>
@@ -136,14 +136,14 @@
               <p class="signal-kicker">Signal layers</p>
               <h3 id="signalLayersTitle">Connector lifecycle</h3>
             </div>
-            <span class="signal-count">0 / 0</span>
+            <span class="signal-count" id="signalLayerCount">0 / 0</span>
           </div>
-          <div class="signal-layer-grid" aria-label="Signal layer empty state">
+          <div class="signal-layer-grid" id="signalLayerGrid" aria-label="Signal layer empty state">
             <div class="signal-layer signal-layer--empty">
               <span class="signal-layer__dot"></span>
               <div>
                 <strong>No connector results yet</strong>
-                <p>R2-1 ships the visual foundation only. Real connector output remains on the R1 surface until R2-2 binds v2 events.</p>
+                <p>Signal waits for real v2 connector events. No simulated findings.</p>
               </div>
             </div>
           </div>
@@ -152,7 +152,7 @@
         <aside class="signal-panel signal-panel--evidence" aria-labelledby="signalEvidenceTitle">
           <p class="signal-kicker">Evidence queue</p>
           <h3 id="signalEvidenceTitle">Nothing queued</h3>
-          <div class="signal-empty">
+          <div class="signal-empty" id="signalEvidenceBody">
             <strong>No client-visible evidence</strong>
             <p>Evidence rows will render only when backend events provide evidence fields. No simulated findings.</p>
           </div>
@@ -161,7 +161,7 @@
         <section class="signal-panel signal-panel--output" aria-labelledby="signalOutputTitle">
           <p class="signal-kicker">Module output</p>
           <h3 id="signalOutputTitle">Awaiting live module data</h3>
-          <div class="signal-output-list">
+          <div class="signal-output-list" id="signalOutputList">
             <span class="signal-pill signal-pill--idle">pending</span>
             <span class="signal-pill">found</span>
             <span class="signal-pill signal-pill--likely">likely</span>
@@ -174,7 +174,7 @@
           <h3 id="signalCasesTitle">Local cases not loaded here yet</h3>
           <div class="signal-empty">
             <strong>Case intelligence shell</strong>
-            <p>DB-backed cases, admin queue, source health, cancel, and retry stay outside R2-1.</p>
+            <p>DB-backed cases, admin queue, source health, cancel, and retry stay outside R2-2.</p>
           </div>
         </section>
       </div>
