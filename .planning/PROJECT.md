@@ -216,3 +216,29 @@ Execution branch series:
 - R1: `v4.1/r1-safe-mvp` -> 11 tasks, with R1-10 skipped -> safe MVP with `/api/v2/search`.
 
 See `.planning/R0_R1_REVISION.md`, `.planning/CODEX_HANDOFF.md`, and `docs/CONNECTORS.md`.
+
+## 2026-05-20 - R1 safe MVP closeout
+
+R1 completed on branch `v4.1/r1-job-store` through R1-12 documentation. Final
+state:
+
+- R1 connectors implemented: `sherlock_adapter`, `oathnet_adapter`, and
+  offline `carrier_lookup`.
+- G1 implemented: hash-only job/event storage with seven-day TTL and hourly job
+  cleanup. `search_events.payload` stores `target_hash` plus sanitized metadata
+  only.
+- G2 upheld: Gravatar deferred. R1-10 was skipped; no Gravatar connector, no
+  Gravatar HTTP call, and no MD5/email hash sent to an external avatar service.
+- G3 implemented: overall `found` requires at least two independent connectors;
+  single-source `found` is demoted to `likely`.
+- G4 upheld: no new proxy provisioning; future proxy-using sources must reuse
+  existing Thordata budget.
+- `oathnet:ip` / `ip_info` remains deferred until `TargetType.IP` exists.
+- `/api/search` v1 remains active and is not deprecated.
+- `/api/v2/search` exists as an opt-in job API; frontend v2 activation stays
+  behind `?engine=v2`.
+- Source Health, admin Jobs Queue, full job management UI, DB-backed cases,
+  cooperative cancel/retry, merge, deploy, and production flag enablement remain
+  out of scope after R1.
+
+No next phase started in R1-12.
