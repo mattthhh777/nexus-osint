@@ -75,3 +75,20 @@ def test_v2_does_not_persist_raw_target_history() -> None:
 
     assert "saveHistory()" not in v2
     assert "localStorage" not in v2
+
+
+def test_signal_ui_foundation_is_query_flagged_and_frontend_only() -> None:
+    html = read("static/index.html")
+    bootstrap = read("static/js/bootstrap.js")
+    signal_css = read("static/css/signal.css")
+
+    assert "/static/css/signal.css" in html
+    assert 'id="signalShell"' in html
+    assert "No investigation active" in html
+    assert "params.get('ui') === 'signal'" in bootstrap
+    assert "window.NX_SIGNAL_UI = active" in bootstrap
+    assert "classList.toggle('nx-signal', active)" in bootstrap
+    assert "localStorage" not in bootstrap
+    assert "document.cookie" not in bootstrap
+    assert "/api/search" not in signal_css
+    assert "/api/v2/search" not in signal_css
