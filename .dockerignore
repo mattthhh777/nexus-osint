@@ -24,6 +24,9 @@ build/
 # Tests & dev
 tests/
 *.test.py
+node_modules/
+test-results/
+agora/
 # pytest.ini intentionally included — needed for test-in-container verification
 .pytest_cache/
 
