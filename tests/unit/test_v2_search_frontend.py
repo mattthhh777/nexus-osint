@@ -125,7 +125,7 @@ def test_signal_ui_connector_results_and_evidence_are_real_only() -> None:
     v2 = read("static/js/v2-search.js")
 
     assert "sanitizeEvidenceList(payload.evidence)" in v2
-    assert "Connector results arrived without evidence fields" in v2
+    assert "Evidence unavailable until connector results provide evidence payloads" in v2
     assert "Signal UI will not invent evidence" in v2
     assert "Evidence rows will render only when backend events provide evidence fields" in read("static/index.html")
     assert "davibrito" not in v2
@@ -142,3 +142,32 @@ def test_signal_ui_does_not_render_raw_query_or_persist_target() -> None:
     assert "meta.textContent = currentResult.query" not in v2
     assert "history.pushState" not in v2
     assert "history.replaceState" not in v2
+
+
+def test_signal_evidence_detail_is_keyboard_selectable_and_grouped() -> None:
+    v2 = read("static/js/v2-search.js")
+    css = read("static/css/signal.css")
+
+    assert "selectedSignalEvidenceKey" in v2
+    assert "getSignalEvidenceGroups" in v2
+    assert "renderSignalEvidenceDetail" in v2
+    assert "row.type = 'button'" in v2
+    assert "aria-pressed" in v2
+    assert "No evidence payload provided" in v2
+    assert ".signal-evidence-detail" in css
+    assert ".signal-evidence-row--selected" in css
+
+
+def test_signal_evidence_sanitizes_sensitive_fields() -> None:
+    v2 = read("static/js/v2-search.js")
+
+    assert "function isSensitiveEvidenceKey" in v2
+    assert "headers?|body|cookies?|tokens?|secrets?" in v2
+    assert "authorization|password|api_?key" in v2
+    assert "detail unavailable" in v2
+    assert "safeEvidenceValue(item, ['detail', 'summary', 'snippet', 'description', 'value', 'message'])" in v2
+    assert "item.headers" not in v2
+    assert "item.body" not in v2
+    assert "item.token" not in v2
+    assert "item.cookie" not in v2
+    assert "item.secret" not in v2

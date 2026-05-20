@@ -10,6 +10,7 @@
   });
 
   var legacyStartSearch = global.startSearch;
+  var selectedSignalEvidenceKey = null;
 
   function getParam(name) {
     var match = new RegExp('[?&]' + name + '=([^&]+)').exec(global.location.search);
@@ -158,19 +159,35 @@
     return items.map(redactRawTarget).filter(Boolean);
   }
 
+  function isSensitiveEvidenceKey(key) {
+    return /^(raw_url|url|target|target_value|query|headers?|body|cookies?|tokens?|secrets?|authorization|password|api_?key)$/i.test(String(key || ''));
+  }
+
+  function safeEvidenceValue(item, keys) {
+    if (!item || typeof item !== 'object') return '';
+    for (var i = 0; i < keys.length; i += 1) {
+      var key = keys[i];
+      if (isSensitiveEvidenceKey(key)) continue;
+      var value = item[key];
+      if (value == null || typeof value === 'object') continue;
+      return redactRawTarget(value);
+    }
+    return '';
+  }
+
   function safeEvidenceBody(item) {
     if (!item || typeof item !== 'object') return redactRawTarget(item);
-    var preferred = item.summary || item.snippet || item.description || item.value || item.message;
+    var preferred = safeEvidenceValue(item, ['detail', 'summary', 'snippet', 'description', 'value', 'message']);
     if (preferred) return redactRawTarget(preferred);
 
     var safe = {};
     Object.keys(item).forEach(function (key) {
-      if (/^(raw_url|url|target|target_value|query)$/i.test(key)) return;
+      if (isSensitiveEvidenceKey(key)) return;
       var value = item[key];
       if (value == null || typeof value === 'object') return;
       safe[key] = redactRawTarget(value);
     });
-    return Object.keys(safe).length ? JSON.stringify(safe) : '';
+    return Object.keys(safe).length ? JSON.stringify(safe) : 'detail unavailable';
   }
 
   function sanitizeEvidenceList(items) {
@@ -185,13 +202,15 @@
         };
       }
       return {
-        title: redactRawTarget(item.title || item.label || item.type || 'Evidence'),
-        source: redactRawTarget(item.source || item.connector || ''),
-        type: redactRawTarget(item.type || ''),
-        body: safeEvidenceBody(item)
+        title: safeEvidenceValue(item, ['title', 'label', 'type']) || 'Evidence',
+        source: safeEvidenceValue(item, ['source', 'connector']),
+        type: safeEvidenceValue(item, ['type', 'signal']),
+        signal: safeEvidenceValue(item, ['signal', 'type']),
+        weight: safeEvidenceValue(item, ['weight', 'confidence', 'score']),
+        detail: safeEvidenceBody(item)
       };
     }).filter(function (item) {
-      return item.body || item.title || item.source || item.type;
+      return item.detail || item.title || item.source || item.type || item.signal || item.weight;
     });
   }
 
@@ -489,20 +508,82 @@
     list.replaceChildren(statusRow, cards);
   }
 
+  function makeSignalEvidenceKey(connector, index) {
+    return String(connector || 'connector') + '::' + String(index);
+  }
+
+  function makeSignalEmptyMessage(text) {
+    var note = document.createElement('p');
+    note.className = 'signal-evidence-empty-note';
+    note.textContent = text;
+    return note;
+  }
+
+  function getSignalEvidenceGroups() {
+    return getSignalResults().map(function (result) {
+      return {
+        connector: result.connector,
+        status: normalizeStatus(result.status),
+        confidence_score: result.confidence_score,
+        evidence: result.evidence || []
+      };
+    });
+  }
+
+  function flattenSignalEvidence(groups) {
+    var items = [];
+    groups.forEach(function (group) {
+      group.evidence.forEach(function (item, index) {
+        items.push({
+          key: makeSignalEvidenceKey(group.connector, index),
+          connector: group.connector,
+          status: group.status,
+          confidence_score: group.confidence_score,
+          item: item
+        });
+      });
+    });
+    return items;
+  }
+
+  function renderSignalEvidenceDetail(detailHost, selected) {
+    var title = document.createElement('h4');
+    title.className = 'signal-evidence-detail__title';
+    title.textContent = selected ? 'Evidence detail' : 'Evidence detail unavailable';
+
+    if (!selected) {
+      var empty = document.createElement('p');
+      empty.className = 'signal-evidence-empty-note';
+      empty.textContent = 'Select an evidence row to inspect sanitized detail.';
+      detailHost.replaceChildren(title, empty);
+      return;
+    }
+
+    var item = selected.item;
+    var meta = document.createElement('div');
+    meta.className = 'signal-evidence-row__meta';
+    meta.append(
+      createSignalPill(connectorLabel(selected.connector), selected.status),
+      createSignalPill('status ' + selected.status, selected.status),
+      createSignalPill('confidence ' + String(selected.confidence_score || 0), selected.status)
+    );
+    if (item.signal) meta.append(createSignalPill('signal ' + item.signal, selected.status));
+    if (item.weight) meta.append(createSignalPill('weight ' + item.weight, 'uncertain'));
+
+    var detail = document.createElement('p');
+    detail.className = 'signal-evidence-detail__body';
+    detail.textContent = item.detail || 'detail unavailable';
+
+    detailHost.replaceChildren(title, meta, detail);
+  }
+
   function renderSignalEvidence() {
     var title = document.getElementById('signalEvidenceTitle');
     var body = document.getElementById('signalEvidenceBody');
     if (!title || !body) return;
 
-    var evidence = [];
-    getSignalResults().forEach(function (result) {
-      (result.evidence || []).forEach(function (item) {
-        evidence.push({
-          connector: result.connector,
-          item: item
-        });
-      });
-    });
+    var groups = getSignalEvidenceGroups();
+    var evidence = flattenSignalEvidence(groups);
 
     if (!evidence.length) {
       title.textContent = getSignalResults().length ? 'Evidence unavailable' : 'Nothing queued';
@@ -510,37 +591,92 @@
       strong.textContent = 'No client-visible evidence';
       var p = document.createElement('p');
       p.textContent = getSignalResults().length
-        ? 'Connector results arrived without evidence fields. Signal UI will not invent evidence.'
-        : 'Evidence rows will render only when backend events provide evidence fields. No simulated findings.';
+        ? 'Evidence unavailable until connector results provide evidence payloads. Signal UI will not invent evidence.'
+        : 'Evidence unavailable until connector results arrive. No simulated findings.';
       body.className = 'signal-empty';
-      body.replaceChildren(strong, p);
+      var emptyGroups = document.createElement('div');
+      emptyGroups.className = 'signal-evidence-list';
+      groups.forEach(function (group) {
+        var groupEl = document.createElement('section');
+        groupEl.className = 'signal-evidence-group';
+        var heading = document.createElement('div');
+        heading.className = 'signal-evidence-group__heading';
+        var name = document.createElement('strong');
+        name.textContent = connectorLabel(group.connector);
+        heading.append(name, createSignalPill(group.status, group.status));
+        groupEl.append(heading, makeSignalEmptyMessage('No evidence payload provided'));
+        emptyGroups.appendChild(groupEl);
+      });
+      body.replaceChildren(strong, p, emptyGroups);
       return;
     }
 
     title.textContent = 'Evidence received';
-    var rows = document.createElement('div');
-    rows.className = 'signal-evidence-list';
-    evidence.forEach(function (entry) {
-      var item = entry.item;
-      var row = document.createElement('div');
-      row.className = 'signal-evidence-row';
-      var top = document.createElement('div');
-      top.className = 'signal-evidence-row__top';
-      var name = document.createElement('strong');
-      name.className = 'signal-evidence-row__title';
-      name.textContent = item.title || connectorLabel(entry.connector);
-      top.append(name, createSignalPill(item.type || 'evidence', 'found'));
-      var p = document.createElement('p');
-      p.textContent = item.body || 'Evidence field received without client-visible detail.';
-      var meta = document.createElement('div');
-      meta.className = 'signal-evidence-row__meta';
-      meta.append(createSignalPill(connectorLabel(entry.connector), 'running'));
-      if (item.source) meta.append(createSignalPill('source ' + item.source, 'uncertain'));
-      row.append(top, p, meta);
-      rows.appendChild(row);
+    if (!evidence.some(function (entry) { return entry.key === selectedSignalEvidenceKey; })) {
+      selectedSignalEvidenceKey = evidence[0].key;
+    }
+
+    var wrapper = document.createElement('div');
+    wrapper.className = 'signal-evidence-workspace';
+    var groupsHost = document.createElement('div');
+    groupsHost.className = 'signal-evidence-list';
+    var detailHost = document.createElement('section');
+    detailHost.className = 'signal-evidence-detail';
+    detailHost.setAttribute('aria-live', 'polite');
+
+    groups.forEach(function (group) {
+      var groupEl = document.createElement('section');
+      groupEl.className = 'signal-evidence-group';
+      var heading = document.createElement('div');
+      heading.className = 'signal-evidence-group__heading';
+      var groupName = document.createElement('strong');
+      groupName.textContent = connectorLabel(group.connector);
+      heading.append(groupName, createSignalPill(group.status, group.status));
+      groupEl.appendChild(heading);
+
+      if (!group.evidence.length) {
+        groupEl.appendChild(makeSignalEmptyMessage('No evidence payload provided'));
+      }
+
+      group.evidence.forEach(function (item, index) {
+        var key = makeSignalEvidenceKey(group.connector, index);
+        var row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'signal-evidence-row';
+        if (key === selectedSignalEvidenceKey) row.className += ' signal-evidence-row--selected';
+        row.setAttribute('aria-pressed', String(key === selectedSignalEvidenceKey));
+        row.addEventListener('click', function () {
+          selectedSignalEvidenceKey = key;
+          renderSignalEvidence();
+        });
+
+        var top = document.createElement('div');
+        top.className = 'signal-evidence-row__top';
+        var name = document.createElement('strong');
+        name.className = 'signal-evidence-row__title';
+        name.textContent = item.title || connectorLabel(group.connector);
+        top.append(name, createSignalPill(item.signal || item.type || 'evidence', group.status));
+
+        var meta = document.createElement('div');
+        meta.className = 'signal-evidence-row__meta';
+        meta.append(createSignalPill('status ' + group.status, group.status));
+        if (item.weight) meta.append(createSignalPill('weight ' + item.weight, 'uncertain'));
+        if (item.source) meta.append(createSignalPill('source ' + item.source, 'uncertain'));
+
+        row.append(top, meta);
+        groupEl.appendChild(row);
+      });
+      groupsHost.appendChild(groupEl);
     });
+
+    var selected = evidence.filter(function (entry) {
+      return entry.key === selectedSignalEvidenceKey;
+    })[0] || evidence[0];
+    renderSignalEvidenceDetail(detailHost, selected);
+
+    wrapper.append(groupsHost, detailHost);
     body.className = '';
-    body.replaceChildren(rows);
+    body.replaceChildren(wrapper);
   }
 
   function renderSignalUi() {

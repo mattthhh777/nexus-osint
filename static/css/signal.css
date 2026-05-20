@@ -312,6 +312,11 @@
   margin-top: 12px;
 }
 
+.signal-evidence-workspace {
+  display: grid;
+  gap: 12px;
+}
+
 .signal-module-card,
 .signal-evidence-row {
   min-width: 0;
@@ -319,6 +324,21 @@
   border: 1px solid var(--border-1, rgba(255, 255, 255, 0.05));
   border-radius: var(--radius-sm, 4px);
   background: var(--surface-2, #1d2230);
+}
+
+.signal-evidence-row {
+  width: 100%;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.signal-evidence-row:hover,
+.signal-evidence-row:focus-visible,
+.signal-evidence-row--selected {
+  border-color: color-mix(in srgb, var(--accent, #c4451d) 48%, var(--border-2, rgba(255, 255, 255, 0.09)));
+  outline: none;
 }
 
 .signal-module-title {
@@ -330,8 +350,54 @@
   font: 700 var(--text-sm, 0.8125rem) / 1.25 var(--font-display, system-ui, sans-serif);
 }
 
+.signal-evidence-group {
+  display: grid;
+  gap: 8px;
+}
+
+.signal-evidence-group__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.signal-evidence-group__heading strong {
+  color: var(--text-1, #e8ecf3);
+  font: 700 var(--text-sm, 0.8125rem) / 1.25 var(--font-display, system-ui, sans-serif);
+}
+
 .signal-evidence-row p {
   margin: 8px 0 0;
+  color: var(--text-2, #9ba3b5);
+  font-size: var(--text-sm, 0.8125rem);
+  overflow-wrap: anywhere;
+}
+
+.signal-evidence-empty-note {
+  margin: 0;
+  color: var(--text-2, #9ba3b5);
+  font-size: var(--text-sm, 0.8125rem);
+}
+
+.signal-evidence-detail {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border-2, rgba(255, 255, 255, 0.09));
+  border-radius: var(--radius-sm, 4px);
+  background: color-mix(in srgb, var(--surface-2, #1d2230) 82%, transparent);
+}
+
+.signal-evidence-detail__title {
+  margin: 0;
+  color: var(--text-1, #e8ecf3);
+  font: 700 var(--text-md, 0.875rem) / 1.25 var(--font-display, system-ui, sans-serif);
+  letter-spacing: 0;
+}
+
+.signal-evidence-detail__body {
+  margin: 0;
   color: var(--text-2, #9ba3b5);
   font-size: var(--text-sm, 0.8125rem);
   overflow-wrap: anywhere;
