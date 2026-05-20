@@ -2,7 +2,7 @@
 
 **Status:** R1 safe MVP implemented through R1-12 documentation closeout.
 **Source of truth:** `modules/connectors/base.py`.
-**Runtime paths:** legacy `/api/search` remains active and not deprecated; v2
+**Runtime paths:** legacy `/api/search` is not deprecated and remains active; v2
 search is opt-in through `/api/v2/search` and frontend `?engine=v2`.
 
 This document defines the shared connector contract for engineers and LLM
@@ -92,7 +92,7 @@ Deferred connectors/features:
 
 Legacy search:
 
-- `/api/search` remains active and is not deprecated.
+- `/api/search` is not deprecated and remains active.
 - Existing public behavior stays intact unless the user explicitly opts into v2.
 
 V2 search:
