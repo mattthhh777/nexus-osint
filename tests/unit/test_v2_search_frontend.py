@@ -87,7 +87,7 @@ def test_signal_ui_foundation_is_query_flagged_and_frontend_only() -> None:
 
     assert "/static/css/signal.css" in html
     assert 'id="signalShell"' in html
-    assert "Nenhuma investigacao em curso" in html
+    assert "Nenhuma investigação em curso" in html
     assert "params.get('ui') === 'signal'" in bootstrap
     assert "window.NX_SIGNAL_UI = active" in bootstrap
     assert "classList.toggle('nx-signal', active)" in bootstrap
@@ -114,7 +114,8 @@ def test_signal_ui_idle_markup_has_no_fake_status_or_risk_pills() -> None:
     html = read("static/index.html")
     v2 = read("static/js/v2-search.js")
 
-    assert 'id="signalDossierBadges" aria-label="Estado do dossie"></div>' in html
+    assert 'aria-label="Área Signal de investigação"' in html
+    assert 'id="signalDossierBadges" aria-label="Estado do dossiê"></div>' in html
     assert "status idle" not in html
     assert "confidence pending" not in html
     assert "risk unavailable" not in html
@@ -135,6 +136,41 @@ def test_signal_ui_uses_human_connector_titles() -> None:
     assert "'sherlock:steam': 'Steam presence'" in v2
     assert "strong.textContent = connectorLabel(name)" in v2
     assert "String(connector || 'connector').replace(/[:_]/g, ' ')" not in v2
+
+
+def test_signal_ui_copy_uses_accented_pt_br() -> None:
+    html = read("static/index.html")
+    v2 = read("static/js/v2-search.js")
+
+    assert "Dossiê do alvo" in html
+    assert "Fila de evidências" in html
+    assert "Cases ficam só neste navegador" in html
+    assert "Motor v2 segue desligado até ?engine=v2 estar presente" in v2
+    assert "Evidência indisponível" in v2
+    assert "horário indisponível" in v2
+
+
+def test_signal_summary_status_styles_cover_live_states() -> None:
+    css = read("static/css/signal.css")
+    v2 = read("static/js/v2-search.js")
+
+    assert ".signal-summary-stat--running" in css
+    assert ".signal-summary-stat--uncertain" in css
+    assert ".signal-summary-stat--not_found" in css
+    assert ".signal-summary-stat--pending" in css
+    assert "pending: 0" in v2
+    assert "running: 0" in v2
+    assert "item.className = 'signal-summary-stat signal-summary-stat--' + status" in v2
+
+
+def test_signal_dossier_and_case_footer_format_status_without_zero_noise() -> None:
+    v2 = read("static/js/v2-search.js")
+
+    assert "function signalStatusLabel(status)" in v2
+    assert "createSignalDatum('status', signalStatusLabel(status))" in v2
+    assert "if (item.likely_count) footParts.push('likely '" in v2
+    assert "if (item.blocked_count) footParts.push('blocked '" in v2
+    assert "if (item.error_count) footParts.push('error '" in v2
 
 
 def test_signal_ui_stays_opt_in_without_signal_query() -> None:
@@ -166,9 +202,9 @@ def test_signal_ui_connector_results_and_evidence_are_real_only() -> None:
     v2 = read("static/js/v2-search.js")
 
     assert "sanitizeEvidenceList(payload.evidence)" in v2
-    assert "Evidencias aparecem quando conectores liberam payloads seguros" in v2
-    assert "Signal nao inventa evidencia" in v2
-    assert "Evidencias aparecem apenas quando eventos do backend liberam campos seguros" in read("static/index.html")
+    assert "Evidências aparecem quando conectores liberam payloads seguros" in v2
+    assert "Signal não inventa evidência" in v2
+    assert "Evidências aparecem apenas quando eventos do backend liberam campos seguros" in read("static/index.html")
     assert "davibrito" not in v2
     assert "OathNet 84 left" not in v2
     assert "risk 100" not in v2
@@ -195,7 +231,7 @@ def test_signal_evidence_detail_is_keyboard_selectable_and_grouped() -> None:
     assert "renderSignalEvidenceDetail" in v2
     assert "row.type = 'button'" in v2
     assert "aria-pressed" in v2
-    assert "Sem evidencia liberada" in v2
+    assert "Sem evidência liberada" in v2
     assert ".signal-evidence-detail" in css
     assert ".signal-evidence-row--selected" in css
 
