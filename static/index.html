@@ -17,6 +17,7 @@
 <link rel="stylesheet" href="/static/css/overlays.css?v=2026051901">
 <link rel="stylesheet" href="/static/css/responsive.css?v=2026051901">
 <link rel="stylesheet" href="/static/css/security-hardening.css?v=2026051901">
+<link rel="stylesheet" href="/static/css/signal.css?v=2026052001">
 </head>
 <body>
 
@@ -112,6 +113,61 @@
         </div>
       </div>
     </div>
+
+    <!-- Signal UI foundation: opt-in via ?ui=signal, populated only from real v2 data. -->
+    <section class="signal-shell" id="signalShell" aria-label="Área Signal de investigação" aria-hidden="true">
+      <header class="signal-dossier" aria-labelledby="signalDossierTitle">
+        <div>
+          <p class="signal-kicker">Dossiê do alvo</p>
+          <h2 id="signalDossierTitle">Nenhuma investigação em curso</h2>
+          <p class="signal-muted" id="signalDossierMeta">Inicie uma investigação v2 para carregar contexto hash-only do alvo.</p>
+        </div>
+        <div class="signal-dossier__meta" id="signalDossierBadges" aria-label="Estado do dossiê"></div>
+      </header>
+
+      <div class="signal-layout">
+        <section class="signal-panel signal-panel--layers" aria-labelledby="signalLayersTitle">
+          <div class="signal-panel__header">
+            <div>
+              <p class="signal-kicker">Camadas Signal</p>
+              <h3 id="signalLayersTitle">Ciclo dos conectores</h3>
+            </div>
+            <span class="signal-count" id="signalLayerCount">0 / 0</span>
+          </div>
+          <div class="signal-layer-grid" id="signalLayerGrid" aria-label="Signal layer empty state">
+            <div class="signal-layer signal-layer--empty">
+              <span class="signal-layer__dot"></span>
+              <div>
+                <strong>Nenhum resultado de conector</strong>
+                <p>Signal aguarda eventos reais do motor v2. Sem achados simulados.</p>
+              </div>
+            </div>
+          </div>
+          <section class="signal-layer-summary" aria-label="Resumo dos conectores">
+            <span class="signal-layer-summary__label">Resumo:</span>
+            <div class="signal-output-list" id="signalOutputList"></div>
+          </section>
+        </section>
+
+        <aside class="signal-panel signal-panel--evidence" aria-labelledby="signalEvidenceTitle">
+          <p class="signal-kicker">Fila de evidências</p>
+          <h3 id="signalEvidenceTitle">Nada em fila</h3>
+          <div class="signal-empty" id="signalEvidenceBody">
+            <strong>Sem evidência liberada</strong>
+            <p>Evidências aparecem apenas quando eventos do backend liberam campos seguros. Sem achados simulados.</p>
+          </div>
+        </aside>
+
+        <section class="signal-panel signal-panel--cases" aria-labelledby="signalCasesTitle">
+          <p class="signal-kicker">Casos recentes</p>
+          <h3 id="signalCasesTitle">Casos locais aguardando leitura</h3>
+          <div class="signal-empty" id="signalCasesBody">
+            <strong>Cases ficam só neste navegador</strong>
+            <p>Signal mostra metadados locais seguros quando existirem.</p>
+          </div>
+        </section>
+      </div>
+    </section>
 
     <!-- Scan progress -->
     <div class="scan-status" id="scanStatus">

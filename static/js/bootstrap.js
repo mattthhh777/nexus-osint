@@ -82,6 +82,18 @@ registerAction('jump-to-panel',      function (el, ds) {
 });
 
 // ── User menu ─────────────────────────────────────────
+// Signal UI foundation - query flag only, no persistence or API behavior change.
+function initSignalUiFlag() {
+  const params = new URLSearchParams(window.location.search || '');
+  const active = params.get('ui') === 'signal';
+  window.NX_SIGNAL_UI = active;
+  document.documentElement.classList.toggle('nx-signal', active);
+  document.body.classList.toggle('nx-signal', active);
+
+  const shell = document.getElementById('signalShell');
+  if (shell) shell.setAttribute('aria-hidden', String(!active));
+}
+
 function toggleUserMenu() {
   const dropdown = document.getElementById('userMenuDropdown');
   const trigger  = document.getElementById('navUserTrigger');
@@ -99,6 +111,7 @@ function closeUserMenu() {
 }
 
 // ── Activate delegation and start the app ────────────
+initSignalUiFlag();
 initDelegation();
 init();
 

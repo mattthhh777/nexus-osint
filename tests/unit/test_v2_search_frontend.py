@@ -66,12 +66,209 @@ def test_v2_preserves_likely_and_blocked_statuses() -> None:
 
     assert "status: payload.status" in v2
     assert "status === 'likely'" in v2
-    assert "status === 'blocked'" not in v2
-    assert "blocked" not in v2
+    assert "likely: 0" in v2
+    assert "blocked: 0" in v2
+    assert "blocked: true" in v2
 
 
 def test_v2_does_not_persist_raw_target_history() -> None:
     v2 = read("static/js/v2-search.js")
 
     assert "saveHistory()" not in v2
-    assert "localStorage" not in v2
+    assert "localStorage.setItem" not in v2
+    assert "history.pushState" not in v2
+    assert "history.replaceState" not in v2
+
+
+def test_signal_ui_foundation_is_query_flagged_and_frontend_only() -> None:
+    html = read("static/index.html")
+    bootstrap = read("static/js/bootstrap.js")
+    signal_css = read("static/css/signal.css")
+
+    assert "/static/css/signal.css" in html
+    assert 'id="signalShell"' in html
+    assert "Nenhuma investigação em curso" in html
+    assert "params.get('ui') === 'signal'" in bootstrap
+    assert "window.NX_SIGNAL_UI = active" in bootstrap
+    assert "classList.toggle('nx-signal', active)" in bootstrap
+    assert "localStorage" not in bootstrap
+    assert "document.cookie" not in bootstrap
+    assert "/api/search" not in signal_css
+    assert "/api/v2/search" not in signal_css
+
+
+def test_signal_ui_has_stable_empty_state_containers() -> None:
+    html = read("static/index.html")
+
+    assert 'id="signalDossierMeta"' in html
+    assert 'id="signalDossierBadges"' in html
+    assert 'id="signalLayerCount"' in html
+    assert 'id="signalLayerGrid"' in html
+    assert 'id="signalEvidenceBody"' in html
+    assert 'id="signalOutputList"' in html
+    assert 'id="signalCasesBody"' in html
+    assert "Sem achados simulados" in html
+
+
+def test_signal_ui_idle_markup_has_no_fake_status_or_risk_pills() -> None:
+    html = read("static/index.html")
+    v2 = read("static/js/v2-search.js")
+
+    assert 'aria-label="Área Signal de investigação"' in html
+    assert 'id="signalDossierBadges" aria-label="Estado do dossiê"></div>' in html
+    assert "status idle" not in html
+    assert "confidence pending" not in html
+    assert "risk unavailable" not in html
+    assert "risk unavailable" not in v2
+    assert "pending</span>" not in html
+    assert "found</span>" not in html
+
+
+def test_signal_ui_uses_human_connector_titles() -> None:
+    v2 = read("static/js/v2-search.js")
+
+    assert "'oathnet:breach': 'Breach intel'" in v2
+    assert "'oathnet:stealer': 'Stealer logs'" in v2
+    assert "'oathnet:victims': 'Victim drops'" in v2
+    assert "carrier_lookup: 'Carrier lookup'" in v2
+    assert "'sherlock:github': 'GitHub presence'" in v2
+    assert "'sherlock:reddit': 'Reddit presence'" in v2
+    assert "'sherlock:steam': 'Steam presence'" in v2
+    assert "strong.textContent = connectorLabel(name)" in v2
+    assert "String(connector || 'connector').replace(/[:_]/g, ' ')" not in v2
+
+
+def test_signal_ui_copy_uses_accented_pt_br() -> None:
+    html = read("static/index.html")
+    v2 = read("static/js/v2-search.js")
+
+    assert "Dossiê do alvo" in html
+    assert "Fila de evidências" in html
+    assert "Cases ficam só neste navegador" in html
+    assert "Motor v2 segue desligado até ?engine=v2 estar presente" in v2
+    assert "Evidência indisponível" in v2
+    assert "horário indisponível" in v2
+
+
+def test_signal_summary_status_styles_cover_live_states() -> None:
+    css = read("static/css/signal.css")
+    v2 = read("static/js/v2-search.js")
+
+    assert ".signal-summary-stat--running" in css
+    assert ".signal-summary-stat--uncertain" in css
+    assert ".signal-summary-stat--not_found" in css
+    assert ".signal-summary-stat--pending" in css
+    assert "pending: 0" in v2
+    assert "running: 0" in v2
+    assert "item.className = 'signal-summary-stat signal-summary-stat--' + status" in v2
+
+
+def test_signal_dossier_and_case_footer_format_status_without_zero_noise() -> None:
+    v2 = read("static/js/v2-search.js")
+
+    assert "function signalStatusLabel(status)" in v2
+    assert "createSignalDatum('status', signalStatusLabel(status))" in v2
+    assert "if (item.likely_count) footParts.push('likely '" in v2
+    assert "if (item.blocked_count) footParts.push('blocked '" in v2
+    assert "if (item.error_count) footParts.push('error '" in v2
+
+
+def test_signal_ui_stays_opt_in_without_signal_query() -> None:
+    bootstrap = read("static/js/bootstrap.js")
+    css = read("static/css/signal.css")
+
+    assert "params.get('ui') === 'signal'" in bootstrap
+    assert "classList.toggle('nx-signal', active)" in bootstrap
+    assert ".nx-signal #scanStatus" in css
+    assert ".scan-status {" not in css
+
+
+def test_signal_ui_renders_real_v2_state_without_changing_engine_flag() -> None:
+    v2 = read("static/js/v2-search.js")
+
+    assert "function isSignalUiActive()" in v2
+    assert "getParam('ui') === 'signal'" in v2
+    assert "function renderSignalUi()" in v2
+    assert "renderSignalDossier();" in v2
+    assert "renderSignalLayers();" in v2
+    assert "renderSignalOutput();" in v2
+    assert "renderSignalEvidence();" in v2
+    assert "global.startSearch = startV2Search" in v2
+    assert "getParam('engine') === 'v2'" in v2
+    assert "apiFetch('/api/v2/search'" in v2
+
+
+def test_signal_ui_connector_results_and_evidence_are_real_only() -> None:
+    v2 = read("static/js/v2-search.js")
+
+    assert "sanitizeEvidenceList(payload.evidence)" in v2
+    assert "Evidências aparecem quando conectores liberam payloads seguros" in v2
+    assert "Signal não inventa evidência" in v2
+    assert "Evidências aparecem apenas quando eventos do backend liberam campos seguros" in read("static/index.html")
+    assert "davibrito" not in v2
+    assert "OathNet 84 left" not in v2
+    assert "risk 100" not in v2
+
+
+def test_signal_ui_does_not_render_raw_query_or_persist_target() -> None:
+    v2 = read("static/js/v2-search.js")
+
+    assert "redactRawTarget" in v2
+    assert "Contexto hash-only" in v2
+    assert "title.textContent = currentResult.query" not in v2
+    assert "meta.textContent = currentResult.query" not in v2
+    assert "history.pushState" not in v2
+    assert "history.replaceState" not in v2
+    assert "localStorage.setItem" not in v2
+
+
+def test_signal_evidence_detail_is_keyboard_selectable_and_grouped() -> None:
+    v2 = read("static/js/v2-search.js")
+    css = read("static/css/signal.css")
+
+    assert "selectedSignalEvidenceKey" in v2
+    assert "getSignalEvidenceGroups" in v2
+    assert "renderSignalEvidenceDetail" in v2
+    assert "row.type = 'button'" in v2
+    assert "aria-pressed" in v2
+    assert "Sem evidência liberada" in v2
+    assert ".signal-evidence-detail" in css
+    assert ".signal-evidence-row--selected" in css
+
+
+def test_signal_evidence_sanitizes_sensitive_fields() -> None:
+    v2 = read("static/js/v2-search.js")
+
+    assert "function isSensitiveEvidenceKey" in v2
+    assert "headers?|body|cookies?|tokens?|secrets?" in v2
+    assert "authorization|password|api_?key" in v2
+    assert "detail unavailable" in v2
+    assert "safeEvidenceValue(item, ['detail', 'summary', 'snippet', 'description', 'value', 'message'])" in v2
+    assert "item.headers" not in v2
+    assert "item.body" not in v2
+    assert "item.token" not in v2
+    assert "item.cookie" not in v2
+    assert "item.secret" not in v2
+
+
+def test_signal_cases_only_render_safe_hash_metadata() -> None:
+    v2 = read("static/js/v2-search.js")
+    css = read("static/css/signal.css")
+
+    assert "renderSignalCases" in v2
+    assert "readSignalStorageList('nx_cases')" in v2
+    assert "readSignalStorageList('nx_history')" in v2
+    assert "target_hash ' + shortValue" in v2
+    assert "Entradas legadas com alvo bruto ficam ocultas" in v2
+    assert "localStorage.setItem" not in v2
+    assert ".signal-case-card" in css
+
+
+def test_signal_cases_do_not_render_stored_raw_targets() -> None:
+    v2 = read("static/js/v2-search.js")
+
+    assert "item.name" not in v2
+    assert "item.query" not in v2
+    assert "history-target" not in v2
+    assert "target_hash" in v2
+    assert "Sem metadados seguros de caso" in v2
