@@ -87,7 +87,7 @@ def test_signal_ui_foundation_is_query_flagged_and_frontend_only() -> None:
 
     assert "/static/css/signal.css" in html
     assert 'id="signalShell"' in html
-    assert "No investigation active" in html
+    assert "Nenhuma investigacao em curso" in html
     assert "params.get('ui') === 'signal'" in bootstrap
     assert "window.NX_SIGNAL_UI = active" in bootstrap
     assert "classList.toggle('nx-signal', active)" in bootstrap
@@ -107,7 +107,44 @@ def test_signal_ui_has_stable_empty_state_containers() -> None:
     assert 'id="signalEvidenceBody"' in html
     assert 'id="signalOutputList"' in html
     assert 'id="signalCasesBody"' in html
-    assert "No simulated findings" in html
+    assert "Sem achados simulados" in html
+
+
+def test_signal_ui_idle_markup_has_no_fake_status_or_risk_pills() -> None:
+    html = read("static/index.html")
+    v2 = read("static/js/v2-search.js")
+
+    assert 'id="signalDossierBadges" aria-label="Estado do dossie"></div>' in html
+    assert "status idle" not in html
+    assert "confidence pending" not in html
+    assert "risk unavailable" not in html
+    assert "risk unavailable" not in v2
+    assert "pending</span>" not in html
+    assert "found</span>" not in html
+
+
+def test_signal_ui_uses_human_connector_titles() -> None:
+    v2 = read("static/js/v2-search.js")
+
+    assert "'oathnet:breach': 'Breach intel'" in v2
+    assert "'oathnet:stealer': 'Stealer logs'" in v2
+    assert "'oathnet:victims': 'Victim drops'" in v2
+    assert "carrier_lookup: 'Carrier lookup'" in v2
+    assert "'sherlock:github': 'GitHub presence'" in v2
+    assert "'sherlock:reddit': 'Reddit presence'" in v2
+    assert "'sherlock:steam': 'Steam presence'" in v2
+    assert "strong.textContent = connectorLabel(name)" in v2
+    assert "String(connector || 'connector').replace(/[:_]/g, ' ')" not in v2
+
+
+def test_signal_ui_stays_opt_in_without_signal_query() -> None:
+    bootstrap = read("static/js/bootstrap.js")
+    css = read("static/css/signal.css")
+
+    assert "params.get('ui') === 'signal'" in bootstrap
+    assert "classList.toggle('nx-signal', active)" in bootstrap
+    assert ".nx-signal #scanStatus" in css
+    assert ".scan-status {" not in css
 
 
 def test_signal_ui_renders_real_v2_state_without_changing_engine_flag() -> None:
@@ -122,15 +159,16 @@ def test_signal_ui_renders_real_v2_state_without_changing_engine_flag() -> None:
     assert "renderSignalEvidence();" in v2
     assert "global.startSearch = startV2Search" in v2
     assert "getParam('engine') === 'v2'" in v2
+    assert "apiFetch('/api/v2/search'" in v2
 
 
 def test_signal_ui_connector_results_and_evidence_are_real_only() -> None:
     v2 = read("static/js/v2-search.js")
 
     assert "sanitizeEvidenceList(payload.evidence)" in v2
-    assert "Evidence unavailable until connector results provide evidence payloads" in v2
-    assert "Signal UI will not invent evidence" in v2
-    assert "Evidence rows will render only when backend events provide evidence fields" in read("static/index.html")
+    assert "Evidencias aparecem quando conectores liberam payloads seguros" in v2
+    assert "Signal nao inventa evidencia" in v2
+    assert "Evidencias aparecem apenas quando eventos do backend liberam campos seguros" in read("static/index.html")
     assert "davibrito" not in v2
     assert "OathNet 84 left" not in v2
     assert "risk 100" not in v2
@@ -140,7 +178,7 @@ def test_signal_ui_does_not_render_raw_query_or_persist_target() -> None:
     v2 = read("static/js/v2-search.js")
 
     assert "redactRawTarget" in v2
-    assert "Hash-only target context" in v2
+    assert "Contexto hash-only" in v2
     assert "title.textContent = currentResult.query" not in v2
     assert "meta.textContent = currentResult.query" not in v2
     assert "history.pushState" not in v2
@@ -157,7 +195,7 @@ def test_signal_evidence_detail_is_keyboard_selectable_and_grouped() -> None:
     assert "renderSignalEvidenceDetail" in v2
     assert "row.type = 'button'" in v2
     assert "aria-pressed" in v2
-    assert "No evidence payload provided" in v2
+    assert "Sem evidencia liberada" in v2
     assert ".signal-evidence-detail" in css
     assert ".signal-evidence-row--selected" in css
 
@@ -185,7 +223,7 @@ def test_signal_cases_only_render_safe_hash_metadata() -> None:
     assert "readSignalStorageList('nx_cases')" in v2
     assert "readSignalStorageList('nx_history')" in v2
     assert "target_hash ' + shortValue" in v2
-    assert "Legacy entries with raw targets stay hidden" in v2
+    assert "Entradas legadas com alvo bruto ficam ocultas" in v2
     assert "localStorage.setItem" not in v2
     assert ".signal-case-card" in css
 
@@ -197,4 +235,4 @@ def test_signal_cases_do_not_render_stored_raw_targets() -> None:
     assert "item.query" not in v2
     assert "history-target" not in v2
     assert "target_hash" in v2
-    assert "No safe case metadata available" in v2
+    assert "Sem metadados seguros de caso" in v2

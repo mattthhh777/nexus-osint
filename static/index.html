@@ -115,26 +115,22 @@
     </div>
 
     <!-- Signal UI foundation: opt-in via ?ui=signal, populated only from real v2 data. -->
-    <section class="signal-shell" id="signalShell" aria-label="Signal intelligence workspace" aria-hidden="true">
+    <section class="signal-shell" id="signalShell" aria-label="Area Signal de investigacao" aria-hidden="true">
       <header class="signal-dossier" aria-labelledby="signalDossierTitle">
         <div>
-          <p class="signal-kicker">Target dossier</p>
-          <h2 id="signalDossierTitle">No investigation active</h2>
-          <p class="signal-muted" id="signalDossierMeta">Run a v2 investigation to populate hash-only target context.</p>
+          <p class="signal-kicker">Dossie do alvo</p>
+          <h2 id="signalDossierTitle">Nenhuma investigacao em curso</h2>
+          <p class="signal-muted" id="signalDossierMeta">Inicie uma investigacao v2 para carregar contexto hash-only do alvo.</p>
         </div>
-        <div class="signal-dossier__meta" id="signalDossierBadges" aria-label="Dossier state">
-          <span class="signal-pill signal-pill--idle">status idle</span>
-          <span class="signal-pill">risk unavailable</span>
-          <span class="signal-pill">confidence pending</span>
-        </div>
+        <div class="signal-dossier__meta" id="signalDossierBadges" aria-label="Estado do dossie"></div>
       </header>
 
       <div class="signal-layout">
         <section class="signal-panel signal-panel--layers" aria-labelledby="signalLayersTitle">
           <div class="signal-panel__header">
             <div>
-              <p class="signal-kicker">Signal layers</p>
-              <h3 id="signalLayersTitle">Connector lifecycle</h3>
+              <p class="signal-kicker">Camadas Signal</p>
+              <h3 id="signalLayersTitle">Ciclo dos conectores</h3>
             </div>
             <span class="signal-count" id="signalLayerCount">0 / 0</span>
           </div>
@@ -142,39 +138,33 @@
             <div class="signal-layer signal-layer--empty">
               <span class="signal-layer__dot"></span>
               <div>
-                <strong>No connector results yet</strong>
-                <p>Signal waits for real v2 connector events. No simulated findings.</p>
+                <strong>Nenhum resultado de conector</strong>
+                <p>Signal aguarda eventos reais do motor v2. Sem achados simulados.</p>
               </div>
             </div>
           </div>
+          <section class="signal-layer-summary" aria-labelledby="signalOutputTitle">
+            <p class="signal-kicker">Resumo dos modulos</p>
+            <h3 id="signalOutputTitle">Aguardando dados ao vivo</h3>
+            <div class="signal-output-list" id="signalOutputList"></div>
+          </section>
         </section>
 
         <aside class="signal-panel signal-panel--evidence" aria-labelledby="signalEvidenceTitle">
-          <p class="signal-kicker">Evidence queue</p>
-          <h3 id="signalEvidenceTitle">Nothing queued</h3>
+          <p class="signal-kicker">Fila de evidencias</p>
+          <h3 id="signalEvidenceTitle">Nada em fila</h3>
           <div class="signal-empty" id="signalEvidenceBody">
-            <strong>No client-visible evidence</strong>
-            <p>Evidence rows will render only when backend events provide evidence fields. No simulated findings.</p>
+            <strong>Sem evidencia liberada</strong>
+            <p>Evidencias aparecem apenas quando eventos do backend liberam campos seguros. Sem achados simulados.</p>
           </div>
         </aside>
 
-        <section class="signal-panel signal-panel--output" aria-labelledby="signalOutputTitle">
-          <p class="signal-kicker">Module output</p>
-          <h3 id="signalOutputTitle">Awaiting live module data</h3>
-          <div class="signal-output-list" id="signalOutputList">
-            <span class="signal-pill signal-pill--idle">pending</span>
-            <span class="signal-pill">found</span>
-            <span class="signal-pill signal-pill--likely">likely</span>
-            <span class="signal-pill signal-pill--blocked">blocked</span>
-          </div>
-        </section>
-
         <section class="signal-panel signal-panel--cases" aria-labelledby="signalCasesTitle">
-          <p class="signal-kicker">Recent cases</p>
-          <h3 id="signalCasesTitle">Local cases not loaded here yet</h3>
+          <p class="signal-kicker">Casos recentes</p>
+          <h3 id="signalCasesTitle">Casos locais aguardando leitura</h3>
           <div class="signal-empty" id="signalCasesBody">
-            <strong>Case intelligence shell</strong>
-            <p>DB-backed cases, admin queue, source health, cancel, and retry stay outside R2-4.</p>
+            <strong>Cases ficam so neste navegador</strong>
+            <p>Signal mostra metadados locais seguros quando existirem.</p>
           </div>
         </section>
       </div>

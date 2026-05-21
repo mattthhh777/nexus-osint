@@ -137,8 +137,23 @@
     return connector.split(':')[0];
   }
 
+  var CONNECTOR_LABELS = Object.freeze({
+    'oathnet:breach': 'Breach intel',
+    'oathnet:stealer': 'Stealer logs',
+    'oathnet:victims': 'Victim drops',
+    carrier_lookup: 'Carrier lookup',
+    'sherlock:github': 'GitHub presence',
+    'sherlock:reddit': 'Reddit presence',
+    'sherlock:steam': 'Steam presence'
+  });
+
   function connectorLabel(connector) {
-    return String(connector || 'connector').replace(/[:_]/g, ' ');
+    var name = String(connector || 'connector');
+    if (CONNECTOR_LABELS[name]) return CONNECTOR_LABELS[name];
+
+    var parts = name.split(':');
+    var leaf = parts[parts.length - 1].replace(/_/g, ' ');
+    return leaf.replace(/\b\w/g, function (letter) { return letter.toUpperCase(); });
   }
 
   function escapeRegExp(value) {
@@ -316,7 +331,7 @@
 
   function formatSignalTime(value) {
     var date = new Date(value || '');
-    if (Number.isNaN(date.getTime())) return 'time unavailable';
+    if (Number.isNaN(date.getTime())) return 'horario indisponivel';
     return date.toISOString().slice(0, 16).replace('T', ' ');
   }
 
@@ -326,6 +341,26 @@
     pill.className = 'signal-pill signal-pill--' + statusClass(normalized);
     pill.textContent = label;
     return pill;
+  }
+
+  function createSignalDatum(label, value) {
+    var datum = document.createElement('span');
+    datum.className = 'signal-dossier__datum';
+    var name = document.createElement('span');
+    name.className = 'signal-dossier__datum-label';
+    name.textContent = label;
+    var content = document.createElement('strong');
+    content.className = 'signal-dossier__datum-value';
+    content.textContent = String(value);
+    datum.append(name, content);
+    return datum;
+  }
+
+  function createSignalSummaryStat(status, count) {
+    var item = document.createElement('span');
+    item.className = 'signal-summary-stat signal-summary-stat--' + statusClass(status);
+    item.textContent = status + ' ' + String(count);
+    return item;
   }
 
   function getSignalResults() {
@@ -368,28 +403,28 @@
 
     var v2 = currentResult && currentResult.v2 ? currentResult.v2 : {};
     if (!v2.job_id && !v2.target_hash) {
-      title.textContent = 'No investigation active';
+      title.textContent = 'Nenhuma investigacao em curso';
       meta.textContent = isEngineV2()
-        ? 'Run a v2 investigation to populate hash-only target context.'
-        : 'Signal layout is active. V2 engine remains off until ?engine=v2 is present.';
-      badges.replaceChildren(
-        createSignalPill('status idle', 'pending'),
-        createSignalPill('risk unavailable', 'uncertain'),
-        createSignalPill('confidence pending', 'pending')
-      );
+        ? 'Inicie uma investigacao v2 para carregar contexto hash-only do alvo.'
+        : 'Signal ativo. Motor v2 segue desligado ate ?engine=v2 estar presente.';
+      badges.replaceChildren();
       return;
     }
 
-    title.textContent = String(v2.target_type || 'target') + ' investigation';
-    meta.textContent = 'Hash-only target context. Raw target is not rendered in Signal UI.';
-    badges.replaceChildren(
-      createSignalPill('type ' + String(v2.target_type || 'unknown'), 'running'),
-      createSignalPill('hash ' + shortValue(v2.target_hash, 'pending'), 'uncertain'),
-      createSignalPill('job ' + shortValue(v2.job_id, 'pending'), 'running'),
-      createSignalPill('status ' + String(v2.status || v2.overall_status || 'running'), v2.overall_status || v2.status || 'running'),
-      createSignalPill('confidence ' + String(Number(v2.overall_confidence || 0)), v2.overall_status || 'uncertain'),
-      createSignalPill('risk unavailable', 'uncertain')
-    );
+    var status = String(v2.status || v2.overall_status || 'running');
+    var datums = [
+      createSignalDatum('target_hash', shortValue(v2.target_hash, 'pending')),
+      createSignalDatum('target_type', String(v2.target_type || 'unknown')),
+      createSignalDatum('job_id', shortValue(v2.job_id, 'pending')),
+      createSignalDatum('status', status)
+    ];
+    if (v2.overall_confidence != null) {
+      datums.push(createSignalDatum('confidence', Number(v2.overall_confidence || 0)));
+    }
+
+    title.textContent = 'Investigacao ' + String(v2.target_type || 'target');
+    meta.textContent = 'Contexto hash-only. Alvo bruto nao aparece no Signal.';
+    badges.replaceChildren.apply(badges, datums);
   }
 
   function renderSignalLayers() {
@@ -409,9 +444,9 @@
       var body = document.createElement('div');
       body.className = 'signal-layer__body';
       var strong = document.createElement('strong');
-      strong.textContent = 'No connector results yet';
+      strong.textContent = 'Nenhum resultado de conector';
       var p = document.createElement('p');
-      p.textContent = 'Signal waits for real v2 connector events. No simulated findings.';
+      p.textContent = 'Signal aguarda eventos reais do motor v2. Sem achados simulados.';
       body.append(strong, p);
       empty.append(dot, body);
       grid.replaceChildren(empty);
@@ -439,13 +474,16 @@
       var meta = document.createElement('div');
       meta.className = 'signal-layer__meta';
       if (result) {
-        meta.append(
-          createSignalPill('confidence ' + String(result.confidence_score), status),
-          createSignalPill(result.cache_hit ? 'cache hit' : 'live', 'uncertain'),
-          createSignalPill(String(result.elapsed_ms || 0) + 'ms', 'uncertain')
-        );
+        meta.append(createSignalPill('confidence ' + String(result.confidence_score), status));
+        var runtime = document.createElement('span');
+        runtime.className = 'signal-layer__runtime';
+        runtime.textContent = (result.cache_hit ? 'cache hit' : 'live') + ' / ' + String(result.elapsed_ms || 0) + 'ms';
+        meta.appendChild(runtime);
       } else {
-        meta.append(createSignalPill(status === 'running' ? 'event received' : 'waiting', status));
+        var waiting = document.createElement('span');
+        waiting.className = 'signal-layer__runtime';
+        waiting.textContent = status === 'running' ? 'evento recebido' : 'aguardando evento';
+        meta.appendChild(waiting);
       }
 
       body.append(top, meta);
@@ -461,13 +499,8 @@
 
     var results = getSignalResults();
     if (!results.length) {
-      title.textContent = 'Awaiting live module data';
-      list.replaceChildren(
-        createSignalPill('pending 0', 'pending'),
-        createSignalPill('found 0', 'found'),
-        createSignalPill('likely 0', 'likely'),
-        createSignalPill('blocked 0', 'blocked')
-      );
+      title.textContent = 'Aguardando dados ao vivo';
+      list.replaceChildren(makeSignalEmptyMessage('Resumo aparece quando conectores reais responderem.'));
       return;
     }
 
@@ -484,36 +517,14 @@
       if (Object.prototype.hasOwnProperty.call(counts, status)) counts[status] += 1;
     });
 
-    var statusRow = document.createElement('div');
-    statusRow.className = 'signal-output-list';
+    list.replaceChildren();
     Object.keys(counts).forEach(function (status) {
-      statusRow.appendChild(createSignalPill(status + ' ' + String(counts[status]), status));
+      if (counts[status]) {
+        list.appendChild(createSignalSummaryStat(status, counts[status]));
+      }
     });
 
-    var cards = document.createElement('div');
-    cards.className = 'signal-module-list';
-    results.forEach(function (result) {
-      var status = normalizeStatus(result.status);
-      var card = document.createElement('div');
-      card.className = 'signal-module-card signal-module-card--' + status;
-      var header = document.createElement('div');
-      header.className = 'signal-module-title';
-      var name = document.createElement('span');
-      name.textContent = connectorLabel(result.connector);
-      header.append(name, createSignalPill(status, status));
-      var meta = document.createElement('div');
-      meta.className = 'signal-module-meta';
-      meta.append(
-        createSignalPill('confidence ' + String(result.confidence_score), status),
-        createSignalPill(result.confidence_level || 'none', status),
-        createSignalPill(String(result.elapsed_ms || 0) + 'ms', 'uncertain')
-      );
-      card.append(header, meta);
-      cards.appendChild(card);
-    });
-
-    title.textContent = 'Live connector output';
-    list.replaceChildren(statusRow, cards);
+    title.textContent = 'Resumo dos conectores';
   }
 
   function makeSignalEvidenceKey(connector, index) {
@@ -557,12 +568,12 @@
   function renderSignalEvidenceDetail(detailHost, selected) {
     var title = document.createElement('h4');
     title.className = 'signal-evidence-detail__title';
-    title.textContent = selected ? 'Evidence detail' : 'Evidence detail unavailable';
+    title.textContent = selected ? 'Detalhe da evidencia' : 'Detalhe indisponivel';
 
     if (!selected) {
       var empty = document.createElement('p');
       empty.className = 'signal-evidence-empty-note';
-      empty.textContent = 'Select an evidence row to inspect sanitized detail.';
+      empty.textContent = 'Selecione uma evidencia para inspecionar detalhe sanitizado.';
       detailHost.replaceChildren(title, empty);
       return;
     }
@@ -580,7 +591,7 @@
 
     var detail = document.createElement('p');
     detail.className = 'signal-evidence-detail__body';
-    detail.textContent = item.detail || 'detail unavailable';
+    detail.textContent = item.detail || 'detalhe indisponivel';
 
     detailHost.replaceChildren(title, meta, detail);
   }
@@ -594,13 +605,13 @@
     var evidence = flattenSignalEvidence(groups);
 
     if (!evidence.length) {
-      title.textContent = getSignalResults().length ? 'Evidence unavailable' : 'Nothing queued';
+      title.textContent = getSignalResults().length ? 'Evidencia indisponivel' : 'Nada em fila';
       var strong = document.createElement('strong');
-      strong.textContent = 'No client-visible evidence';
+      strong.textContent = 'Sem evidencia liberada';
       var p = document.createElement('p');
       p.textContent = getSignalResults().length
-        ? 'Evidence unavailable until connector results provide evidence payloads. Signal UI will not invent evidence.'
-        : 'Evidence unavailable until connector results arrive. No simulated findings.';
+        ? 'Evidencias aparecem quando conectores liberam payloads seguros. Signal nao inventa evidencia.'
+        : 'Evidencias aguardam resultados reais dos conectores. Sem achados simulados.';
       body.className = 'signal-empty';
       var emptyGroups = document.createElement('div');
       emptyGroups.className = 'signal-evidence-list';
@@ -612,14 +623,14 @@
         var name = document.createElement('strong');
         name.textContent = connectorLabel(group.connector);
         heading.append(name, createSignalPill(group.status, group.status));
-        groupEl.append(heading, makeSignalEmptyMessage('No evidence payload provided'));
+        groupEl.append(heading, makeSignalEmptyMessage('Sem evidencia liberada'));
         emptyGroups.appendChild(groupEl);
       });
       body.replaceChildren(strong, p, emptyGroups);
       return;
     }
 
-    title.textContent = 'Evidence received';
+    title.textContent = 'Evidencia recebida';
     if (!evidence.some(function (entry) { return entry.key === selectedSignalEvidenceKey; })) {
       selectedSignalEvidenceKey = evidence[0].key;
     }
@@ -643,7 +654,7 @@
       groupEl.appendChild(heading);
 
       if (!group.evidence.length) {
-        groupEl.appendChild(makeSignalEmptyMessage('No evidence payload provided'));
+        groupEl.appendChild(makeSignalEmptyMessage('Sem evidencia liberada'));
       }
 
       group.evidence.forEach(function (item, index) {
@@ -755,20 +766,20 @@
 
     var safeCases = getSafeSignalCases();
     if (!safeCases.length) {
-      title.textContent = 'No safe local cases';
+      title.textContent = 'Nenhum caso local seguro';
       var strong = document.createElement('strong');
-      strong.textContent = 'No safe case metadata available';
+      strong.textContent = 'Sem metadados seguros de caso';
       var p = document.createElement('p');
-      p.textContent = 'Signal shows only local cases with target_hash metadata. Legacy entries with raw targets stay hidden.';
+      p.textContent = 'Signal mostra apenas casos locais com target_hash. Entradas legadas com alvo bruto ficam ocultas.';
       var foot = document.createElement('p');
       foot.className = 'signal-case-footnote';
-      foot.textContent = 'Local only. Nothing is persisted server-side in R2-4.';
+      foot.textContent = 'Cases ficam so neste navegador.';
       body.className = 'signal-empty';
       body.replaceChildren(strong, p, foot);
       return;
     }
 
-    title.textContent = 'Recent safe cases';
+    title.textContent = 'Casos recentes';
     var list = document.createElement('div');
     list.className = 'signal-case-list';
     safeCases.forEach(function (item) {
@@ -777,8 +788,8 @@
       var top = document.createElement('div');
       top.className = 'signal-case-card__top';
       var heading = document.createElement('strong');
-      heading.textContent = String(item.target_type || 'target') + ' case';
-      top.append(heading, createSignalPill(item.status, item.status));
+      heading.textContent = 'Caso ' + String(item.target_type || 'target');
+      top.appendChild(heading);
 
       var hash = document.createElement('div');
       hash.className = 'signal-case-card__hash';
@@ -788,15 +799,16 @@
       meta.className = 'signal-case-card__meta';
       meta.append(
         createSignalPill('confidence ' + String(item.confidence || 0), item.status),
-        createSignalPill('found ' + String(item.found_count || 0), 'found'),
-        createSignalPill('likely ' + String(item.likely_count || 0), 'likely'),
-        createSignalPill('blocked ' + String(item.blocked_count || 0), 'blocked'),
-        createSignalPill('error ' + String(item.error_count || 0), 'error')
+        createSignalPill('found ' + String(item.found_count || 0), 'found')
       );
 
       var foot = document.createElement('p');
       foot.className = 'signal-case-footnote';
-      foot.textContent = 'stored locally · ' + formatSignalTime(item.timestamp);
+      foot.textContent = 'status ' + item.status
+        + ' / likely ' + String(item.likely_count || 0)
+        + ' / blocked ' + String(item.blocked_count || 0)
+        + ' / error ' + String(item.error_count || 0)
+        + ' / local ' + formatSignalTime(item.timestamp);
 
       card.append(top, hash, meta, foot);
       list.appendChild(card);

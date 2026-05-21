@@ -29,6 +29,10 @@
   margin: 0;
 }
 
+.nx-signal #scanStatus {
+  display: none;
+}
+
 .nx-signal .signal-shell {
   display: grid;
   gap: 14px;
@@ -89,11 +93,41 @@
   font-size: var(--text-sm, 0.8125rem);
 }
 
-.signal-dossier__meta,
+.signal-dossier__meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 8px;
+  width: min(560px, 100%);
+}
+
 .signal-output-list {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.signal-dossier__datum {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid var(--border-1, rgba(255, 255, 255, 0.05));
+  border-radius: var(--radius-sm, 4px);
+  color: var(--text-2, #9ba3b5);
+  background: var(--surface-2, #1d2230);
+}
+
+.signal-dossier__datum-label {
+  color: var(--text-3, #5d6478);
+  font: 700 var(--text-2xs, 0.6875rem) / 1.1 var(--font-data, monospace);
+  text-transform: uppercase;
+}
+
+.signal-dossier__datum-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-1, #e8ecf3);
+  font: 700 var(--text-xs, 0.75rem) / 1.3 var(--font-data, monospace);
 }
 
 .signal-pill,
@@ -126,8 +160,8 @@
 
 .signal-pill--found,
 .signal-layer--found .signal-layer__dot {
-  color: var(--status-found, #4fbf7f);
-  border-color: color-mix(in srgb, var(--status-found, #4fbf7f) 45%, transparent);
+  color: var(--status-found, #6ba368);
+  border-color: color-mix(in srgb, var(--status-found, #6ba368) 45%, transparent);
 }
 
 .signal-pill--error,
@@ -159,7 +193,7 @@
   grid-template-columns: minmax(0, 1.5fr) minmax(260px, 0.75fr);
   grid-template-areas:
     "layers evidence"
-    "output cases";
+    "layers cases";
   gap: 14px;
 }
 
@@ -174,10 +208,6 @@
 
 .signal-panel--evidence {
   grid-area: evidence;
-}
-
-.signal-panel--output {
-  grid-area: output;
 }
 
 .signal-panel--cases {
@@ -218,7 +248,7 @@
 }
 
 .signal-layer--found {
-  color: var(--status-found, #4fbf7f);
+  color: var(--status-found, #6ba368);
 }
 
 .signal-layer--likely {
@@ -273,7 +303,6 @@
 }
 
 .signal-layer__meta,
-.signal-module-meta,
 .signal-evidence-row__meta {
   display: flex;
   flex-wrap: wrap;
@@ -297,6 +326,62 @@
   flex: 0 0 auto;
 }
 
+.signal-layer__runtime,
+.signal-summary-stat,
+.signal-case-footnote {
+  color: var(--text-3, #5d6478);
+  font: 700 var(--text-xs, 0.75rem) / 1.35 var(--font-data, monospace);
+}
+
+.signal-layer__runtime {
+  align-self: center;
+}
+
+.signal-layer-summary {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-1, rgba(255, 255, 255, 0.05));
+}
+
+.signal-layer-summary .signal-kicker {
+  margin-bottom: 0;
+}
+
+.signal-summary-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 0;
+  color: var(--text-2, #9ba3b5);
+  white-space: nowrap;
+}
+
+.signal-summary-stat::before {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill, 999px);
+  background: currentColor;
+  content: "";
+}
+
+.signal-summary-stat--found {
+  color: var(--status-found, #6ba368);
+}
+
+.signal-summary-stat--likely {
+  color: var(--status-likely, #c19443);
+}
+
+.signal-summary-stat--blocked {
+  color: var(--status-blocked, #8b6a5e);
+}
+
+.signal-summary-stat--error {
+  color: var(--status-error, #d75f5f);
+}
+
 .signal-empty {
   margin-top: 14px;
   padding: 12px;
@@ -305,7 +390,6 @@
   background: color-mix(in srgb, var(--surface-2, #1d2230) 76%, transparent);
 }
 
-.signal-module-list,
 .signal-evidence-list {
   display: grid;
   gap: 10px;
@@ -317,7 +401,6 @@
   gap: 12px;
 }
 
-.signal-module-card,
 .signal-evidence-row {
   min-width: 0;
   padding: 12px;
@@ -339,15 +422,6 @@
 .signal-evidence-row--selected {
   border-color: color-mix(in srgb, var(--accent, #c4451d) 48%, var(--border-2, rgba(255, 255, 255, 0.09)));
   outline: none;
-}
-
-.signal-module-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  color: var(--text-1, #e8ecf3);
-  font: 700 var(--text-sm, 0.8125rem) / 1.25 var(--font-display, system-ui, sans-serif);
 }
 
 .signal-evidence-group {
@@ -420,7 +494,7 @@
 }
 
 .signal-case-card--found {
-  border-left-color: var(--status-found, #4fbf7f);
+  border-left-color: var(--status-found, #6ba368);
 }
 
 .signal-case-card--likely {
@@ -466,8 +540,6 @@
 
 .signal-case-footnote {
   margin: 0;
-  color: var(--text-3, #5d6478);
-  font-size: var(--text-xs, 0.75rem);
 }
 
 @media (max-width: 840px) {
@@ -484,7 +556,40 @@
     grid-template-areas:
       "layers"
       "evidence"
-      "output"
       "cases";
+  }
+}
+
+@media (max-width: 600px) {
+  .nx-signal .hero,
+  .signal-panel,
+  .signal-dossier {
+    padding: 12px;
+  }
+
+  .signal-dossier__meta {
+    grid-template-columns: 1fr;
+  }
+
+  .signal-layer,
+  .signal-layer__top,
+  .signal-case-card__top,
+  .signal-panel__header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .signal-layer__meta,
+  .signal-case-card__meta,
+  .signal-output-list {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .signal-pill,
+  .signal-summary-stat,
+  .signal-count {
+    max-width: 100%;
+    white-space: normal;
   }
 }
