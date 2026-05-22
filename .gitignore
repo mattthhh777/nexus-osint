@@ -47,6 +47,7 @@ node_modules/
 test-results/
 playwright-report/
 tests/e2e/.report/
+.playwright-mcp/
 
 # SQLite runtime files
 nexus_osint.db
