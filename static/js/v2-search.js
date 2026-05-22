@@ -33,6 +33,12 @@
     if (target) target.replaceChildren();
   }
 
+  function clearSignalSearchInput() {
+    if (!isSignalUiActive()) return;
+    var input = document.getElementById('searchInput');
+    if (input) input.value = '';
+  }
+
   function detectSupportedTargetType(query) {
     var detected = typeof detectType === 'function' ? detectType(query) : 'username';
     if (SUPPORTED_TARGET_TYPES[detected]) return detected;
@@ -999,6 +1005,7 @@
 
     try {
       var created = await createJob(query, targetType);
+      clearSignalSearchInput();
       currentResult.v2.job_id = created.job_id;
       currentResult.v2.sse_url = created.sse_url;
       renderSignalUi();

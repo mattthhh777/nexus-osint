@@ -115,6 +115,20 @@ def test_signal_ui_neutralizes_legacy_raw_target_surface_only_when_flagged() -> 
     assert "if (!isSignalUiActive()) return;" in v2
     assert "if (target) target.replaceChildren();" in v2
     assert "neutralizeSignalLegacyResults();\n        renderSignalUi();\n        return;" in v2
+    assert "function clearSignalSearchInput()" in v2
+    assert "var input = document.getElementById('searchInput');" in v2
+    assert "if (input) input.value = '';" in v2
+
+
+def test_signal_ui_clears_captured_v2_input_without_changing_request_or_legacy_input() -> None:
+    v2 = read("static/js/v2-search.js")
+    legacy = read("static/js/search.js")
+
+    assert "target_value: query" in v2
+    assert "if (!isSignalUiActive()) return;\n    var input = document.getElementById('searchInput');" in v2
+    assert "var created = await createJob(query, targetType);\n      clearSignalSearchInput();" in v2
+    assert "document.getElementById('searchInput').value.trim()" in legacy
+    assert "clearSignalSearchInput" not in legacy
 
 
 def test_signal_ui_has_stable_empty_state_containers() -> None:
