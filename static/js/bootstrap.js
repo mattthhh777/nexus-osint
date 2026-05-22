@@ -92,6 +92,21 @@ function initSignalUiFlag() {
 
   const shell = document.getElementById('signalShell');
   if (shell) shell.setAttribute('aria-hidden', String(!active));
+  if (active) neutralizeSignalLegacyResultTarget();
+}
+
+function neutralizeSignalLegacyResultTarget() {
+  const target = document.getElementById('resTarget');
+  if (!target) return;
+
+  const clearTarget = function () { target.replaceChildren(); };
+  clearTarget();
+  Object.defineProperty(target, 'textContent', {
+    configurable: true,
+    get: function () { return ''; },
+    set: clearTarget
+  });
+  new MutationObserver(clearTarget).observe(target, { childList: true, characterData: true, subtree: true });
 }
 
 function toggleUserMenu() {

@@ -76,6 +76,7 @@ def test_v2_does_not_persist_raw_target_history() -> None:
 
     assert "saveHistory()" not in v2
     assert "localStorage.setItem" not in v2
+    assert "sessionStorage.setItem" not in v2
     assert "history.pushState" not in v2
     assert "history.replaceState" not in v2
 
@@ -93,8 +94,27 @@ def test_signal_ui_foundation_is_query_flagged_and_frontend_only() -> None:
     assert "classList.toggle('nx-signal', active)" in bootstrap
     assert "localStorage" not in bootstrap
     assert "document.cookie" not in bootstrap
+    assert "/api/v2/search" not in bootstrap
     assert "/api/search" not in signal_css
     assert "/api/v2/search" not in signal_css
+
+
+def test_signal_ui_neutralizes_legacy_raw_target_surface_only_when_flagged() -> None:
+    bootstrap = read("static/js/bootstrap.js")
+    css = read("static/css/signal.css")
+    v2 = read("static/js/v2-search.js")
+
+    assert ".nx-signal #results" in css
+    assert "\n#results {" not in css
+    assert "if (active) neutralizeSignalLegacyResultTarget();" in bootstrap
+    assert "document.getElementById('resTarget')" in bootstrap
+    assert "target.replaceChildren();" in bootstrap
+    assert "Object.defineProperty(target, 'textContent'" in bootstrap
+    assert "new MutationObserver" in bootstrap
+    assert "function neutralizeSignalLegacyResults()" in v2
+    assert "if (!isSignalUiActive()) return;" in v2
+    assert "if (target) target.replaceChildren();" in v2
+    assert "neutralizeSignalLegacyResults();\n        renderSignalUi();\n        return;" in v2
 
 
 def test_signal_ui_has_stable_empty_state_containers() -> None:

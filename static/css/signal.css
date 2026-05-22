@@ -33,6 +33,10 @@
   display: none;
 }
 
+.nx-signal #results {
+  display: none;
+}
+
 .nx-signal .signal-shell {
   display: grid;
   gap: 14px;

@@ -25,6 +25,14 @@
     return global.NX_SIGNAL_UI === true || getParam('ui') === 'signal';
   }
 
+  function neutralizeSignalLegacyResults() {
+    if (!isSignalUiActive()) return;
+    var results = document.getElementById('results');
+    var target = document.getElementById('resTarget');
+    if (results) results.classList.remove('visible');
+    if (target) target.replaceChildren();
+  }
+
   function detectSupportedTargetType(query) {
     var detected = typeof detectType === 'function' ? detectType(query) : 'username';
     if (SUPPORTED_TARGET_TYPES[detected]) return detected;
@@ -825,6 +833,7 @@
 
   function renderSignalUi() {
     if (!isSignalUiActive()) return;
+    neutralizeSignalLegacyResults();
     renderSignalCases();
     if (!currentResult || !currentResult.v2) return;
     renderSignalDossier();
@@ -965,6 +974,11 @@
   function finalizeSearch() {
     setTimeout(function () {
       document.getElementById('scanStatus').classList.remove('visible');
+      if (isSignalUiActive()) {
+        neutralizeSignalLegacyResults();
+        renderSignalUi();
+        return;
+      }
       renderResults();
       renderV2ConnectorSummary();
       // V2 job history remains hash-only server-side; do not persist raw targets.
